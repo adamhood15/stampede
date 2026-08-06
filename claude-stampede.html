@@ -1,0 +1,1119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Typhoon Texas — Ride the Teaser</title>
+<style>
+  /* ============================================================
+     DESIGN TOKENS
+     Palette: Gulf-coast flume water + lifeguard safety signage
+     =============================∫=============================== */
+  :root{
+    --deep:      #06283c;   /* deep water / background */
+    --deeper:    #041c2b;
+    --flume:     #16c4d9;   /* chute cyan */
+    --aqua:      #7ff0e4;   /* shallow water highlight */
+    --foam:      #f2fbff;   /* white water */
+    --safety:    #ff6b2c;   /* lifeguard orange */
+    --sun:       #ffce2e;   /* Texas sun */
+    --shadow:    rgba(4,20,32,.55);
+
+    --display: "Haettenschweiler","Arial Narrow","Impact","Franklin Gothic Bold",
+               "Helvetica Neue",Arial,sans-serif;
+    --mono: ui-monospace,"SF Mono",Menlo,Consolas,"Roboto Mono",monospace;
+  }
+
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;overflow:hidden;background:var(--deeper)}
+  body{
+    font-family:var(--mono);
+    color:var(--foam);
+    -webkit-user-select:none;user-select:none;
+    touch-action:none;
+  }
+
+  #stage{position:fixed;inset:0;overflow:hidden}
+  canvas{display:block;width:100%;height:100%}
+
+  /* ---------- shared signage type ---------- */
+  .marquee{
+    font-family:var(--display);
+    font-weight:400;
+    text-transform:uppercase;
+    letter-spacing:.02em;
+    transform:skewX(-7deg);
+    line-height:.86;
+  }
+
+  /* ---------- HUD: styled as a ride status board ---------- */
+  #hud{
+    position:absolute;inset:0;pointer-events:none;
+    padding:calc(env(safe-area-inset-top,0px) + 14px) 16px 16px;
+    display:none;
+    justify-content:space-between;
+    align-items:flex-start;
+    font-size:12px;
+    letter-spacing:.12em;
+  }
+  #hud.on{display:flex}
+  .board{
+    background:rgba(4,28,43,.62);
+    border:1px solid rgba(127,240,228,.28);
+    border-radius:3px;
+    padding:7px 11px 8px;
+    backdrop-filter:blur(3px);
+  }
+  .board .lbl{
+    display:block;font-size:9px;letter-spacing:.22em;
+    color:var(--aqua);opacity:.75;margin-bottom:3px;
+  }
+  .board .val{
+    display:block;font-size:24px;line-height:1;
+    font-variant-numeric:tabular-nums;
+  }
+  .board .val.sm{font-size:15px}
+  #hudRight{text-align:right}
+  #tubes{margin-top:9px;display:flex;gap:5px;justify-content:flex-end}
+  .tube{
+    width:15px;height:15px;border-radius:50%;
+    border:3px solid var(--safety);
+    box-shadow:0 0 0 1px rgba(4,20,32,.6);
+  }
+  .tube.spent{border-color:rgba(242,251,255,.22)}
+
+  /* speed meter — chevrons, the safety-stencil motif */
+  #speedbar{
+    position:absolute;left:50%;transform:translateX(-50%);
+    bottom:calc(env(safe-area-inset-bottom,0px) + 14px);
+    display:flex;gap:3px;
+  }
+  #speedbar i{
+    width:9px;height:16px;
+    background:rgba(242,251,255,.14);
+    clip-path:polygon(0 0,55% 0,100% 50%,55% 100%,0 100%,45% 50%);
+    transition:background .12s;
+  }
+  #speedbar i.lit{background:var(--sun)}
+
+  /* ---------- full-screen panels ---------- */
+  .panel{
+    position:absolute;inset:0;
+    display:none;flex-direction:column;
+    align-items:center;justify-content:center;
+    text-align:center;padding:26px;
+    background:radial-gradient(120% 90% at 50% 20%,rgba(6,40,60,.72),rgba(4,20,32,.94));
+  }
+  .panel.on{display:flex}
+
+  .eyebrow{
+    font-size:10px;letter-spacing:.42em;text-transform:uppercase;
+    color:var(--aqua);opacity:.85;margin-bottom:14px;
+  }
+  .ride{
+    font-family:var(--display);text-transform:uppercase;transform:skewX(-7deg);
+    font-size:clamp(52px,17vw,132px);line-height:.82;
+    color:var(--foam);
+    text-shadow:5px 5px 0 var(--safety), 10px 10px 0 rgba(4,20,32,.45);
+    margin:0;
+  }
+  .park{
+    font-family:var(--display);text-transform:uppercase;transform:skewX(-7deg);
+    font-size:clamp(15px,4.4vw,24px);letter-spacing:.06em;
+    color:var(--sun);margin:0 0 6px;
+  }
+  .tag{
+    margin:20px 0 0;font-size:12px;letter-spacing:.16em;
+    text-transform:uppercase;color:rgba(242,251,255,.72);max-width:30ch;
+    line-height:1.7;
+  }
+
+  .btn{
+    pointer-events:auto;cursor:pointer;
+    font-family:var(--display);text-transform:uppercase;transform:skewX(-7deg);
+    font-size:26px;letter-spacing:.03em;
+    color:var(--deeper);background:var(--sun);
+    border:0;border-radius:2px;
+    padding:13px 34px 15px;
+    margin-top:30px;
+    box-shadow:0 5px 0 #c79a12;
+    transition:transform .08s,box-shadow .08s;
+  }
+  .btn:active{transform:skewX(-7deg) translateY(4px);box-shadow:0 1px 0 #c79a12}
+  .btn.ghost{
+    background:transparent;color:var(--foam);
+    border:2px solid rgba(127,240,228,.5);box-shadow:none;
+    font-size:17px;padding:11px 24px 12px;margin-top:14px;
+  }
+  .btn.ghost:active{transform:skewX(-7deg) translateY(2px)}
+  .btn:focus-visible,#mute:focus-visible{outline:3px solid var(--aqua);outline-offset:3px}
+
+  .keys{
+    margin-top:34px;display:flex;gap:22px;flex-wrap:wrap;justify-content:center;
+    font-size:10px;letter-spacing:.16em;text-transform:uppercase;
+    color:rgba(242,251,255,.55);
+  }
+  .keys b{display:block;color:var(--aqua);font-size:15px;margin-bottom:4px;letter-spacing:.05em}
+
+  /* scorecard on the wipeout panel */
+  #stats{
+    display:flex;gap:0;margin-top:26px;
+    border:1px solid rgba(127,240,228,.28);border-radius:3px;overflow:hidden;
+  }
+  #stats div{padding:12px 22px 13px;background:rgba(4,28,43,.6)}
+  #stats div + div{border-left:1px solid rgba(127,240,228,.28)}
+  #stats span{display:block;font-size:9px;letter-spacing:.22em;color:var(--aqua);opacity:.75;margin-bottom:4px}
+  #stats strong{font-weight:400;font-size:27px;font-variant-numeric:tabular-nums}
+
+  /* ---------- the reveal beat ---------- */
+  #reveal{
+    position:absolute;inset:0;display:none;
+    align-items:center;justify-content:center;flex-direction:column;
+    pointer-events:none;text-align:center;padding:20px;
+  }
+  #reveal.on{display:flex;animation:flashIn .5s ease-out}
+  #reveal .slab{
+    background:var(--safety);
+    padding:16px 30px 20px;
+    transform:skewX(-7deg) rotate(-2.5deg);
+    box-shadow:0 14px 40px rgba(4,20,32,.6);
+    animation:slam .45s cubic-bezier(.16,1.4,.4,1);
+  }
+  #reveal .slab .k{
+    font-size:10px;letter-spacing:.4em;text-transform:uppercase;
+    color:rgba(4,20,32,.7);margin-bottom:7px;
+  }
+  #reveal .slab .n{
+    font-family:var(--display);text-transform:uppercase;
+    font-size:clamp(40px,12vw,92px);line-height:.85;color:var(--foam);
+  }
+  @keyframes slam{from{transform:skewX(-7deg) rotate(-2.5deg) scale(2.1);opacity:0}
+                  to{transform:skewX(-7deg) rotate(-2.5deg) scale(1);opacity:1}}
+  @keyframes flashIn{from{background:rgba(242,251,255,.85)}to{background:transparent}}
+
+  /* wipeout flash */
+  #flash{position:absolute;inset:0;background:var(--safety);opacity:0;pointer-events:none;transition:opacity .18s}
+
+  #mute{
+    position:absolute;top:calc(env(safe-area-inset-top,0px) + 14px);left:50%;
+    transform:translateX(-50%);
+    pointer-events:auto;cursor:pointer;
+    background:rgba(4,28,43,.62);border:1px solid rgba(127,240,228,.28);
+    color:var(--aqua);border-radius:3px;
+    font-family:var(--mono);font-size:9px;letter-spacing:.18em;
+    padding:8px 10px;
+  }
+
+  #hint{
+    position:absolute;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 44px);
+    transform:translateX(-50%);
+    font-size:10px;letter-spacing:.2em;text-transform:uppercase;
+    color:rgba(242,251,255,.5);pointer-events:none;
+    transition:opacity .6s;
+  }
+
+  @media (prefers-reduced-motion:reduce){
+    #reveal.on,#reveal .slab{animation:none}
+  }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="game" aria-label="Waterslide runner game"></canvas>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="board">
+      <span class="lbl">Descent</span>
+      <span class="val" id="dist">0<small style="font-size:12px"> m</small></span>
+    </div>
+    <div id="hudRight">
+      <div class="board">
+        <span class="lbl">Score</span>
+        <span class="val sm" id="score">0</span>
+      </div>
+      <div id="tubes"></div>
+    </div>
+    <div id="speedbar"></div>
+    <div id="hint">Swipe or use arrow keys</div>
+  </div>
+
+  <!-- TITLE -->
+  <div class="panel on" id="titlePanel">
+    <div class="eyebrow">Now testing at Typhoon Texas</div>
+    <p class="park" id="parkName">Typhoon Texas</p>
+    <h1 class="ride" id="rideName">The Riptide</h1>
+    <p class="tag" id="tagline">Six stories of freefall. Ride the teaser now — ride the real one this summer.</p>
+    <button class="btn" id="playBtn" type="button">Drop In</button>
+    <div class="keys">
+      <div><b>← →</b>Change lane</div>
+      <div><b>↑</b>Launch</div>
+      <div><b>↓</b>Tuck</div>
+    </div>
+  </div>
+
+  <!-- WIPEOUT -->
+  <div class="panel" id="overPanel">
+    <div class="eyebrow" id="overKicker">Wipeout</div>
+    <h2 class="ride" style="font-size:clamp(40px,12vw,86px)" id="overTitle">Nice Run</h2>
+    <div id="stats">
+      <div><span>Descent</span><strong id="fDist">0</strong></div>
+      <div><span>Score</span><strong id="fScore">0</strong></div>
+      <div><span>Best</span><strong id="fBest">0</strong></div>
+    </div>
+    <p class="tag" id="overTag">The real drop opens this summer.</p>
+    <button class="btn" id="againBtn" type="button">Ride Again</button>
+    <button class="btn ghost" id="ctaBtn" type="button">Get Season Passes</button>
+  </div>
+
+  <!-- MID-RUN REVEAL -->
+  <div id="reveal">
+    <div class="slab">
+      <div class="k">Coming Summer 2026</div>
+      <div class="n" id="revealName">The Riptide</div>
+    </div>
+  </div>
+
+  <button id="mute" type="button">SOUND ON</button>
+  <div id="flash"></div>
+</div>
+
+<script>
+"use strict";
+/* ==================================================================
+   TYPHOON TEXAS — SLIDE TEASER
+   A pseudo-3D endless flume runner. Single file, no dependencies.
+
+   >>> EVERYTHING MARKETING NEEDS TO CHANGE LIVES IN `CONFIG` BELOW <<<
+   ================================================================== */
+
+const CONFIG = {
+  parkName:   "Typhoon Texas",
+  rideName:   "The Riptide",      // your new slide's real name
+  tagline:    "Six stories of freefall. Ride the teaser now — ride the real one this summer.",
+
+  openingLine: "Coming Summer 2026",
+  revealAt:    450,               // meters until the ride-name reveal fires
+  lives:       3,                 // forgiving on purpose — more play = more brand time
+
+  ctaLabel:  "Get Season Passes",
+  ctaUrl:    "",                  // e.g. "https://typhoontexas.com/tickets" — blank hides button
+  overTag:   "The real drop opens this summer.",
+
+  startSpeed: 15,
+  maxSpeed:   36,
+  accel:      0.34
+};
+
+/* ---------- wire config into the DOM ---------- */
+const $ = (id) => document.getElementById(id);
+$("parkName").textContent   = CONFIG.parkName;
+$("rideName").textContent   = CONFIG.rideName;
+$("revealName").textContent = CONFIG.rideName;
+$("tagline").textContent    = CONFIG.tagline;
+$("overTag").textContent    = CONFIG.overTag;
+$("ctaBtn").textContent     = CONFIG.ctaLabel;
+$("reveal").querySelector(".k").textContent = CONFIG.openingLine;
+if (!CONFIG.ctaUrl) $("ctaBtn").style.display = "none";
+document.title = CONFIG.parkName + " — " + CONFIG.rideName;
+
+/* ==================================================================
+   1. CANVAS + CAMERA
+   ================================================================== */
+const cv = $("game");
+const ctx = cv.getContext("2d");
+let W = 0, H = 0, DPR = 1, focal = 600, horizon = 300;
+
+function resize(){
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  W = window.innerWidth;
+  H = window.innerHeight;
+  cv.width  = Math.floor(W * DPR);
+  cv.height = Math.floor(H * DPR);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  // Tube radius is 1 world unit. Clamping against width keeps the chute
+  // framed on tall portrait phones instead of swallowing the screen.
+  focal   = Math.min(H * 1.05, W * 1.55);
+  horizon = H * 0.44;
+}
+window.addEventListener("resize", resize);
+resize();
+
+const CAM_DZ   = 3.2;      // camera sits this far behind the rider
+const CAM_UP   = 0.62;     // camera height above the chute centreline
+const DRAW_FAR = 96;       // draw distance in world units
+const A_MAX    = 1.26;     // half-pipe opening (radians from the bottom)
+const LANE_A   = 0.55;     // lane spacing in radians
+
+// The chute winds and rolls. Both are functions of absolute world z,
+// so the geometry, the obstacles and the camera all agree.
+const curveX = (z) => Math.sin(z * 0.018) * 2.6 + Math.sin(z * 0.0053) * 3.4;
+const curveY = (z) => Math.sin(z * 0.013) * 0.75 + Math.sin(z * 0.0031) * 1.1;
+
+let camX = 0, camY = 0;
+
+function project(wx, wy, dz){
+  const s = focal / dz;
+  return { x: W / 2 + (wx - camX) * s, y: horizon + (wy - camY) * s, s: s };
+}
+// A point on the chute wall at absolute z, angle a (0 = bottom of the U)
+function wall(z, a){
+  return project(curveX(z) + Math.sin(a), curveY(z) + Math.cos(a), z - travelled + CAM_DZ);
+}
+// The floor of the chute at a given lateral angle
+function floorPt(z, a, lift){
+  return project(curveX(z) + Math.sin(a) * (1 - lift * 0.14),
+                 curveY(z) + Math.cos(a) * (1 - lift),
+                 z - travelled + CAM_DZ);
+}
+
+/* ==================================================================
+   2. AUDIO — tiny WebAudio synth, no asset loading
+   ================================================================== */
+const Sound = (function(){
+  let ac = null, on = true, noise = null;
+  function ctxr(){
+    if (!ac){
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      ac = new AC();
+      const len = ac.sampleRate * 0.5;
+      noise = ac.createBuffer(1, len, ac.sampleRate);
+      const d = noise.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    }
+    if (ac.state === "suspended") ac.resume();
+    return ac;
+  }
+  function tone(freq, freq2, dur, type, vol){
+    const a = ctxr(); if (!a || !on) return;
+    const o = a.createOscillator(), g = a.createGain();
+    o.type = type || "sine";
+    o.frequency.setValueAtTime(freq, a.currentTime);
+    if (freq2) o.frequency.exponentialRampToValueAtTime(freq2, a.currentTime + dur);
+    g.gain.setValueAtTime(vol || 0.16, a.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + dur);
+    o.connect(g).connect(a.destination);
+    o.start(); o.stop(a.currentTime + dur + 0.02);
+  }
+  function hiss(dur, freq, vol){
+    const a = ctxr(); if (!a || !on || !noise) return;
+    const src = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+    src.buffer = noise; src.loop = true;
+    f.type = "bandpass"; f.frequency.value = freq; f.Q.value = 0.8;
+    g.gain.setValueAtTime(vol, a.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + dur);
+    src.connect(f).connect(g).connect(a.destination);
+    src.start(); src.stop(a.currentTime + dur + 0.02);
+  }
+  return {
+    unlock: ctxr,
+    toggle(){ on = !on; if (on) ctxr(); return on; },
+    swap(){ hiss(0.18, 1400, 0.09); },
+    coin(){ tone(950, 1750, 0.11, "triangle", 0.13); },
+    jump(){ hiss(0.22, 700, 0.11); },
+    land(){ hiss(0.16, 380, 0.13); },
+    hit(){  tone(180, 55, 0.34, "square", 0.2); hiss(0.3, 240, 0.16); },
+    boost(){ tone(320, 1250, 0.36, "sawtooth", 0.13); },
+    reveal(){ tone(420, 900, 0.7, "triangle", 0.16); hiss(0.7, 1100, 0.1); },
+    over(){ tone(300, 70, 0.8, "sawtooth", 0.16); }
+  };
+})();
+
+/* ==================================================================
+   3. GAME STATE
+   ================================================================== */
+const T = { BARREL:0, FOAM:1, ARCH:2, JET:3, DROP:4, BOOST:5 };
+
+let state = "title";        // title | play | over
+let travelled = 0;          // world units descended
+let metres = 0, scoreF = 0, score = 0, best = 0;
+let speed = CONFIG.startSpeed;
+let lives = CONFIG.lives;
+let lane = 0, laneA = 0;    // target lane index, animated angle
+let jumpT = -1, tuckT = 0;
+let invuln = 0, boostT = 0, shake = 0;
+let revealed = false, revealTimer = 0;
+let ents = [], spray = [], nextZ = 0, comboFree = 0;
+
+const JUMP_DUR = 0.62, JUMP_H = 0.55;
+
+function reset(){
+  travelled = 0; metres = 0; scoreF = 0; score = 0;
+  speed = CONFIG.startSpeed; lives = CONFIG.lives;
+  lane = 0; laneA = 0; jumpT = -1; tuckT = 0;
+  invuln = 0; boostT = 0; shake = 0;
+  revealed = false; revealTimer = 0;
+  ents = []; spray = []; nextZ = 26; comboFree = 0;
+  drawTubes();
+}
+
+/* ---------- course generation ------------------------------------
+   Every pattern leaves a fair way through. Spacing is measured in
+   SECONDS of travel, not units, so the course never outruns the
+   player's reaction time as speed climbs.                        */
+function laneAngle(i){ return i * LANE_A; }
+
+function add(type, z, i, extra){
+  ents.push({ t:type, z:z, i:i, a:laneAngle(i), dead:false, spin:Math.random()*6, w:(extra||1) });
+}
+
+function spawn(){
+  while (nextZ < travelled + DRAW_FAR){
+    const z = nextZ;
+    const hard = Math.min(1, metres / 1200);          // 0 → 1 difficulty ramp
+    const r = Math.random();
+    let gapSec;
+
+    if (comboFree > 0){                                // post-reveal breather
+      comboFree--;
+      if (Math.random() < 0.7) for (let k = 0; k < 4; k++) add(T.DROP, z + k * 1.5, (Math.random()*3|0) - 1);
+      gapSec = 1.5;
+    } else if (r < 0.14){                              // droplet line — pure reward
+      const li = (Math.random() * 3 | 0) - 1;
+      for (let k = 0; k < 5; k++) add(T.DROP, z + k * 1.4, li);
+      gapSec = 1.4;
+    } else if (r < 0.20){                              // boost chevrons
+      add(T.BOOST, z, 0, 3);
+      gapSec = 1.5;
+    } else if (r < 0.36){                              // single barrel + reward lane
+      const li = (Math.random() * 3 | 0) - 1;
+      add(T.BARREL, z, li);
+      for (let k = 0; k < 3; k++) add(T.DROP, z + k * 1.4, li === -1 ? 1 : li - 1);
+      gapSec = 1.35;
+    } else if (r < 0.50){                              // duck under the misters
+      add(T.ARCH, z, 0, 3);
+      gapSec = 1.3;
+    } else if (r < 0.64){                              // jump the jets
+      add(T.JET, z, 0, 3);
+      gapSec = 1.3;
+    } else if (r < 0.76){                              // foam wall, two lanes
+      const side = Math.random() < 0.5 ? -1 : 1;
+      add(T.FOAM, z, side, 2);
+      gapSec = 1.3;
+    } else if (r < 0.88 && hard > 0.25){               // two barrels, one gap
+      const free = (Math.random() * 3 | 0) - 1;
+      for (let i = -1; i <= 1; i++) if (i !== free) add(T.BARREL, z, i);
+      for (let k = 0; k < 3; k++) add(T.DROP, z + k * 1.4, free);
+      gapSec = 1.45;
+    } else if (hard > 0.45){                           // combo: duck then jump
+      add(T.ARCH, z, 0, 3);
+      add(T.JET, z + speed * 0.95, 0, 3);
+      gapSec = 1.9;
+    } else {
+      add(T.BARREL, z, (Math.random() * 3 | 0) - 1);
+      gapSec = 1.35;
+    }
+
+    // tighten spacing as the run matures, but never past reaction time
+    gapSec *= 1.16 - hard * 0.3;
+    nextZ = z + Math.max(6, speed * Math.max(0.82, gapSec));
+  }
+}
+
+/* ==================================================================
+   4. INPUT
+   ================================================================== */
+function moveLane(d){
+  const n = Math.max(-1, Math.min(1, lane + d));
+  if (n !== lane){ lane = n; Sound.swap(); puff(10); }
+}
+function jump(){
+  if (jumpT < 0 && state === "play"){ jumpT = 0; tuckT = 0; Sound.jump(); }
+}
+function tuck(){
+  if (state === "play" && jumpT < 0){ tuckT = 0.42; }
+}
+
+const keys = {};
+window.addEventListener("keydown", (e) => {
+  const k = e.key.toLowerCase();
+  if (["arrowleft","arrowright","arrowup","arrowdown"," "].includes(k)) e.preventDefault();
+  if (keys[k]) return;
+  keys[k] = true;
+  if (state === "title" && (k === " " || k === "enter")) { start(); return; }
+  if (state === "over"  && (k === " " || k === "enter")) { start(); return; }
+  if (k === "arrowleft"  || k === "a") moveLane(-1);
+  if (k === "arrowright" || k === "d") moveLane(1);
+  if (k === "arrowup"    || k === "w" || k === " ") jump();
+  if (k === "arrowdown"  || k === "s") tuck();
+});
+window.addEventListener("keyup", (e) => { keys[e.key.toLowerCase()] = false; });
+
+// touch: swipe to steer, swipe up to launch, swipe down to tuck, tap to launch
+let tx = 0, ty = 0, tt = 0, swiped = false;
+cv.addEventListener("touchstart", (e) => {
+  const t = e.changedTouches[0];
+  tx = t.clientX; ty = t.clientY; tt = performance.now(); swiped = false;
+  Sound.unlock();
+}, { passive:true });
+cv.addEventListener("touchmove", (e) => {
+  if (swiped || state !== "play") return;
+  const t = e.changedTouches[0];
+  const dx = t.clientX - tx, dy = t.clientY - ty;
+  if (Math.abs(dx) > 28 && Math.abs(dx) > Math.abs(dy)){ moveLane(dx > 0 ? 1 : -1); swiped = true; }
+  else if (dy < -30){ jump(); swiped = true; }
+  else if (dy > 30){ tuck(); swiped = true; }
+}, { passive:true });
+cv.addEventListener("touchend", () => {
+  if (!swiped && performance.now() - tt < 260 && state === "play") jump();
+}, { passive:true });
+
+$("playBtn").addEventListener("click", start);
+$("againBtn").addEventListener("click", start);
+$("ctaBtn").addEventListener("click", () => {
+  if (CONFIG.ctaUrl) window.open(CONFIG.ctaUrl, "_blank", "noopener");
+});
+$("mute").addEventListener("click", () => {
+  $("mute").textContent = Sound.toggle() ? "SOUND ON" : "SOUND OFF";
+});
+document.addEventListener("visibilitychange", () => { last = performance.now(); });
+
+/* ==================================================================
+   5. HUD
+   ================================================================== */
+if (!("ontouchstart" in window)) {
+  $("hint").textContent = "\u2190 \u2192 steer  \u00b7  \u2191 launch  \u00b7  \u2193 tuck";
+}
+
+const speedbar = $("speedbar");
+for (let i = 0; i < 14; i++) speedbar.appendChild(document.createElement("i"));
+const chevrons = speedbar.querySelectorAll("i");
+
+function drawTubes(){
+  const box = $("tubes");
+  box.innerHTML = "";
+  for (let i = 0; i < CONFIG.lives; i++){
+    const d = document.createElement("div");
+    d.className = "tube" + (i < lives ? "" : " spent");
+    box.appendChild(d);
+  }
+}
+function syncHUD(){
+  $("dist").innerHTML = Math.floor(metres) + '<small style="font-size:12px"> m</small>';
+  $("score").textContent = score;
+  const lit = Math.round((speed - CONFIG.startSpeed) / (CONFIG.maxSpeed - CONFIG.startSpeed) * 14);
+  for (let i = 0; i < 14; i++) chevrons[i].classList.toggle("lit", i < lit);
+}
+
+function start(){
+  Sound.unlock();
+  reset();
+  state = "play";
+  $("titlePanel").classList.remove("on");
+  $("overPanel").classList.remove("on");
+  $("hud").classList.add("on");
+  const hint = $("hint");
+  hint.style.opacity = 1;
+  setTimeout(() => { hint.style.opacity = 0; }, 3200);
+  last = performance.now();
+}
+
+function gameOver(){
+  state = "over";
+  best = Math.max(best, score);
+  Sound.over();
+  $("hud").classList.remove("on");
+  $("fDist").textContent  = Math.floor(metres);
+  $("fScore").textContent = score;
+  $("fBest").textContent  = best;
+  $("overTitle").textContent  = metres > CONFIG.revealAt ? "You Survived It" : "Wipeout";
+  $("overKicker").textContent = metres > CONFIG.revealAt ? CONFIG.rideName : "Wipeout";
+  $("overPanel").classList.add("on");
+}
+
+/* ==================================================================
+   6. UPDATE
+   ================================================================== */
+const SIGN_FONT = getComputedStyle(document.body).fontFamily;
+
+function puff(n){
+  const p = project(curveX(travelled) + Math.sin(laneA) * 0.86,
+                    curveY(travelled) + Math.cos(laneA) * 0.86, CAM_DZ);
+  for (let i = 0; i < n; i++){
+    spray.push({
+      x: p.x + (Math.random() - 0.5) * p.s * 0.18,
+      y: p.y + (Math.random() - 0.5) * 14,
+      vx: (Math.random() - 0.5) * 340,
+      vy: -Math.random() * 200 - 40,
+      r: 2 + Math.random() * 5,
+      life: 0.3 + Math.random() * 0.4
+    });
+  }
+}
+
+function flash(){
+  const f = $("flash");
+  f.style.opacity = 0.55;
+  setTimeout(() => { f.style.opacity = 0; }, 130);
+}
+
+function hitRider(){
+  if (invuln > 0) return;
+  lives--;
+  invuln = 1.4;
+  speed = Math.max(CONFIG.startSpeed, speed - 6);
+  shake = 1;
+  Sound.hit(); flash(); puff(30); drawTubes();
+  if (lives <= 0) gameOver();
+}
+
+function riderLift(){
+  let lift = 0.18;                                  // tube sits just off the floor
+  if (jumpT >= 0) lift += Math.sin(Math.PI * (jumpT / JUMP_DUR)) * JUMP_H;
+  if (tuckT > 0)  lift -= 0.07;
+  return lift;
+}
+
+function update(dt){
+  // On the menus the chute keeps flowing behind the type — the slide is the hero.
+  if (state !== "play"){
+    travelled += 9 * dt;
+    camX = curveX(travelled);
+    camY = curveY(travelled) - CAM_UP;
+    spawn();
+    ents = ents.filter(e => e.z > travelled - 3);
+    if (Math.random() < 0.3) puff(1);
+    for (const p of spray){ p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 900 * dt; }
+    spray = spray.filter(p => p.life > 0);
+    return;
+  }
+
+  // speed & distance
+  const target = boostT > 0 ? CONFIG.maxSpeed + 8 : CONFIG.maxSpeed;
+  speed = Math.min(target, speed + CONFIG.accel * dt * (boostT > 0 ? 6 : 1));
+  travelled += speed * dt;
+  metres += speed * dt * 1.0;
+  scoreF += speed * dt * 0.35;
+  score = Math.floor(scoreF);
+
+  // timers
+  if (jumpT >= 0){ jumpT += dt; if (jumpT > JUMP_DUR){ jumpT = -1; Sound.land(); puff(8); } }
+  if (tuckT > 0) tuckT -= dt;
+  if ((keys["arrowdown"] || keys["s"]) && jumpT < 0) tuckT = Math.max(tuckT, 0.2);
+  if (invuln > 0) invuln -= dt;
+  if (boostT > 0) boostT -= dt;
+  if (shake > 0)  shake = Math.max(0, shake - dt * 3);
+  if (revealTimer > 0){
+    revealTimer -= dt;
+    if (revealTimer <= 0) $("reveal").classList.remove("on");
+  }
+
+  // lane easing — the rider banks up the wall
+  laneA += (laneAngle(lane) - laneA) * Math.min(1, dt * 11);
+
+  // camera rides the chute
+  camX = curveX(travelled) + Math.sin(laneA) * 0.34;
+  camY = curveY(travelled) - CAM_UP + Math.cos(laneA) * 0.1;
+
+  // the reveal beat
+  if (!revealed && metres >= CONFIG.revealAt){
+    revealed = true; revealTimer = 3.1; comboFree = 2; invuln = 3.4;
+    ents = ents.filter(e => e.z < travelled + 6 || e.t === T.DROP);
+    nextZ = travelled + 30;
+    $("reveal").classList.add("on");
+    Sound.reveal();
+  }
+
+  spawn();
+
+  // collisions — check as each entity crosses the rider's plane
+  const lift = riderLift();
+  const airborne = jumpT >= 0 && lift > 0.34;
+  const ducking  = tuckT > 0;
+
+  for (const e of ents){
+    if (e.dead || e.z > travelled + 0.6 || e.z < travelled - 1.4) continue;
+    const sameLane = e.w >= 3 ? true
+                   : e.w === 2 ? (e.i === lane || e.i + (e.i < 0 ? 1 : -1) === lane)
+                   : e.i === lane;
+
+    if (e.t === T.DROP){
+      if (e.i === lane){ e.dead = true; scoreF += 25; Sound.coin(); }
+    } else if (e.t === T.BOOST){
+      e.dead = true; boostT = 2.4; invuln = Math.max(invuln, 2.4);
+      scoreF += 50; Sound.boost(); puff(18);
+    } else if (e.t === T.ARCH){
+      // the mister bar hangs low: you have to tuck. Jumping into it stings.
+      if (!ducking){ e.dead = true; hitRider(); }
+    } else if (e.t === T.JET){
+      if (!airborne){ e.dead = true; hitRider(); }
+    } else if (sameLane){
+      e.dead = true; hitRider();
+    }
+  }
+
+  // cull and trail
+  ents = ents.filter(e => !e.dead && e.z > travelled - 3);
+  if (Math.random() < 0.7) puff(1);
+
+  for (const p of spray){
+    p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 900 * dt;
+  }
+  spray = spray.filter(p => p.life > 0);
+
+  syncHUD();
+}
+
+/* ==================================================================
+   7. RENDER
+   ================================================================== */
+function backdrop(){
+  // sky
+  const g = ctx.createLinearGradient(0, 0, 0, horizon + H * 0.1);
+  g.addColorStop(0, "#0a4f7a");
+  g.addColorStop(0.55, "#2a9fc4");
+  g.addColorStop(1, "#ffd98a");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, horizon + H * 0.12);
+
+  const par = -camX * 26;   // parallax tied to the chute's wander
+
+  // sun
+  ctx.fillStyle = "rgba(255,206,46,.9)";
+  ctx.beginPath();
+  ctx.arc(W * 0.72 + par * 0.35, horizon - H * 0.2, H * 0.075, 0, 6.284);
+  ctx.fill();
+
+  // park skyline: towers, palms, a distant slide
+  ctx.save();
+  ctx.translate(par, 0);
+  ctx.fillStyle = "rgba(6,40,60,.55)";
+  const base = horizon + 6;
+  for (let i = -2; i < 8; i++){
+    const x = W * 0.13 * i + (i % 3) * 24;
+    const h = H * (0.05 + ((i * 37) % 11) / 140);
+    ctx.fillRect(x, base - h, W * 0.045, h);
+  }
+  // palm silhouettes
+  ctx.fillStyle = "rgba(4,28,43,.7)";
+  for (let i = -1; i < 7; i++){
+    const x = W * 0.17 * i + 40, t = H * 0.085;
+    ctx.fillRect(x, base - t, 4, t);
+    for (let f = 0; f < 5; f++){
+      ctx.beginPath();
+      const a = -2.5 + f * 0.62;
+      ctx.moveTo(x + 2, base - t);
+      ctx.quadraticCurveTo(x + 2 + Math.cos(a) * 30, base - t + Math.sin(a) * 22,
+                           x + 2 + Math.cos(a) * 46, base - t + Math.sin(a) * 34);
+      ctx.lineWidth = 4; ctx.strokeStyle = "rgba(4,28,43,.7)"; ctx.stroke();
+    }
+  }
+  ctx.restore();
+
+  // water haze under the horizon
+  const g2 = ctx.createLinearGradient(0, horizon - 4, 0, H);
+  g2.addColorStop(0, "#0b4a68");
+  g2.addColorStop(1, "#041c2b");
+  ctx.fillStyle = g2;
+  ctx.fillRect(0, horizon - 4, W, H - horizon + 4);
+}
+
+const ARC_N = 9;
+function arcPath(z, aMax, first){
+  for (let i = 0; i <= ARC_N; i++){
+    const a = -aMax + (2 * aMax) * (i / ARC_N);
+    const p = wall(z, a);
+    if (i === 0 && first) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+  }
+}
+function arcPathRev(z, aMax){
+  for (let i = ARC_N; i >= 0; i--){
+    const a = -aMax + (2 * aMax) * (i / ARC_N);
+    const p = wall(z, a);
+    ctx.lineTo(p.x, p.y);
+  }
+}
+
+function chute(){
+  const step = 1.35;
+  const startZ = travelled + DRAW_FAR;
+  const bands = Math.floor(DRAW_FAR / step);
+  const wob = Math.sin(performance.now() * 0.004) * 0.03;
+
+  for (let b = bands; b >= 0; b--){
+    const zFar  = travelled + b * step;
+    const zNear = zFar - step;
+    if (zNear - travelled + CAM_DZ < 0.75) continue;
+
+    const shade = (Math.floor(zFar / step) % 2 === 0);
+
+    // chute shell
+    ctx.beginPath();
+    arcPath(zFar, A_MAX, true);
+    arcPathRev(zNear, A_MAX);
+    ctx.closePath();
+    ctx.fillStyle = shade ? "#0e88a8" : "#0b7896";
+    ctx.fill();
+
+    // running water
+    ctx.beginPath();
+    arcPath(zFar, 0.86 + wob, true);
+    arcPathRev(zNear, 0.86 + wob);
+    ctx.closePath();
+    ctx.fillStyle = shade ? "rgba(127,240,228,.42)" : "rgba(22,196,217,.5)";
+    ctx.fill();
+
+    // foam streaks every 4th band, plus lane read-lines
+    if (Math.floor(zFar / step) % 4 === 0){
+      ctx.beginPath();
+      arcPath(zFar, 0.5, true);
+      arcPathRev(zNear, 0.5);
+      ctx.closePath();
+      ctx.fillStyle = "rgba(242,251,255,.16)";
+      ctx.fill();
+    }
+    if (Math.floor(zFar / step) % 2 === 0){
+      ctx.strokeStyle = "rgba(242,251,255,.2)";
+      ctx.lineWidth = Math.max(1, 2.2 * (focal / (zFar - travelled + CAM_DZ)) * 0.02);
+      for (const s of [-1, 1]){
+        const a = s * LANE_A * 0.5;
+        const p1 = wall(zFar, a), p2 = wall(zNear, a);
+        ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+      }
+    }
+
+    // rim
+    ctx.strokeStyle = "rgba(255,206,46,.55)";
+    ctx.lineWidth = 2;
+    for (const s of [-1, 1]){
+      const p1 = wall(zFar, s * A_MAX), p2 = wall(zNear, s * A_MAX);
+      ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+    }
+
+    // entities that live inside this band, drawn far→near with the chute
+    for (const e of ents){
+      if (e.z <= zFar && e.z > zNear) drawEnt(e);
+    }
+  }
+}
+
+function drawEnt(e){
+  const dz = e.z - travelled + CAM_DZ;
+  if (dz < 0.8) return;
+  const s = focal / dz;
+
+  if (e.t === T.BARREL){
+    const p = floorPt(e.z, e.a, 0.16);
+    const w = 0.3 * s, h = 0.46 * s;
+    ctx.fillStyle = "rgba(4,20,32,.3)";
+    ctx.beginPath(); ctx.ellipse(p.x, p.y + 2, w * 0.9, w * 0.3, 0, 0, 6.284); ctx.fill();
+    ctx.fillStyle = "#ff6b2c";
+    ctx.fillRect(p.x - w / 2, p.y - h, w, h);
+    ctx.fillStyle = "#f2fbff";
+    ctx.fillRect(p.x - w / 2, p.y - h * 0.72, w, h * 0.17);
+    ctx.fillRect(p.x - w / 2, p.y - h * 0.34, w, h * 0.17);
+    ctx.fillStyle = "rgba(4,20,32,.25)";
+    ctx.fillRect(p.x - w / 2, p.y - h, w * 0.22, h);
+
+  } else if (e.t === T.FOAM){
+    const inner = e.i < 0 ? -1 : 1;
+    const p1 = floorPt(e.z, laneAngle(e.i), 0.1);
+    const p2 = floorPt(e.z, laneAngle(e.i + (inner < 0 ? 1 : -1)), 0.1);
+    const h = 0.4 * s;
+    const x = Math.min(p1.x, p2.x), w = Math.abs(p2.x - p1.x) + 0.34 * s;
+    const y = Math.min(p1.y, p2.y);
+    ctx.fillStyle = "#f2fbff";
+    ctx.fillRect(x - 0.17 * s, y - h, w, h);
+    ctx.fillStyle = "rgba(22,196,217,.35)";
+    for (let i = 0; i < 4; i++){
+      ctx.beginPath();
+      ctx.arc(x - 0.17 * s + w * (0.15 + i * 0.24), y - h, 0.09 * s, 0, 6.284);
+      ctx.fill();
+    }
+    ctx.fillStyle = "#06283c";
+    ctx.font = "700 " + Math.max(6, 0.075 * s) + "px " + SIGN_FONT;
+    ctx.textAlign = "center";
+    ctx.fillText("SLOW", x - 0.17 * s + w / 2, y - h * 0.42);
+
+  } else if (e.t === T.ARCH){
+    // a mister bar hanging across the chute — tuck under it
+    const L = wall(e.z, -A_MAX * 0.82), R = wall(e.z, A_MAX * 0.82);
+    const drop = 0.52 * s;
+    ctx.strokeStyle = "#ff6b2c"; ctx.lineWidth = Math.max(3, 0.09 * s);
+    ctx.beginPath(); ctx.moveTo(L.x, L.y - drop); ctx.lineTo(R.x, R.y - drop); ctx.stroke();
+    ctx.strokeStyle = "rgba(242,251,255,.9)"; ctx.lineWidth = Math.max(1, 0.03 * s);
+    ctx.beginPath(); ctx.moveTo(L.x, L.y - drop); ctx.lineTo(R.x, R.y - drop); ctx.stroke();
+    // hanging mist
+    ctx.fillStyle = "rgba(242,251,255,.3)";
+    for (let i = 1; i < 7; i++){
+      const t = i / 7, x = L.x + (R.x - L.x) * t, y = L.y + (R.y - L.y) * t - drop;
+      ctx.fillRect(x - 0.01 * s, y, Math.max(1, 0.02 * s), 0.17 * s);
+    }
+    // uprights
+    ctx.strokeStyle = "#ff6b2c"; ctx.lineWidth = Math.max(2, 0.05 * s);
+    ctx.beginPath(); ctx.moveTo(L.x, L.y); ctx.lineTo(L.x, L.y - drop * 1.5); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(R.x, R.y); ctx.lineTo(R.x, R.y - drop * 1.5); ctx.stroke();
+    if (s > 60){
+      ctx.fillStyle = "#ffce2e";
+      ctx.font = "700 " + Math.max(7, 0.07 * s) + "px " + SIGN_FONT;
+      ctx.textAlign = "center";
+      ctx.fillText("TUCK", (L.x + R.x) / 2, (L.y + R.y) / 2 - drop * 1.28);
+    }
+
+  } else if (e.t === T.JET){
+    // jets across the full width — launch over them
+    for (let i = -2; i <= 2; i++){
+      const p = floorPt(e.z, i * 0.42, 0.02);
+      const h = 0.34 * s;
+      const w = 0.07 * s + Math.sin(performance.now() * 0.01 + i) * 0.01 * s;
+      const g = ctx.createLinearGradient(p.x, p.y, p.x, p.y - h);
+      g.addColorStop(0, "rgba(242,251,255,.95)");
+      g.addColorStop(1, "rgba(127,240,228,.1)");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.moveTo(p.x - w, p.y);
+      ctx.quadraticCurveTo(p.x, p.y - h * 1.15, p.x + w, p.y);
+      ctx.fill();
+    }
+    if (s > 60){
+      const c = floorPt(e.z, 0, 0.02);
+      ctx.fillStyle = "#ffce2e";
+      ctx.font = "700 " + Math.max(7, 0.07 * s) + "px " + SIGN_FONT;
+      ctx.textAlign = "center";
+      ctx.fillText("LAUNCH", c.x, c.y - 0.42 * s);
+    }
+
+  } else if (e.t === T.DROP){
+    const p = floorPt(e.z, e.a, 0.34);
+    const r = 0.075 * s;
+    const bob = Math.sin(performance.now() * 0.006 + e.spin) * r * 0.4;
+    ctx.fillStyle = "#ffce2e";
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y - r * 1.7 + bob);
+    ctx.quadraticCurveTo(p.x + r, p.y + bob, p.x, p.y + r + bob);
+    ctx.quadraticCurveTo(p.x - r, p.y + bob, p.x, p.y - r * 1.7 + bob);
+    ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,.7)";
+    ctx.beginPath(); ctx.arc(p.x - r * 0.3, p.y + bob, r * 0.22, 0, 6.284); ctx.fill();
+
+  } else if (e.t === T.BOOST){
+    // painted chevrons on the chute floor
+    for (let i = 0; i < 3; i++){
+      const zz = e.z + i * 0.9;
+      const a0 = -0.62, a1 = 0.62;
+      const l = floorPt(zz, a0, 0.01), c = floorPt(zz + 0.55, 0, 0.01), r = floorPt(zz, a1, 0.01);
+      ctx.strokeStyle = "rgba(255,206,46,.92)";
+      ctx.lineWidth = Math.max(2, 0.055 * s);
+      ctx.beginPath(); ctx.moveTo(l.x, l.y); ctx.lineTo(c.x, c.y); ctx.lineTo(r.x, r.y); ctx.stroke();
+    }
+  }
+}
+
+function drawRider(){
+  const lift = riderLift();
+  const p = floorPt(travelled, laneA, lift);
+  const s = focal / CAM_DZ;
+  const rw = 0.30 * s, rh = 0.115 * s;
+  const bank = laneA * 0.55;
+
+  if (invuln > 0 && Math.floor(invuln * 12) % 2 === 0 && lives > 0) return;
+
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.rotate(bank * 0.4);
+
+  // shadow on the water
+  ctx.fillStyle = "rgba(4,20,32,.28)";
+  ctx.beginPath();
+  ctx.ellipse(0, (lift - 0.18) * s * 0.9 + rh * 1.5, rw * 0.9, rh * 0.5, 0, 0, 6.284);
+  ctx.fill();
+
+  const squash = tuckT > 0 ? 0.74 : 1;
+
+  // rider on the tube
+  ctx.save();
+  ctx.scale(1, squash);
+  // legs
+  ctx.strokeStyle = "#f0b98c"; ctx.lineWidth = rw * 0.13; ctx.lineCap = "round";
+  ctx.beginPath(); ctx.moveTo(-rw * 0.2, -rh * 0.5); ctx.lineTo(-rw * 0.62, -rh * 1.4); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(rw * 0.2, -rh * 0.5);  ctx.lineTo(rw * 0.62, -rh * 1.4);  ctx.stroke();
+  // torso
+  ctx.fillStyle = "#16c4d9";
+  ctx.beginPath();
+  ctx.ellipse(0, -rh * 1.6, rw * 0.3, rh * 1.5, 0, 0, 6.284);
+  ctx.fill();
+  // arms — up when airborne, gripping when tucked
+  ctx.strokeStyle = "#f0b98c"; ctx.lineWidth = rw * 0.11;
+  const armY = tuckT > 0 ? -rh * 1.2 : -rh * 3.2;
+  ctx.beginPath(); ctx.moveTo(-rw * 0.2, -rh * 2); ctx.lineTo(-rw * 0.66, armY); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(rw * 0.2, -rh * 2);  ctx.lineTo(rw * 0.66, armY);  ctx.stroke();
+  // head
+  ctx.fillStyle = "#f7c9a0";
+  ctx.beginPath(); ctx.arc(0, -rh * 3.5, rw * 0.19, 0, 6.284); ctx.fill();
+  ctx.restore();
+
+  // the tube itself
+  ctx.fillStyle = "#ff6b2c";
+  ctx.beginPath(); ctx.ellipse(0, 0, rw, rh, 0, 0, 6.284); ctx.fill();
+  ctx.fillStyle = "#e0551b";
+  ctx.beginPath(); ctx.ellipse(0, rh * 0.22, rw * 0.94, rh * 0.8, 0, 0, 6.284); ctx.fill();
+  ctx.fillStyle = "#0b7896";
+  ctx.beginPath(); ctx.ellipse(0, 0, rw * 0.46, rh * 0.42, 0, 0, 6.284); ctx.fill();
+  ctx.fillStyle = "rgba(255,255,255,.45)";
+  ctx.beginPath(); ctx.ellipse(-rw * 0.5, -rh * 0.3, rw * 0.22, rh * 0.2, -0.4, 0, 6.284); ctx.fill();
+
+  ctx.restore();
+}
+
+function drawSpray(){
+  for (const p of spray){
+    ctx.fillStyle = "rgba(242,251,255," + Math.max(0, p.life * 1.6) + ")";
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.284); ctx.fill();
+  }
+}
+
+function speedLines(){
+  const t = Math.min(1, (speed - CONFIG.startSpeed) / (CONFIG.maxSpeed - CONFIG.startSpeed));
+  const boost = boostT > 0 ? 1 : 0;
+  const n = Math.floor(6 + t * 14 + boost * 12);
+  ctx.strokeStyle = boost ? "rgba(255,206,46,.5)" : "rgba(242,251,255,.28)";
+  ctx.lineWidth = 2;
+  for (let i = 0; i < n; i++){
+    const a = Math.random() * 6.284;
+    const rad = H * (0.34 + Math.random() * 0.5);
+    const x = W / 2 + Math.cos(a) * rad, y = horizon + Math.sin(a) * rad * 0.7;
+    const len = 22 + Math.random() * 44 + boost * 40;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len * 0.7);
+    ctx.stroke();∫
+  }
+  // vignette
+  const g = ctx.createRadialGradient(W / 2, horizon, H * 0.28, W / 2, horizon, H * 0.95);
+  g.addColorStop(0, "rgba(4,20,32,0)");
+  g.addColorStop(1, "rgba(4,20,32," + (0.42 + boost * 0.18) + ")");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+}
+
+function render(){
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  if (shake > 0){
+    ctx.translate((Math.random() - 0.5) * 18 * shake, (Math.random() - 0.5) * 18 * shake);
+  }
+  ctx.clearRect(-30, -30, W + 60, H + 60);
+  backdrop();
+  chute();
+  drawRider();
+  drawSpray();
+  speedLines();
+}
+
+/* ==================================================================
+   8. LOOP
+   ================================================================== */
+let last = performance.now();
+function frame(now){
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  update(dt);
+  render();
+  requestAnimationFrame(frame);
+}
+
+reset();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>∫
