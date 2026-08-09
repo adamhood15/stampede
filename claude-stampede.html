@@ -8,7 +8,7 @@
   /* ============================================================
      DESIGN TOKENS
      Palette: Gulf-coast flume water + lifeguard safety signage
-     =============================∫=============================== */
+     ============================================================ */
   :root{
     --deep:      #06283c;   /* deep water / background */
     --deeper:    #041c2b;
@@ -352,6 +352,22 @@ const curveY = (z) => Math.sin(z * 0.013) * 0.75 + Math.sin(z * 0.0031) * 1.1;
 
 let camX = 0, camY = 0;
 
+function loadImg(src){
+  const img = new Image();
+  img.src = src;
+  return img;
+}
+
+const backOneImage = loadImg("assets/sprites/typhoon-sprites/back-1.png");
+const COIN_SPRITE = loadImg("assets/sprites/coins/buckaroos-front_01.png");
+const BARREL_SPRITES = [
+  loadImg("assets/sprites/obstacles/cow.png"),
+  loadImg("assets/sprites/obstacles/daytona-snowman.png")
+];
+const WAVE_SPRITE = loadImg("assets/sprites/obstacles/wave-2.png");
+const BG_PARK = loadImg("assets/sprites/backdrop/bg-park.png");
+const BG_SLIDE = loadImg("assets/sprites/backdrop/slide.png");
+
 function project(wx, wy, dz){
   const s = focal / dz;
   return { x: W / 2 + (wx - camX) * s, y: horizon + (wy - camY) * s, s: s };
@@ -455,7 +471,9 @@ function reset(){
 function laneAngle(i){ return i * LANE_A; }
 
 function add(type, z, i, extra){
-  ents.push({ t:type, z:z, i:i, a:laneAngle(i), dead:false, spin:Math.random()*6, w:(extra||1) });
+  const e = { t:type, z:z, i:i, a:laneAngle(i), dead:false, spin:Math.random()*6, w:(extra||1) };
+  if (type === T.BARREL) e.sprite = BARREL_SPRITES[(Math.random() * BARREL_SPRITES.length) | 0];
+  ents.push(e);
 }
 
 function spawn(){
@@ -759,47 +777,27 @@ function update(dt){
    7. RENDER
    ================================================================== */
 function backdrop(){
-  // sky
-  const g = ctx.createLinearGradient(0, 0, 0, horizon + H * 0.1);
-  g.addColorStop(0, "#0a4f7a");
-  g.addColorStop(0.55, "#2a9fc4");
-  g.addColorStop(1, "#ffd98a");
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, W, horizon + H * 0.12);
-
   const par = -camX * 26;   // parallax tied to the chute's wander
+  const skyH = horizon + H * 0.12;
 
-  // sun
-  ctx.fillStyle = "rgba(255,206,46,.9)";
-  ctx.beginPath();
-  ctx.arc(W * 0.72 + par * 0.35, horizon - H * 0.2, H * 0.075, 0, 6.284);
-  ctx.fill();
-
-  // park skyline: towers, palms, a distant slide
-  ctx.save();
-  ctx.translate(par, 0);
-  ctx.fillStyle = "rgba(6,40,60,.55)";
-  const base = horizon + 6;
-  for (let i = -2; i < 8; i++){
-    const x = W * 0.13 * i + (i % 3) * 24;
-    const h = H * (0.05 + ((i * 37) % 11) / 140);
-    ctx.fillRect(x, base - h, W * 0.045, h);
+  if (BG_PARK.complete && BG_PARK.naturalWidth){
+    // cover-fit the park image across the sky, keeping aspect
+    const scale = Math.max(W / BG_PARK.naturalWidth, skyH / BG_PARK.naturalHeight);
+    const drawW = BG_PARK.naturalWidth * scale;
+    const drawH = BG_PARK.naturalHeight * scale;
+    const drawX = (W - drawW) / 2 + par * 0.5;
+    const drawY = skyH - drawH;
+    ctx.drawImage(BG_PARK, drawX, drawY, drawW, drawH);
   }
-  // palm silhouettes
-  ctx.fillStyle = "rgba(4,28,43,.7)";
-  for (let i = -1; i < 7; i++){
-    const x = W * 0.17 * i + 40, t = H * 0.085;
-    ctx.fillRect(x, base - t, 4, t);
-    for (let f = 0; f < 5; f++){
-      ctx.beginPath();
-      const a = -2.5 + f * 0.62;
-      ctx.moveTo(x + 2, base - t);
-      ctx.quadraticCurveTo(x + 2 + Math.cos(a) * 30, base - t + Math.sin(a) * 22,
-                           x + 2 + Math.cos(a) * 46, base - t + Math.sin(a) * 34);
-      ctx.lineWidth = 4; ctx.strokeStyle = "rgba(4,28,43,.7)"; ctx.stroke();
-    }
+  if (!BG_PARK.complete || !BG_PARK.naturalWidth){
+    // fallback: procedural sky
+    const g = ctx.createLinearGradient(0, 0, 0, skyH);
+    g.addColorStop(0, "#0a4f7a");
+    g.addColorStop(0.55, "#2a9fc4");
+    g.addColorStop(1, "#ffd98a");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, skyH);
   }
-  ctx.restore();
 
   // water haze under the horizon
   const g2 = ctx.createLinearGradient(0, horizon - 4, 0, H);
@@ -895,16 +893,25 @@ function drawEnt(e){
 
   if (e.t === T.BARREL){
     const p = floorPt(e.z, e.a, 0.16);
-    const w = 0.3 * s, h = 0.46 * s;
-    ctx.fillStyle = "rgba(4,20,32,.3)";
-    ctx.beginPath(); ctx.ellipse(p.x, p.y + 2, w * 0.9, w * 0.3, 0, 0, 6.284); ctx.fill();
-    ctx.fillStyle = "#ff6b2c";
-    ctx.fillRect(p.x - w / 2, p.y - h, w, h);
-    ctx.fillStyle = "#f2fbff";
-    ctx.fillRect(p.x - w / 2, p.y - h * 0.72, w, h * 0.17);
-    ctx.fillRect(p.x - w / 2, p.y - h * 0.34, w, h * 0.17);
-    ctx.fillStyle = "rgba(4,20,32,.25)";
-    ctx.fillRect(p.x - w / 2, p.y - h, w * 0.22, h);
+    const img = e.sprite;
+    if (img && img.complete && img.naturalWidth){
+      const h = 0.58 * s;
+      const w = h * (img.naturalWidth / img.naturalHeight);
+      const tilt = -e.i * 0.28;
+      if (tilt){
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(tilt);
+        ctx.drawImage(img, -w / 2, -h, w, h);
+        ctx.restore();
+      } else {
+        ctx.drawImage(img, p.x - w / 2, p.y - h, w, h);
+      }
+    } else {
+      const w = 0.3 * s, h = 0.46 * s;
+      ctx.fillStyle = "#ff6b2c";
+      ctx.fillRect(p.x - w / 2, p.y - h, w, h);
+    }
 
   } else if (e.t === T.FOAM){
     const inner = e.i < 0 ? -1 : 1;
@@ -952,22 +959,28 @@ function drawEnt(e){
     }
 
   } else if (e.t === T.JET){
-    // jets across the full width — launch over them
-    for (let i = -2; i <= 2; i++){
-      const p = floorPt(e.z, i * 0.42, 0.02);
-      const h = 0.34 * s;
-      const w = 0.07 * s + Math.sin(performance.now() * 0.01 + i) * 0.01 * s;
-      const g = ctx.createLinearGradient(p.x, p.y, p.x, p.y - h);
-      g.addColorStop(0, "rgba(242,251,255,.95)");
-      g.addColorStop(1, "rgba(127,240,228,.1)");
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.moveTo(p.x - w, p.y);
-      ctx.quadraticCurveTo(p.x, p.y - h * 1.15, p.x + w, p.y);
-      ctx.fill();
+    // wave across the chute — launch over it
+    const c = floorPt(e.z, 0, 0.02);
+    if (WAVE_SPRITE.complete && WAVE_SPRITE.naturalWidth){
+      const w = 2.1 * s;
+      const h = w * (WAVE_SPRITE.naturalHeight / WAVE_SPRITE.naturalWidth);
+      ctx.drawImage(WAVE_SPRITE, c.x - w / 2, c.y - h, w, h);
+    } else {
+      for (let i = -2; i <= 2; i++){
+        const p = floorPt(e.z, i * 0.42, 0.02);
+        const h = 0.34 * s;
+        const w = 0.07 * s + Math.sin(performance.now() * 0.01 + i) * 0.01 * s;
+        const g = ctx.createLinearGradient(p.x, p.y, p.x, p.y - h);
+        g.addColorStop(0, "rgba(242,251,255,.95)");
+        g.addColorStop(1, "rgba(127,240,228,.1)");
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.moveTo(p.x - w, p.y);
+        ctx.quadraticCurveTo(p.x, p.y - h * 1.15, p.x + w, p.y);
+        ctx.fill();
+      }
     }
     if (s > 60){
-      const c = floorPt(e.z, 0, 0.02);
       ctx.fillStyle = "#ffce2e";
       ctx.font = "700 " + Math.max(7, 0.07 * s) + "px " + SIGN_FONT;
       ctx.textAlign = "center";
@@ -977,15 +990,19 @@ function drawEnt(e){
   } else if (e.t === T.DROP){
     const p = floorPt(e.z, e.a, 0.34);
     const r = 0.075 * s;
-    const bob = Math.sin(performance.now() * 0.006 + e.spin) * r * 0.4;
-    ctx.fillStyle = "#ffce2e";
-    ctx.beginPath();
-    ctx.moveTo(p.x, p.y - r * 1.7 + bob);
-    ctx.quadraticCurveTo(p.x + r, p.y + bob, p.x, p.y + r + bob);
-    ctx.quadraticCurveTo(p.x - r, p.y + bob, p.x, p.y - r * 1.7 + bob);
-    ctx.fill();
-    ctx.fillStyle = "rgba(255,255,255,.7)";
-    ctx.beginPath(); ctx.arc(p.x - r * 0.3, p.y + bob, r * 0.22, 0, 6.284); ctx.fill();
+    const bob = Math.sin(performance.now() * 0.008 + e.spin) * r * 1.4;
+    if (COIN_SPRITE.complete && COIN_SPRITE.naturalWidth){
+      const h = r * 5.6;
+      const w = h * (COIN_SPRITE.naturalWidth / COIN_SPRITE.naturalHeight);
+      ctx.drawImage(COIN_SPRITE, p.x - w / 2, p.y - h / 2 + bob, w, h);
+    } else {
+      ctx.fillStyle = "#ffce2e";
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y - r * 1.7 + bob);
+      ctx.quadraticCurveTo(p.x + r, p.y + bob, p.x, p.y + r + bob);
+      ctx.quadraticCurveTo(p.x - r, p.y + bob, p.x, p.y - r * 1.7 + bob);
+      ctx.fill();
+    }
 
   } else if (e.t === T.BOOST){
     // painted chevrons on the chute floor
@@ -1005,54 +1022,28 @@ function drawRider(){
   const p = floorPt(travelled, laneA, lift);
   const s = focal / CAM_DZ;
   const rw = 0.30 * s, rh = 0.115 * s;
-  const bank = laneA * 0.55;
+  const tilt = -(laneA / LANE_A) * 0.54;
 
   if (invuln > 0 && Math.floor(invuln * 12) % 2 === 0 && lives > 0) return;
 
   ctx.save();
   ctx.translate(p.x, p.y);
-  ctx.rotate(bank * 0.4);
-
-  // shadow on the water
-  ctx.fillStyle = "rgba(4,20,32,.28)";
-  ctx.beginPath();
-  ctx.ellipse(0, (lift - 0.18) * s * 0.9 + rh * 1.5, rw * 0.9, rh * 0.5, 0, 0, 6.284);
-  ctx.fill();
+  ctx.rotate(tilt);
 
   const squash = tuckT > 0 ? 0.74 : 1;
-
-  // rider on the tube
   ctx.save();
   ctx.scale(1, squash);
-  // legs
-  ctx.strokeStyle = "#f0b98c"; ctx.lineWidth = rw * 0.13; ctx.lineCap = "round";
-  ctx.beginPath(); ctx.moveTo(-rw * 0.2, -rh * 0.5); ctx.lineTo(-rw * 0.62, -rh * 1.4); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(rw * 0.2, -rh * 0.5);  ctx.lineTo(rw * 0.62, -rh * 1.4);  ctx.stroke();
-  // torso
-  ctx.fillStyle = "#16c4d9";
-  ctx.beginPath();
-  ctx.ellipse(0, -rh * 1.6, rw * 0.3, rh * 1.5, 0, 0, 6.284);
-  ctx.fill();
-  // arms — up when airborne, gripping when tucked
-  ctx.strokeStyle = "#f0b98c"; ctx.lineWidth = rw * 0.11;
-  const armY = tuckT > 0 ? -rh * 1.2 : -rh * 3.2;
-  ctx.beginPath(); ctx.moveTo(-rw * 0.2, -rh * 2); ctx.lineTo(-rw * 0.66, armY); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(rw * 0.2, -rh * 2);  ctx.lineTo(rw * 0.66, armY);  ctx.stroke();
-  // head
-  ctx.fillStyle = "#f7c9a0";
-  ctx.beginPath(); ctx.arc(0, -rh * 3.5, rw * 0.19, 0, 6.284); ctx.fill();
+
+  if (backOneImage && backOneImage.complete && backOneImage.naturalWidth) {
+    const imgH = Math.max(30, rh * 6);
+    const imgW = imgH * (backOneImage.naturalWidth / backOneImage.naturalHeight);
+    ctx.drawImage(backOneImage, -imgW / 2, -imgH * 1.04, imgW, imgH);
+  } else {
+    ctx.fillStyle = "rgba(255,255,255,.75)";
+    ctx.beginPath(); ctx.arc(0, -rh * 0.8, rw * 0.35, 0, 6.284); ctx.fill();
+  }
+
   ctx.restore();
-
-  // the tube itself
-  ctx.fillStyle = "#ff6b2c";
-  ctx.beginPath(); ctx.ellipse(0, 0, rw, rh, 0, 0, 6.284); ctx.fill();
-  ctx.fillStyle = "#e0551b";
-  ctx.beginPath(); ctx.ellipse(0, rh * 0.22, rw * 0.94, rh * 0.8, 0, 0, 6.284); ctx.fill();
-  ctx.fillStyle = "#0b7896";
-  ctx.beginPath(); ctx.ellipse(0, 0, rw * 0.46, rh * 0.42, 0, 0, 6.284); ctx.fill();
-  ctx.fillStyle = "rgba(255,255,255,.45)";
-  ctx.beginPath(); ctx.ellipse(-rw * 0.5, -rh * 0.3, rw * 0.22, rh * 0.2, -0.4, 0, 6.284); ctx.fill();
-
   ctx.restore();
 }
 
@@ -1077,7 +1068,7 @@ function speedLines(){
     ctx.beginPath();
     ctx.moveTo(x, y);
     ctx.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len * 0.7);
-    ctx.stroke();∫
+    ctx.stroke();
   }
   // vignette
   const g = ctx.createRadialGradient(W / 2, horizon, H * 0.28, W / 2, horizon, H * 0.95);
@@ -1085,6 +1076,18 @@ function speedLines(){
   g.addColorStop(1, "rgba(4,20,32," + (0.42 + boost * 0.18) + ")");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
+}
+
+function drawSlideOverlay(){
+  if (!(BG_SLIDE.complete && BG_SLIDE.naturalWidth)) return;
+  const skyH = horizon + H * 0.12;
+  const par = -camX * 26;
+  const scale = Math.max(W / BG_SLIDE.naturalWidth, skyH / BG_SLIDE.naturalHeight) * 0.25;
+  const drawW = BG_SLIDE.naturalWidth * scale;
+  const drawH = BG_SLIDE.naturalHeight * scale;
+  const drawX = W - drawW + par * 0.8;
+  const drawY = skyH - drawH;
+  ctx.drawImage(BG_SLIDE, drawX, drawY, drawW, drawH);
 }
 
 function render(){
@@ -1095,6 +1098,7 @@ function render(){
   ctx.clearRect(-30, -30, W + 60, H + 60);
   backdrop();
   chute();
+  drawSlideOverlay();
   drawRider();
   drawSpray();
   speedLines();
@@ -1116,4 +1120,4 @@ reset();
 requestAnimationFrame(frame);
 </script>
 </body>
-</html>∫
+</html>
