@@ -268,7 +268,7 @@ const CONFIG = {
   coinValue: 1,
 
   startSpeed: 4.4,                   // chute-radii per second — starts with pace
-  maxSpeed:   8.0,
+  maxSpeed:   10.0,
   accel:      0.24,                  // tops out ~17s in, inside a typical run.
                                      // At 0.07 this took 54s and nobody got there.
   metresPerUnit: 3.6                 // keeps the metre readout in the same range
@@ -494,7 +494,7 @@ const Sound = (function(){
      a death, so it needs a source kept around with a gain node in front of it —
      the sample() path deliberately throws its source away after each play. */
   let musicSrc = null, musicGain = null, musicEl = null, musicVol = 0;
-  const MUSIC_VOL = 0.38;
+  const MUSIC_VOL = 0.08;
 
   /* One fade per element, and a finishing ramp can only ever clear ITSELF.
      With a shared handle slot, a fade-out installed while a fade-in was still
@@ -676,17 +676,17 @@ const Sound = (function(){
     move(){ if (!sample("move", 0.5)) hiss(0.18, 1400, 0.09); },
     // quietest of the samples on purpose: coins arrive in lines of 3-5 and each
     // play overlaps the last, so this one stacks where the others never do
-    coin(){ if (!sample("coin", 0.35)){ tone(880, 1650, 0.1, "triangle", 0.13);
+    coin(){ if (!sample("coin", 0.05)){ tone(880, 1650, 0.1, "triangle", 0.13);
                                        tone(1320, 1980, 0.09, "sine", 0.06); } },
     jump(){ if (!sample("jump", 0.9)) hiss(0.22, 700, 0.11); },
     land(){ hiss(0.18, 380, 0.14); },
     duck(){ hiss(0.14, 520, 0.08); },
-    hit(){  if (!sample("hit", 0.85)){ tone(180, 55, 0.34, "square", 0.2);
+    hit(){  if (!sample("hit", 0.45)){ tone(180, 55, 0.34, "square", 0.2);
                                        hiss(0.3, 240, 0.16); } },
     // Typhoon's own voice. Falls back to the whinny, then to the synth, so a
     // failed decode still leaves the hit audible.
     hurt(){ if (!sample("hurt", 0.9)) this.hit(); },
-    dead(){ if (!sample("dead", 0.95)) tone(300, 70, 0.8, "sawtooth", 0.16); },
+    dead(){ if (!sample("dead", 0.55)) tone(300, 70, 0.8, "sawtooth", 0.16); },
     soak(){ hiss(0.42, 900, 0.17); tone(260, 120, 0.28, "sine", 0.08); },
     boost(){ if (!sample("boost", 0.75)) tone(320, 1250, 0.36, "sawtooth", 0.13); },
     reveal(){ tone(420, 900, 0.7, "triangle", 0.16); hiss(0.7, 1100, 0.1); },

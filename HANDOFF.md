@@ -155,7 +155,8 @@ pitch with the user as a standalone change before revisiting drops.
 **Task 2 — mobile render cost.** **Not profiled on device.** Suspected cost
 centres: 120 water streaks (~115 strokes/frame), 12 rail polygons rebuilding
 gradients every frame, the 1774 px park aerial rescaled every frame, ribs drawn
-from dz 0.85. Cheapest suspected win: cap `DPR` at 1.5 (currently `min(2, dpr)`).
+from dz 0.85. Cheapest suspe
+cted win: cap `DPR` at 1.5 (currently `min(2, dpr)`).
 
 **Asset weight (real problem).** `country-music.wav` is 17.5 MB and
 `game-over.wav` is 19.1 MB — **~36 MB of uncompressed WAV fetched up front**, far
