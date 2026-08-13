@@ -192,7 +192,50 @@
 
   #reveal{position:absolute;inset:0;display:none;align-items:center;justify-content:center;
           flex-direction:column;pointer-events:none;text-align:center;padding:20px}
-  #reveal.on{display:flex;animation:flashIn .5s ease-out}
+  /* Takes pointer events once it is up: the run is frozen behind it and this is
+     a modal choice, so nothing underneath should be reachable. Same wash as
+     .panel so the win screen sits in the same family as pause and game over. */
+  #reveal.on{display:flex;pointer-events:auto;
+    background:radial-gradient(130% 100% at 50% 15%,rgba(48,180,252,.82),rgba(30,48,72,.97))}
+  /* The flash moved onto a pseudo-element. It used to animate #reveal's own
+     background, which cannot cross-fade from a flat colour into the gradient
+     above — the card flashed white and then popped to the wash. */
+  #reveal.on::before{content:"";position:absolute;inset:0;z-index:0;
+    background:rgba(252,246,240,.85);animation:flashOut .5s ease-out forwards}
+  #reveal > *{position:relative;z-index:1}   /* keeps content over the flash */
+  /* Same windowing trick as the letters: one --hh drives the box, the scale of
+     the contact sheet behind it, and --fx/--fy pick the frame. */
+  #revealHat{--hh:clamp(110px,24vh,220px);
+    height:var(--hh);width:calc(var(--hh) * .6765);margin-bottom:14px;
+    background-image:url("assets/sprites/typhoon-sprites/hat-tilt/typhoon-hat-tilt.png");
+    background-repeat:no-repeat;
+    background-size:calc(var(--hh) * 3.7647) auto;
+    background-position:calc(var(--hh) * var(--fx) * -1) calc(var(--hh) * var(--fy) * -1);
+    filter:drop-shadow(0 8px 0 rgba(10,10,10,.25))}
+  /* The prize: the actual slide, sat between the sign and the choice. Sized in
+     vh alongside the hat so the whole card shrinks together rather than
+     overflowing a short screen. */
+  #revealSlide{height:clamp(80px,17vh,180px);width:auto;max-width:86vw;
+               object-fit:contain;margin-top:16px;
+               filter:drop-shadow(0 8px 0 rgba(10,10,10,.22))}
+  #revealBtns{display:flex;gap:14px;flex-wrap:wrap;justify-content:center}
+  #revealBtns .btn{margin-top:18px}
+  /* Deliberately not .ghost's orange — that is the banner's own colour, and a
+     button matching the sign above it reads as part of the sign rather than as
+     something to press. Deep water blue keeps it in palette and well clear of
+     the yellow primary. */
+  #revealAgain{background:var(--blue-dp);color:var(--white)}
+  /* A landscape phone is only ~390px tall and the full stack wants ~476px, so
+     the card would push its own buttons off screen — and they are the only way
+     out of a modal. Everything shrinks rather than anything being dropped: the
+     slide is the prize and the buttons are the exit. */
+  @media (max-height:560px){
+    #revealHat{--hh:clamp(70px,16vh,110px);margin-bottom:8px}
+    #reveal .slab{padding:10px 20px 12px}
+    #reveal .slab .n{font-size:clamp(28px,7vw,48px)}
+    #revealSlide{height:clamp(56px,12vh,90px);margin-top:8px}
+    #revealBtns .btn{margin-top:10px;font-size:20px;padding:8px 22px 10px}
+  }
   #reveal .slab{background:var(--orange);border:5px solid var(--ink);padding:16px 30px 20px;
     transform:skewX(-7deg) rotate(-2.5deg);box-shadow:12px 12px 0 var(--ink);
     animation:slam .45s cubic-bezier(.16,1.4,.4,1)}
@@ -203,7 +246,7 @@
     -webkit-text-stroke:6px var(--ink);paint-order:stroke fill}
   @keyframes slam{from{transform:skewX(-7deg) rotate(-2.5deg) scale(2.1);opacity:0}
                   to{transform:skewX(-7deg) rotate(-2.5deg) scale(1);opacity:1}}
-  @keyframes flashIn{from{background:rgba(252,246,240,.85)}to{background:transparent}}
+  @keyframes flashOut{to{opacity:0}}
 
   #flash{position:absolute;inset:0;background:var(--orange);opacity:0;
          pointer-events:none;transition:opacity .18s}
@@ -237,7 +280,12 @@
   #load{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
         background:var(--sky);font-size:11px;letter-spacing:.3em;text-transform:uppercase}
   #load.off{display:none}
-  @media (prefers-reduced-motion:reduce){ #reveal.on,#reveal .slab{animation:none} }
+  /* ::before included, or the flash would sit there at full opacity forever —
+     its fade-out IS the animation being switched off. */
+  @media (prefers-reduced-motion:reduce){
+    #reveal .slab{animation:none}
+    #reveal.on::before{animation:none;opacity:0}
+  }
 </style>
 </head>
 <body>
@@ -298,10 +346,18 @@
     <button class="btn ghost" id="ctaBtn" type="button">Get Season Passes</button>
   </div>
 
-  <div id="reveal"><div class="slab">
-    <div class="k">Coming Summer 2026</div>
-    <div class="n" id="revealName">Stampede</div>
-  </div></div>
+  <div id="reveal">
+    <div id="revealHat" aria-hidden="true"></div>
+    <div class="slab">
+      <div class="k">Coming Summer 2026</div>
+      <div class="n" id="revealName">Stampede</div>
+    </div>
+    <img id="revealSlide" alt="">
+    <div id="revealBtns">
+      <button class="btn" id="revealGo" type="button">Keep Riding</button>
+      <button class="btn ghost" id="revealAgain" type="button">Start Over</button>
+    </div>
+  </div>
 
   <div class="panel" id="pausePanel">
     <div class="eyebrow">Paused</div>
@@ -351,7 +407,6 @@ const CONFIG = {
   ctaLabel:  "Get Season Passes",
   ctaUrl:    "",                     // blank hides the button
 
-  revealAt:  100,                    // buckaroos required to trigger the ride-name reveal
   lives:     3,
   coinValue: 1,
 
@@ -437,14 +492,24 @@ const ART = {
   lt5:      "assets/sprites/letters/letters_05.png",
   lt6:      "assets/sprites/letters/letters_06.png",
   lt7:      "assets/sprites/letters/letters_07.png",
-  lt8:      "assets/sprites/letters/letters_08.png"
+  lt8:      "assets/sprites/letters/letters_08.png",
+
+  /* Tips his hat on the reveal card. Listed here only to get it preloaded —
+     it is drawn by CSS, so the URL is repeated in the #revealHat rule. */
+  hat:      "assets/sprites/typhoon-sprites/hat-tilt/typhoon-hat-tilt.png",
+
+  /* The ride itself, shown on the win card. Preloaded here rather than left to
+     the <img> so it is decoded long before the card can appear — it is 2MB and
+     would otherwise pop in blank under the sign. */
+  slide:    "assets/sprites/backdrop/slide.png"
 };
 
 /* Recorded one-shots. Anything missing here just falls back to the synthesised
    effect, so a bad path costs the sample, not the sound. */
 const MUSIC = {
-  ride: "assets/music/country-music.wav",
-  over: "assets/music/game-over.wav",
+  ride:  "assets/music/game-play.mp3",
+  over:  "assets/music/game-over.mp3",
+  start: "assets/music/game-start.mp3",   // title card, and again on the win card
 };
 
 const SFX = {
@@ -485,6 +550,8 @@ function ready(){
   if (!IMG.ld01) $("heroWrap").style.display = "none";
   else $("heroDance").src = ART.ld01;   // stand on frame 1 rather than an empty
                                         // box for the beat before danceTick runs
+  if (IMG.slide) $("revealSlide").src = ART.slide;
+  else $("revealSlide").style.display = "none";
 }
 for (const k in ART) load(k, ART[k]);
 
@@ -929,7 +996,7 @@ let dieT = 0;                // wipeout animation, gates the game-over panel
 let deathX = 0, deathY = 0;  // eased screen position for the wipeout pose
 let overAnchorY = 0;         // centre of #overGap once the panel is laid out
 let duckA = 0;               // eased 0..1 tuck, see DUCK block
-let revealed = false, revealTimer = 0;
+let revealed = false;
 let ents = [], spray = [], nextZ = 0, comboFree = 0;
 
 /* ------------------------------------------------------------------
@@ -970,7 +1037,30 @@ const LETTER_AHEAD = 20;    // spawn distance; inside DRAW_FAR (26) so it fades
    because the word is a bigger share of a narrow viewport and so has further to
    travel in vw. Sized to the slowest of those, and to the clip. */
 const STAMPEDE_DUR = 8.1;
-const FLY_DUR = 0.72;       // pickup -> its slot in the HUD word
+
+/* Hat tilt on the reveal card. typhoon-hat-tilt.png is a 5x2 contact sheet with
+   a numbered label under every frame, so these are not a plain grid: each box
+   is anchored on that frame's own feet and on the horizontal centre of its
+   lower body. The full bounding box drifts as the arm comes up and would have
+   made him slide around; his legs and tube do not move. The boxes stop 7px
+   clear of the label bands (467-505 and 939-978), which is why the labels
+   never appear. */
+const HAT_SRC = {
+  w: 276, h: 408,
+  x: [ 20, 323, 628, 930, 1246,  43, 332, 627, 926, 1227],
+  y: [ 52,  52,  52,  52,   51, 522, 523, 521, 522,  524],
+};
+const HAT_FPS = 10;         // one tip of the hat a second
+let revealOpen = false, hatT = 0, hatI = -1;
+const FLY_DUR  = 0.72;      // pickup -> its slot in the HUD word
+const FLY_LAND = 0.85;      // when the slot takes over from the badge
+/* Invulnerable from the last pickup until the card is up. Timed off the two
+   things that still have to happen: the letter flies to the HUD and hands over
+   at FLY_LAND, then the word runs off for STAMPEDE_DUR before showReveal fires.
+   Dying anywhere in that ~8.7s took the win away after it had been earned —
+   the run-off and its clip carried on over the wipeout and the card never came,
+   because stampedeT only counts down while the run is playing. */
+const WIN_INVULN = FLY_DUR * FLY_LAND + STAMPEDE_DUR + 0.25;
 /* gotLetters is the game's count and advances the instant you touch a letter,
    because it also picks which letter is offered next. shownLetters is what the
    HUD has actually received and only advances when a flyer lands, so the slot
@@ -987,10 +1077,11 @@ function reset(){
   lane = 0; laneA = 0; jumpT = -1; tuckT = 0;
   invuln = 0; boostT = 0; shake = 0; hurtT = 0; moveT = 0; moveDir = 0; duckA = 0;
   tunnelIn = 0; lastTunZ = -1e9; dieT = 0;
-  revealed = false; revealTimer = 0;
+  revealed = false;
   ents = []; spray = []; nextZ = 8; comboFree = 0;
   gotLetters = 0; shownLetters = 0; letterZ = LETTER_GAP * 0.55; stampedeT = -1;
   flyers = [];
+  closeReveal();                     // a fresh run never starts with it up
   paintLetters();
   drawTubes();
 }
@@ -1162,6 +1253,8 @@ $("ctaBtn").addEventListener("click", () => {
 });
 $("pause").addEventListener("click", togglePause);
 $("resumeBtn").addEventListener("click", resumeGame);
+$("revealGo").addEventListener("click", revealContinue);
+$("revealAgain").addEventListener("click", revealRestart);
 $("mute").addEventListener("click", () => {
   const on = Sound.toggle();
   $("mute").classList.toggle("off", !on);
@@ -1238,8 +1331,6 @@ function flyLetter(idx){
                 h0: Math.max(32, H * 0.1), h1, t: 0 });
 }
 
-const FLY_LAND = 0.85;      // when the slot takes over from the badge
-
 function updateFlyers(dt){
   for (let i = flyers.length - 1; i >= 0; i--){
     const f = flyers[i];
@@ -1278,6 +1369,74 @@ function runStampede(){
   $("letters").classList.add("run");
   Sound.stampede(); puff(22);
 }
+
+/* The ride-name card. Earned by spelling the word rather than by a coin count —
+   the letters ARE the ride name, so finishing it is what should announce it.
+   Fired after the run-off and its clip have played, not on the last pickup:
+   the card flashes the screen and slams a slab over the middle of it, which
+   put two big moments on the same frame and buried the letters mid-charge. */
+function showReveal(){
+  if (revealed) return;
+  revealed = true; comboFree = 2; invuln = Math.max(invuln, 3.4);
+  // Clears the road ahead so the card lands on open water, and so whichever
+  // button they pick drops them onto clean track rather than into an obstacle
+  // that arrived while they were reading. Coins are spared to give the
+  // comboFree payout something to arrive with. No letter can be in flight —
+  // the word is finished, so spawnLetter has stopped.
+  ents = ents.filter(e => e.z < travelled + 4 || e.t === T.COIN || e.w === 0);
+  nextZ = travelled + 10;
+
+  revealOpen = true; hatT = 0; hatI = -1;
+  state = "paused";                  // the run freezes behind the card
+  /* Deliberately NOT Sound.hold() — that suspends the whole context, which
+     would take the win music down with the run. The card is the one paused
+     screen that is supposed to be playing something. */
+  $("pause").classList.remove("on"); // no pause button while a modal is up
+  $("reveal").classList.add("on"); Sound.reveal();
+
+  /* Same hand-off as the wipeout: the outgoing track is left ramping on its own
+     schedule (musicStop detaches the source but lets it finish), so the incoming
+     one rises over it instead of cutting it. */
+  Sound.musicStop(MUSIC_FADE);
+  Sound.music("start", 0.34, 1.3);
+}
+
+/* Runs off the raw frame clock rather than update(), because update() is exactly
+   what is not running while the card is up. */
+function hatTick(dt){
+  if (!revealOpen) return;
+  hatT += dt;
+  const i = Math.floor(hatT * HAT_FPS) % HAT_SRC.x.length;
+  if (i === hatI) return;            // only touch the DOM on a frame change
+  hatI = i;
+  const el = $("revealHat");
+  el.style.setProperty("--fx", (HAT_SRC.x[i] / HAT_SRC.h).toFixed(4));
+  el.style.setProperty("--fy", (HAT_SRC.y[i] / HAT_SRC.h).toFixed(4));
+}
+
+function closeReveal(){
+  revealOpen = false;
+  $("reveal").classList.remove("on");
+}
+/* Back into the same run, which is what makes it an endless mode rather than a
+   level: nothing is reset, so the distance and the buckaroos carry on. */
+function revealContinue(){
+  if (!revealOpen) return;
+  closeReveal();
+  state = "play"; Sound.unhold();
+  $("pause").classList.add("on");
+  Sound.musicStop(1.1);              // and back the same way it came
+  Sound.music("ride", null, 1.2);
+  last = performance.now();          // or the frozen span arrives as one huge dt
+}
+function revealRestart(){
+  if (!revealOpen) return;
+  closeReveal();
+  // Faded first: start() plays the ride track through musicPlay, which stops
+  // whatever is current outright, and the win tune would be cut mid-note.
+  Sound.musicStop(0.9);
+  start();                           // resets, re-shows the HUD, restarts music
+}
 function syncHUD(){
   $("dist").textContent = Math.floor(metres) + " m";
   $("coins").textContent = coins;
@@ -1286,7 +1445,11 @@ function syncHUD(){
 }
 function start(){
   Sound.unlock(); reset(); state = "play";
-  Sound.unhold(); Sound.music("ride", null, 0.7);   // eased in, not punched in
+  Sound.unhold();
+  // Faded rather than cut: musicPlay stops the current track outright, which
+  // chopped the title tune off mid-note now that one is playing behind the card.
+  Sound.musicStop(0.6);
+  Sound.music("ride", null, 0.7);                   // eased in, not punched in
   $("titlePanel").classList.remove("on");
   $("overPanel").classList.remove("on");
   $("pausePanel").classList.remove("on");
@@ -1312,7 +1475,10 @@ function pauseGame(){
   $("pause").setAttribute("aria-label", "Resume");
 }
 function resumeGame(){
-  if (state !== "paused") return;
+  // revealOpen guards every ordinary route out of "paused". The card is modal:
+  // Escape, P and the pause button would otherwise resume the run and leave it
+  // sitting on screen with the game playing underneath.
+  if (state !== "paused" || revealOpen) return;
   state = "play";
   Sound.unhold();
   $("pausePanel").classList.remove("on");
@@ -1321,6 +1487,7 @@ function resumeGame(){
   last = performance.now();
 }
 function togglePause(){
+  if (revealOpen) return;
   if (state === "paused") resumeGame(); else pauseGame();
 }
 
@@ -1363,7 +1530,8 @@ function showOver(){
   $("fWordLbl").textContent = gotLetters >= WORD.length
     ? "You spelled it"
     : "Stampede letters  " + gotLetters + " / " + WORD.length;
-  const won = coins >= CONFIG.revealAt;
+  // Same bar as the reveal: a run "won" if it spelled the word.
+  const won = gotLetters >= WORD.length;
   $("overTitle").textContent  = won ? "You Survived It" : "Wipeout";
   $("overKicker").textContent = won ? CONFIG.rideName : "Typhoon wiped out";
   $("overPanel").classList.add("on");
@@ -1521,24 +1689,16 @@ function update(dt){
   if (moveT  > 0) moveT  -= dt;
   if (boostT > 0) boostT -= dt;
   if (shake > 0) shake = Math.max(0, shake - dt * 3);
-  if (revealTimer > 0){ revealTimer -= dt; if (revealTimer <= 0) $("reveal").classList.remove("on"); }
   // Held until the run-off has finished rather than hidden on the last pickup,
-  // or the word would vanish before it got anywhere.
-  if (stampedeT > 0){ stampedeT -= dt; if (stampedeT <= 0) $("letters").classList.add("gone"); }
+  // or the word would vanish before it got anywhere. The card follows it.
+  if (stampedeT > 0){
+    stampedeT -= dt;
+    if (stampedeT <= 0){ $("letters").classList.add("gone"); showReveal(); }
+  }
 
   laneA += (laneAngle(lane) - laneA) * Math.min(1, dt * 11);
   camX = curveX(travelled) + Math.sin(laneA) * 0.34;
   camY = curveY(travelled) - CAM_UP + Math.cos(laneA) * 0.1;
-
-  if (!revealed && coins >= CONFIG.revealAt){
-    revealed = true; revealTimer = 3.1; comboFree = 2; invuln = 3.4;
-    // T.LETTER is spared alongside coins: the reveal can land at any distance,
-    // and culling the letter in flight would silently cost a run its word.
-    ents = ents.filter(e => e.z < travelled + 4 || e.t === T.COIN
-                            || e.t === T.LETTER || e.w === 0);
-    nextZ = travelled + 10;
-    $("reveal").classList.add("on"); Sound.reveal();
-  }
 
   spawn();
   spawnLetter();
@@ -1560,6 +1720,9 @@ function update(dt){
         if (e.gi === gotLetters){          // ignore anything left over from a
           flyLetter(gotLetters);           // reveal cull or a double-tap frame
           gotLetters++; puff(12);
+          // Math.max so a longer window already running (a hit taken a moment
+          // ago) is never cut short by finishing the word.
+          if (gotLetters >= WORD.length) invuln = Math.max(invuln, WIN_INVULN);
         }
       }
     } else if (e.t === T.BOOST){
@@ -2832,11 +2995,42 @@ function frame(now){
     update(dt);
     danceTick(dt);
   }
+  hatTick(dt);                      // outside the guard: the card is only ever
+                                    // up while the run is paused
   render();                         // still drawn, so the frozen frame stays up
   requestAnimationFrame(frame);
 }
+/* Title music. A page that has not been interacted with gets no audio at all
+   under the autoplay policy, so this is tried at boot and again on the first
+   input — whichever gets there first wins, and the flag stops the other from
+   starting a second copy.
+   CLICK, not pointerdown. On this screen the only things to interact with are
+   Drop In and the space bar, and both start the run: pointerdown fires BEFORE
+   the button's own handler, so the title track would start and be torn down a
+   frame later every single time. Listening on the bubbled click means start()
+   has already run and set state, so this simply skips — and a click anywhere
+   that ISN'T the button still brings the music up. Same ordering holds for
+   keydown, whose game handler is registered earlier on window and so runs
+   first.
+   A gesture is taken at its word rather than tested: ctxr() calls resume(),
+   which resolves asynchronously, so the context still reads "suspended" for a
+   moment afterwards and testing it here would reject the very event that
+   unlocked it. */
+let titleTune = false;
+function startTitleMusic(fromGesture){
+  if (titleTune || state !== "title") return;
+  const a = Sound.unlock();
+  if (!fromGesture && (!a || a.state !== "running")) return;
+  titleTune = true;
+  Sound.music("start", null, 1.2);
+}
+window.addEventListener("click",   () => startTitleMusic(true));
+window.addEventListener("keydown", () => startTitleMusic(true));
+window.addEventListener("touchend", () => startTitleMusic(true));
+
 buildWord($("introWord"), 0);   // title card shows the word unlit, as the goal
 reset();
+startTitleMusic(false);
 requestAnimationFrame(frame);
 </script>
 </body>
