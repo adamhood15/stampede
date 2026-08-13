@@ -52,6 +52,82 @@
         border:3px solid var(--ink);box-shadow:inset 0 0 0 2px rgba(252,246,240,.55)}
   .tube.spent{background:transparent;box-shadow:none;opacity:.35}
 
+  /* The banked word. Absolutely centred rather than a third flex child so it
+     stays on the screen's centre line regardless of how wide the two boards
+     grow as the numbers climb. */
+  #letters{position:absolute;left:50%;top:calc(env(safe-area-inset-top,0px) + 12px);
+           transform:translateX(-50%);display:flex;gap:clamp(3px,1.2vw,10px)}
+  #letters.gone{display:none}
+  /* Below the boards on narrow screens: at full size the word plus both boards
+     overrun a phone's width and the letters end up underneath them. */
+  @media (max-width:560px){ #letters{top:calc(env(safe-area-inset-top,0px) + 78px)} }
+  .word{display:flex;justify-content:center}
+  /* Each letter is a window onto its own artwork file rather than type: the
+     word is a slab serif with a gold gradient, a bevel and baked-in sparkles,
+     and --display is a condensed sans, so no amount of stroke and shadow would
+     have got the letterforms right.
+     Everything is expressed in units of --lh, so the whole word scales from a
+     single value: the box is the ink's aspect ratio tall, the file behind it is
+     scaled so its 390px ink band maps to --lh, and --ox slides it across to
+     drop the file's own padding. background-image, --ar, --ox and --bw are set
+     per letter in buildWord. No skew here — the artwork carries its own
+     styling. */
+  #letters b,.word b{display:block;font-size:0;color:transparent;
+        height:var(--lh);width:calc(var(--lh) * var(--ar));
+        background-repeat:no-repeat;
+        background-size:calc(var(--lh) * var(--bw)) auto;
+        background-position:calc(var(--lh) * var(--ox) * -1) calc(var(--lh) * -0.01538)}
+  /* Gap taken from the artwork's own letter spacing so the word reads as the
+     logo does rather than as eight separate stickers. */
+  #letters,.word{gap:calc(var(--lh) * .075)}
+  .word{--lh:clamp(15px,3.8vw,26px)}
+  /* The HUD word is the run's scoreboard, so it carries far more weight than
+     the static copies on the title and results cards. */
+  #letters{--lh:clamp(30px,7.4vw,56px)}
+  /* Not yet collected: the same slice held back as a dark ghost, so the slot
+     shows the shape you are hunting for rather than an empty space. */
+  #letters b,.word b{filter:grayscale(1) brightness(.42) opacity(.5)}
+  #letters b.got,.word b.got{filter:none}
+  /* Lands rather than pops: the flyer has just arrived at this slot, so the
+     letter takes over mid-flight instead of appearing from nothing. */
+  #letters b.got{filter:drop-shadow(0 4px 0 rgba(10,10,10,.3));
+                 animation:letterLand .26s cubic-bezier(.16,1.4,.4,1)}
+  @keyframes letterLand{from{transform:scale(1.55)} to{transform:scale(1)}}
+
+  /* Gathers itself, then bolts — the stagger is what makes it read as a herd
+     rather than one block sliding off.
+     Run slowly, to stay on screen for the whole stampede clip. Duration and
+     stagger are scaled together so the herd strings out exactly as it did at
+     the original speed; scaling only the duration would collapse the eight
+     letters into one moving block.
+     The end stop is 78vw, not the 104vw it used to be. A letter has left the
+     screen by roughly 60-74vw depending on viewport, so the old overshoot was
+     a third of the animation spent travelling where nobody could see it — the
+     word vanished at ~6.1s while the audio ran on. Trimming the overshoot buys
+     that time back on screen rather than making the letters crawl.
+     The pacing lives in the keyframe stops with linear timing rather than in an
+     ease-in curve: stretched over five seconds, an ease-in creeps for half the
+     animation and then snaps, which reads as a stall rather than a run. Here it
+     rears back, breaks away, and gains ground the whole way out. */
+  #letters.run b{animation:stampede 5.8s linear forwards;
+                 animation-delay:calc(var(--i) * 336ms)}
+  @keyframes stampede{
+    0%  {transform:translateX(0) rotate(0deg)}
+    5%  {transform:translateX(-12px) rotate(-9deg)}
+    14% {transform:translateX(2vw) rotate(6deg)}
+    45% {transform:translateX(24vw) rotate(5deg)}
+    100%{transform:translateX(78vw) rotate(7deg)}}
+
+  /* Title and game-over copies of the word: static, no pop, no run-off. */
+  #wordIntro,#wordBox{margin:14px 0 0;text-align:center}
+  #wordBox{margin-top:12px}
+  #wordIntro .lbl,#wordBox .lbl{display:block;font-size:9px;letter-spacing:.2em;
+        text-transform:uppercase;color:var(--sky-low);margin-bottom:6px}
+  @media (prefers-reduced-motion:reduce){
+    #letters b.got{animation:none}
+    #letters.run b{animation:none;opacity:0}
+  }
+
   #speedbar{position:absolute;left:50%;transform:translateX(-50%);
             bottom:calc(env(safe-area-inset-bottom,0px) + 14px);display:flex;gap:3px}
   #speedbar i{width:10px;height:17px;background:rgba(30,48,72,.45);
@@ -84,8 +160,12 @@
        color:rgba(252,246,240,.85);max-width:32ch;line-height:1.7}
   #heroWrap{position:relative;display:flex;align-items:flex-end;justify-content:center;
             margin:10px 0 0;height:min(30vh,240px)}
-  #heroSlide{height:100%;width:auto;opacity:.95}
-  #heroRider{height:62%;width:auto;margin-left:-8%;
+  /* Fixed box rather than width:auto. The twelve frames are cropped tight and
+     run 203-264px wide, so an auto-width image resizes the flex item on every
+     frame and he skates sideways as he dances. contain + bottom holds him
+     centred with his feet on one line. */
+  #heroDance{height:100%;width:min(58vw,210px);object-fit:contain;
+             object-position:center bottom;
              filter:drop-shadow(0 8px 0 rgba(10,10,10,.25))}
   @media (max-height:600px){ #heroWrap{display:none} }
 
@@ -176,6 +256,7 @@
       </div>
       <div id="tubes"></div>
     </div>
+    <div id="letters" aria-label="Stampede letters collected"></div>
     <div id="speedbar"></div>
     <div id="hint">Swipe to steer</div>
   </div>
@@ -185,10 +266,13 @@
     <p class="park" id="parkName">Typhoon Texas</p>
     <h1 class="ride" id="rideName">STAMPEDE</h1>
     <div id="heroWrap">
-      <img id="heroSlide" alt="">
-      <img id="heroRider" alt="">
+      <img id="heroDance" alt="">
     </div>
     <p class="tag" id="tagline">Grab the Buckaroos. Dodge the crowd. Ride it before you ride it.</p>
+    <div id="wordIntro">
+      <span class="lbl">Collect every letter</span>
+      <div id="introWord" class="word"></div>
+    </div>
     <button class="btn" id="playBtn" type="button">Drop In</button>
     <div class="keys">
       <div><b>&larr; &rarr;</b>Steer</div>
@@ -204,6 +288,10 @@
       <div><span>Buckaroos</span><strong id="fCoins">0</strong></div>
       <div><span>Best</span><strong id="fBest">0</strong></div>
     </div>
+    <div id="wordBox">
+      <span class="lbl" id="fWordLbl">Stampede letters</span>
+      <div id="fWord" class="word"></div>
+    </div>
     <p class="tag" id="overTag">The real drop opens this summer.</p>
     <div id="overGap" aria-hidden="true"></div>
     <button class="btn" id="againBtn" type="button">Ride Again</button>
@@ -212,7 +300,7 @@
 
   <div id="reveal"><div class="slab">
     <div class="k">Coming Summer 2026</div>
-    <div class="n" id="revealName">The Riptide</div>
+    <div class="n" id="revealName">Stampede</div>
   </div></div>
 
   <div class="panel" id="pausePanel">
@@ -255,7 +343,7 @@
 
 const CONFIG = {
   parkName:  "Typhoon Texas",
-  rideName:  "The Riptide",          // <- your real slide name
+  rideName:  "Stampede",          // <- your real slide name
   eyebrow:   "Now testing at Typhoon Texas",
   tagline:   "Grab the Buckaroos. Dodge the crowd. Ride it before you ride it.",
   openingLine: "Coming Summer 2026",
@@ -268,7 +356,7 @@ const CONFIG = {
   coinValue: 1,
 
   startSpeed: 4.4,                   // chute-radii per second — starts with pace
-  maxSpeed:   10.0,
+  maxSpeed:   9.0,
   accel:      0.24,                  // tops out ~17s in, inside a typical run.
                                      // At 0.07 this took 54s and nobody got there.
   metresPerUnit: 3.6                 // keeps the metre readout in the same range
@@ -279,9 +367,11 @@ const CONFIG = {
    made the page self-contained but meant swapping the art on disk silently did
    nothing — and cost a 33% encoding penalty the browser could never cache
    separately from the code. Filenames match the keys below one-for-one.
-   NOTE: the rider, flip, spin and duck frames are registered against measured
-   constants (see RIDER_CX / FLIP_REG / MOVE_REG / DUCK_REG). Re-exporting any
-   of those needs those numbers re-measured. */
+   NOTE: the rider, flip, move, duck, hurt and die frames are registered against
+   measured constants (see RIDER_CX / RIDER_TUBE_* / FLIP_REG / MOVE_REG /
+   DUCK_REG / HURT_REG / DIE_REG). Re-exporting any of those needs those numbers
+   re-measured — and re-exporting the RIDER invalidates every other set, since
+   they are all registered relative to it. */
 const ART = {
   sun:      "assets/sprites/backdrop/sun.png",
   cloud:    "assets/sprites/backdrop/cloud.png",
@@ -306,10 +396,8 @@ const ART = {
   duck0:    "assets/sprites/typhoon-sprites/duck/duck_01.png",
   duck1:    "assets/sprites/typhoon-sprites/duck/duck_02.png",
   duck2:    "assets/sprites/typhoon-sprites/duck/duck_03.png",
-  mvL0:     "assets/sprites/typhoon-sprites/move/move-left__01.png",
-  mvL1:     "assets/sprites/typhoon-sprites/move/move-left__02.png",
-  mvR0:     "assets/sprites/typhoon-sprites/move/move-right__01.png",
-  mvR1:     "assets/sprites/typhoon-sprites/move/move-right__02.png",
+  mvL:      "assets/sprites/typhoon-sprites/move/move-left_01.png",
+  mvR:      "assets/sprites/typhoon-sprites/move/move-right_01.png",
   flip0:    "assets/sprites/typhoon-sprites/jump/backflip_01.png",
   flip1:    "assets/sprites/typhoon-sprites/jump/backflip_02.png",
   flip2:    "assets/sprites/typhoon-sprites/jump/backflip_03.png",
@@ -319,7 +407,37 @@ const ART = {
   pig2:     "assets/sprites/obstacles/pig-2.png",
   pig3:     "assets/sprites/obstacles/pig-3.png",
   pig4:     "assets/sprites/obstacles/pig-4.png",
-  slide:    "assets/sprites/backdrop/slide-tower.png"
+
+  /* Title-screen line dance, played in numeric order. ld04 points at
+     "line-dance_04-05.png" on purpose: that file is the real frame 4 (both
+     hands on the tube), while the export that landed as line-dance_04.png is a
+     15x932 sliver with nothing in it. The sprite sheet has twelve distinct
+     cells and these are them. */
+  ld01:     "assets/sprites/typhoon-sprites/line-dance/line-dance_01.png",
+  ld02:     "assets/sprites/typhoon-sprites/line-dance/line-dance_02.png",
+  ld03:     "assets/sprites/typhoon-sprites/line-dance/line-dance_03.png",
+  ld04:     "assets/sprites/typhoon-sprites/line-dance/line-dance_04-05.png",
+  ld05:     "assets/sprites/typhoon-sprites/line-dance/line-dance_05.png",
+  ld06:     "assets/sprites/typhoon-sprites/line-dance/line-dance_06.png",
+  ld07:     "assets/sprites/typhoon-sprites/line-dance/line-dance_07.png",
+  ld08:     "assets/sprites/typhoon-sprites/line-dance/line-dance_08.png",
+  ld09:     "assets/sprites/typhoon-sprites/line-dance/line-dance_09.png",
+  ld10:     "assets/sprites/typhoon-sprites/line-dance/line-dance_10.png",
+  ld11:     "assets/sprites/typhoon-sprites/line-dance/line-dance_11.png",
+  ld12:     "assets/sprites/typhoon-sprites/line-dance/line-dance_12.png",
+
+  /* The word as artwork, one file per letter. The CSS word and the canvas
+     pickups both read from these, so a letter cannot look like two different
+     things on its way from the chute to the HUD. Keyed by POSITION, not by
+     letter: the two E's are separate files. */
+  lt1:      "assets/sprites/letters/letters_01.png",
+  lt2:      "assets/sprites/letters/letters_02.png",
+  lt3:      "assets/sprites/letters/letters_03.png",
+  lt4:      "assets/sprites/letters/letters_04.png",
+  lt5:      "assets/sprites/letters/letters_05.png",
+  lt6:      "assets/sprites/letters/letters_06.png",
+  lt7:      "assets/sprites/letters/letters_07.png",
+  lt8:      "assets/sprites/letters/letters_08.png"
 };
 
 /* Recorded one-shots. Anything missing here just falls back to the synthesised
@@ -334,9 +452,10 @@ const SFX = {
   coin:  "assets/sound-effects/collectibles/Coin%20Collect.mp3",
   hit:   "assets/sound-effects/player/Horse%20Whinny.mp3",
   boost: "assets/sound-effects/interactions/Speed%20Boost%2005.mp3",
-  move:  "assets/sound-effects/player/boing.mp3",
   hurt:  "assets/sound-effects/player/typhoon-hurt.wav",
   dead:  "assets/sound-effects/player/typhoon-dead.wav",
+  letter:"assets/sound-effects/letter-collect/Happy%20Game%20Notification.mp3",
+  stampede:"assets/sound-effects/special/stampede-sound.mp3",
 };
 
 const C = {
@@ -361,8 +480,11 @@ function load(key, src){
 function ready(){
   $("load").classList.add("off");
   if (IMG.coinA) $("coinIcon").src = ART.coinA;
-  if (IMG.slide) $("heroSlide").src = ART.slide; else $("heroSlide").style.display = "none";
-  if (IMG.rider) $("heroRider").src = ART.rider; else $("heroRider").style.display = "none";
+  // Checked against a literal key rather than DANCE_KEYS, which is declared
+  // further down: onload can land before that initialiser has run.
+  if (!IMG.ld01) $("heroWrap").style.display = "none";
+  else $("heroDance").src = ART.ld01;   // stand on frame 1 rather than an empty
+                                        // box for the beat before danceTick runs
 }
 for (const k in ART) load(k, ART[k]);
 
@@ -395,7 +517,7 @@ function resize(){
   cv.width = Math.floor(W * DPR); cv.height = Math.floor(H * DPR);
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   focal   = Math.min(H * 1.05, W * 1.55);
-  horizon = H * 0.317;              // raised again — less sky, more park
+  horizon = H * 0.307;              // raised again — less sky, more park
   OVER    = Math.max(W, H) * 0.25;
 }
 window.addEventListener("resize", () => { resize(); if (state === "over") layoutOverRider(); });
@@ -671,9 +793,6 @@ const Sound = (function(){
             if (musicEl){ try { musicEl.pause(); } catch (e) {} } },
     unhold(){ held = false; if (ac && ac.state === "suspended") ac.resume();
               if (musicEl){ try { musicEl.play(); } catch (e) {} } },
-    /* Lane change. The recorded boing runs 2.06s, far longer than a lane
-       change, so repeated flicks overlap — kept quiet for that reason. */
-    move(){ if (!sample("move", 0.5)) hiss(0.18, 1400, 0.09); },
     // quietest of the samples on purpose: coins arrive in lines of 3-5 and each
     // play overlaps the last, so this one stacks where the others never do
     coin(){ if (!sample("coin", 0.05)){ tone(880, 1650, 0.1, "triangle", 0.13);
@@ -689,6 +808,16 @@ const Sound = (function(){
     dead(){ if (!sample("dead", 0.55)) tone(300, 70, 0.8, "sawtooth", 0.16); },
     soak(){ hiss(0.42, 900, 0.17); tone(260, 120, 0.28, "sine", 0.08); },
     boost(){ if (!sample("boost", 0.75)) tone(320, 1250, 0.36, "sawtooth", 0.13); },
+    // Louder than a coin: a letter lands once every ~180m, so it never stacks
+    // the way a coin line does and it needs to read as the rarer pickup.
+    letter(){ if (!sample("letter", 0.7)){ tone(660, 1320, 0.16, "triangle", 0.15);
+                                           tone(990, 1980, 0.13, "sine", 0.08); } },
+    /* The whole word, going out the door. The clip measures 7.97s, which is what
+       STAMPEDE_DUR and the CSS run-off are both sized against — the synth
+       fallback is a second long, so a failed decode ends early rather than
+       leaving the animation running over silence. */
+    stampede(){ if (!sample("stampede", 0.9)){ tone(300, 1400, 0.9, "sawtooth", 0.14);
+                                               hiss(0.85, 900, 0.13); } },
     reveal(){ tone(420, 900, 0.7, "triangle", 0.16); hiss(0.7, 1100, 0.1); },
     over(){ tone(300, 70, 0.8, "sawtooth", 0.16); }
   };
@@ -697,7 +826,7 @@ const Sound = (function(){
 /* ==================================================================
    STATE
    ================================================================== */
-const T = { COW:0, YETI:1, WAVE:2, TUNNEL:3, COIN:4, BOOST:5, PIG:6 };
+const T = { COW:0, YETI:1, WAVE:2, TUNNEL:3, COIN:4, BOOST:5, PIG:6, LETTER:7 };
 
 /* ------------------------------------------------------------------
    SNIPER PIG
@@ -803,6 +932,52 @@ let duckA = 0;               // eased 0..1 tuck, see DUCK block
 let revealed = false, revealTimer = 0;
 let ents = [], spray = [], nextZ = 0, comboFree = 0;
 
+/* ------------------------------------------------------------------
+   STAMPEDE LETTERS
+   Donkey Kong's K-O-N-G: one letter on offer at a time, banked to the
+   HUD in word order, and the finished word bolts off the top of the
+   screen.
+   gotLetters doubles as the index of the letter currently on offer,
+   which is what keeps the word in order for free: collecting is the
+   only thing that advances it, so the next letter spawned is always
+   the next one still needed. A letter you miss is simply offered
+   again one gap later — with lane-only pickup, one wrong lane would
+   otherwise end the run's chance at the word.
+   ------------------------------------------------------------------ */
+const WORD = "STAMPEDE";
+/* Where the ink sits inside each letters_0N.png, measured off their alpha.
+   Indexed by POSITION in WORD, not by character: the two E's are separate
+   files and must not collapse to one entry.
+   The files share a 406px canvas with their ink vertically aligned inside it,
+   so y/h are one common band for all eight and the word keeps a single
+   baseline. Horizontally they are cropped to their own ink instead, because
+   the padding baked into each file runs from 0 to 18px — leaning on it for
+   spacing would have put anything from 3px to 29px between neighbours.
+   cw is each file's full canvas width, which is what the background has to be
+   scaled by; w is just the ink. */
+const WORD_SRC = {
+  y: 6, h: 390,
+  x:  [  18,  16,   0,   8,   0,   4,  10,  10],
+  w:  [ 234, 242, 289, 303, 221, 218, 235, 232],
+  cw: [ 265, 261, 295, 316, 230, 228, 257, 259],
+};
+const LETTER_GAP   = 180 / CONFIG.metresPerUnit;  // ~180m between offers
+const LETTER_AHEAD = 20;    // spawn distance; inside DRAW_FAR (26) so it fades
+                            // in rather than popping, and well under LETTER_GAP
+                            // so two letters are never in flight at once
+/* Holds the row until the run-off is done. The last letter leaves the screen
+   somewhere between 7.0s (wide desktop) and 7.9s (phone) — the spread is real,
+   because the word is a bigger share of a narrow viewport and so has further to
+   travel in vw. Sized to the slowest of those, and to the clip. */
+const STAMPEDE_DUR = 8.1;
+const FLY_DUR = 0.72;       // pickup -> its slot in the HUD word
+/* gotLetters is the game's count and advances the instant you touch a letter,
+   because it also picks which letter is offered next. shownLetters is what the
+   HUD has actually received and only advances when a flyer lands, so the slot
+   stays empty while its letter is still on the way up. */
+let gotLetters = 0, shownLetters = 0, letterZ = 0, stampedeT = -1;
+let flyers = [];
+
 const JUMP_DUR = 0.62, JUMP_H = 0.55;
 const BOOST_DUR = 2.4;      // also roughly the length of the boost sample
 
@@ -814,33 +989,51 @@ function reset(){
   tunnelIn = 0; lastTunZ = -1e9; dieT = 0;
   revealed = false; revealTimer = 0;
   ents = []; spray = []; nextZ = 8; comboFree = 0;
+  gotLetters = 0; shownLetters = 0; letterZ = LETTER_GAP * 0.55; stampedeT = -1;
+  flyers = [];
+  paintLetters();
   drawTubes();
 }
 
 const laneAngle = (i) => i * LANE_A;
 function add(t, z, i, w){
-  ents.push({ t:t, z:z, i:i, a:laneAngle(i), dead:false, w:w||1,
-              spin:Math.random()*6, side:Math.random()<0.5?-1:1 });
+  const e = { t:t, z:z, i:i, a:laneAngle(i), dead:false, w:w||1,
+              spin:Math.random()*6, side:Math.random()<0.5?-1:1 };
+  ents.push(e);
+  return e;                        // returned so a caller can tag it (see letters)
 }
 
 /* ---------- course ---------- */
+/* Clear water off the start. The first hazard used to be placeable at z=8,
+   which a standing start reaches in 1.74s — before the ride has finished
+   easing up to speed and while the camera is still settling, so the opening
+   read as an ambush rather than a run. 15 buys ~3.1s (54m).
+   Only hazards are held back: the runway still pays out buckaroos, so the
+   opening teaches the lane controls on something worth steering for instead
+   of being empty water. */
+const START_GRACE = 15;
+
 function spawn(){
   while (nextZ < travelled + DRAW_FAR){
     const z = nextZ, hard = Math.min(1, metres / 1400), r = Math.random();
     let gapSec, minGap = 2.2;
 
-    if (comboFree > 0){
+    if (z < START_GRACE){
+      const li = (Math.random()*3|0) - 1;
+      for (let k = 0; k < 5; k++) add(T.COIN, z + k * 0.8, li);
+      gapSec = 1.2;
+    } else if (comboFree > 0){
       comboFree--;
       for (let k = 0; k < 4; k++) add(T.COIN, z + k * 0.8, (Math.random()*3|0) - 1);
       gapSec = 1.5;
     } else if (r < 0.15){                                   // buckaroo line
       const li = (Math.random()*3|0) - 1;
-      for (let k = 0; k < 5; k++) add(T.COIN, z + k * 0.8, li);
+      for (let k = 0; k < 7; k++) add(T.COIN, z + k * 0.8, li);
       gapSec = 1.4;
     } else if (r < 0.34){                                   // one rider + coins in a clear lane
       const li = (Math.random()*3|0) - 1;
       add(Math.random() < 0.5 ? T.COW : T.YETI, z, li);
-      for (let k = 0; k < 3; k++) add(T.COIN, z + k * 0.8, li === -1 ? 1 : li - 1);
+      for (let k = 0; k < 4; k++) add(T.COIN, z + k * 0.8, li === -1 ? 1 : li - 1);
       gapSec = 1.35;
     } else if (r < 0.51 && metres > 220 && z - lastTunZ > TUN_APART
                && tunnelStraight(z)){                       // enclosed section
@@ -849,8 +1042,14 @@ function spawn(){
       // difficulty gets the next obstacle 5.3 units on — inside a 6.3-unit
       // tunnel — and two of them visibly telescope into each other.
       add(T.TUNNEL, z, 0, 3); lastTunZ = z; gapSec = 1.4; minGap = TUN_LEN + 2.5;
-    } else if (r < 0.62 && metres > 110){                   // wave -> jump
-      add(T.WAVE, z, 0, 3); gapSec = 1.4;
+    } else if (r < 0.62 && metres > 110){                   // wave -> jump -> coins
+      // The run starts past the wave's own depth so it reads as a payout for
+      // clearing it rather than as decoration sitting on top of it. Collection
+      // is lane-only, so being airborne over them still counts.
+      add(T.WAVE, z, 0, 3);
+      const li = (Math.random()*3|0) - 1;
+      for (let k = 0; k < 3; k++) add(T.COIN, z + 1.6 + k * 0.8, li);
+      gapSec = 1.4;
     } else if (r < 0.80 && metres > 110){                   // sniper pig -> duck
       // Wide gap after him: he needs PIG_WIND worth of run-up to animate, and
       // the jet spans the chute, so stacking anything on top is unreadable.
@@ -859,7 +1058,7 @@ function spawn(){
       const free = (Math.random()*3|0) - 1;
       let flip = Math.random() < 0.5;
       for (let i = -1; i <= 1; i++) if (i !== free){ add(flip ? T.COW : T.YETI, z, i); flip = !flip; }
-      for (let k = 0; k < 3; k++) add(T.COIN, z + k * 0.8, free);
+      for (let k = 0; k < 4; k++) add(T.COIN, z + k * 0.8, free);
       gapSec = 1.5;
     } else if (hard > 0.45 && z - lastTunZ > TUN_APART && tunnelStraight(z)){  // tunnel, then jump
       add(T.TUNNEL, z, 0, 3); lastTunZ = z;
@@ -876,13 +1075,50 @@ function spawn(){
   }
 }
 
+/* Is anything already occupying this lane at this depth? A letter dropped on
+   top of a rider would make the word cost a life, and one dropped inside a
+   covered section is simply invisible — a tunnel owns its whole LENGTH, not
+   just the z it was spawned at, which is why it can't use the flat window. */
+function laneBlocked(z, i){
+  for (const e of ents){
+    if (e.dead || e.w === 0) continue;
+    const near = e.t === T.TUNNEL
+      ? (z > e.z - 1.6 && z < e.z + TUN_LEN + 1.6)
+      : Math.abs(e.z - z) < 1.6;
+    if (!near) continue;
+    if (e.w >= 3 || e.i === i) return true;      // w>=3 spans the whole chute
+  }
+  return false;
+}
+
+/* Letters run on their own distance clock rather than through spawn()'s
+   pattern chain: those slots are sized around obstacle rhythm, and a letter
+   consuming one would thin the course every time it appeared. */
+function spawnLetter(){
+  if (gotLetters >= WORD.length || travelled < letterZ) return;
+  const z = travelled + LETTER_AHEAD;
+  // Rotated from a random start so a blocked lane doesn't always fall back to
+  // the same neighbour and park the letters on one side of the chute.
+  const start = Math.random() * 3 | 0;
+  for (let k = 0; k < 3; k++){
+    const i = ((start + k) % 3) - 1;
+    if (laneBlocked(z, i)) continue;
+    const e = add(T.LETTER, z, i);
+    e.gi = gotLetters;              // also picks its cell out of the artwork
+    letterZ = travelled + LETTER_GAP;
+    return;
+  }
+  // every lane busy: leave letterZ alone and try again next frame, a little
+  // further down the chute
+}
+
 /* ==================================================================
    INPUT
    ================================================================== */
 function moveLane(d){
   if (state !== "play") return;
   const n = Math.max(-1, Math.min(1, lane + d));
-  if (n !== lane){ lane = n; moveT = MOVE_DUR; moveDir = d; Sound.move(); puff(9); }
+  if (n !== lane){ lane = n; moveT = MOVE_DUR; moveDir = d; puff(9); }
 }
 function jump(){ if (jumpT < 0 && state === "play"){ jumpT = 0; tuckT = 0; Sound.jump(); } }
 function tuck(){ if (state === "play" && jumpT < 0 && tuckT <= 0){ tuckT = 0.55; Sound.duck(); } }
@@ -949,6 +1185,99 @@ function drawTubes(){
     box.appendChild(d);
   }
 }
+
+/* Shared by the HUD row and the game-over recap. Rebuilt from scratch rather
+   than toggling classes on surviving nodes: the stampede is a CSS animation and
+   a node that has already run it keeps its end state (off-screen right), so a
+   reused node would start the next run invisible. Fresh elements have no
+   animation history. */
+function buildWord(box, upto){
+  box.innerHTML = "";
+  for (let i = 0; i < WORD.length; i++){
+    const b = document.createElement("b");
+    b.textContent = WORD[i];            // kept for screen readers; hidden in CSS
+    if (i < upto) b.className = "got";
+    b.style.setProperty("--i", i);      // drives the stampede stagger
+    // All in units of the letter's own height, so one --lh drives the size of
+    // the box, the scale of the file behind it and the offset into it.
+    b.style.setProperty("--ar", (WORD_SRC.w[i]  / WORD_SRC.h).toFixed(4));
+    b.style.setProperty("--ox", (WORD_SRC.x[i]  / WORD_SRC.h).toFixed(4));
+    b.style.setProperty("--bw", (WORD_SRC.cw[i] / WORD_SRC.h).toFixed(4));
+    b.style.backgroundImage = "url(" + ART["lt" + (i + 1)] + ")";
+    box.appendChild(b);
+  }
+}
+function paintLetters(){
+  const box = $("letters");
+  box.className = "";                   // clears run/gone left by the last run
+  buildWord(box, shownLetters);
+}
+
+/* Launches the collected letter from the rider toward its slot in the HUD word.
+   The world is drawn inside a rolled, shaken transform, so the pickup point is
+   un-rolled here and the flight is drawn in plain screen space — otherwise the
+   letter would bank with the camera on its way to a slot that never banks.
+   The slot is measured now rather than at launch-time defaults because all
+   eight slots exist from the first frame, so its position is already final. */
+function flyLetter(idx){
+  const p = floorPt(travelled, laneA, riderLift() + 0.42);
+  const roll = rollAngle(), cs = Math.cos(roll), sn = Math.sin(roll);
+  const dx = p.x - W / 2, dy = p.y - horizon;
+  const from = { x: W / 2 + dx * cs - dy * sn, y: horizon + dx * sn + dy * cs };
+
+  let to = { x: W / 2, y: H * 0.06 }, h1 = 32;
+  const slot = $("letters").children[idx];
+  if (slot){
+    const b = slot.getBoundingClientRect(), cr = cv.getBoundingClientRect();
+    if (b.width > 0){
+      to = { x: b.left + b.width / 2 - cr.left, y: b.top + b.height / 2 - cr.top };
+      h1 = b.height;                   // lands at exactly the slot's own size
+    }
+  }
+  flyers.push({ idx, x0: from.x, y0: from.y, x1: to.x, y1: to.y,
+                h0: Math.max(32, H * 0.1), h1, t: 0 });
+}
+
+const FLY_LAND = 0.85;      // when the slot takes over from the badge
+
+function updateFlyers(dt){
+  for (let i = flyers.length - 1; i >= 0; i--){
+    const f = flyers[i];
+    f.t += dt / FLY_DUR;
+    /* The slot lights while the badge is still fading out on top of it. Landing
+       only at t=1 left ~100ms where the badge had faded and the slot had not
+       lit yet, and the letter read as vanishing rather than arriving. */
+    if (!f.landed && f.t >= FLY_LAND){
+      f.landed = true;
+      shownLetters = Math.max(shownLetters, f.idx + 1);
+      paintLetters();
+      if (shownLetters >= WORD.length){ stampedeT = STAMPEDE_DUR; runStampede(); }
+      else Sound.letter();             // rings on arrival, in step with the HUD
+    }
+    if (f.t >= 1) flyers.splice(i, 1);
+  }
+}
+
+function drawFlyers(){
+  for (const f of flyers){
+    const t = Math.min(1, f.t);
+    const e = t * t * (3 - 2 * t);                  // smoothstep
+    // Vertical runs ahead of horizontal so it breaks upward off the slide first
+    // and drifts across as it climbs, rather than cutting a straight diagonal.
+    const ey = Math.min(1, e * 1.25);
+    letterBadge(f.x0 + (f.x1 - f.x0) * e,
+                f.y0 + (f.y1 - f.y0) * ey,
+                f.h0 + (f.h1 - f.h0) * e, f.idx,
+                t > FLY_LAND ? Math.max(0, (1 - t) / (1 - FLY_LAND)) : 1);
+  }
+}
+
+/* Sound plays here rather than at the collect site so the last letter gets the
+   stampede sting instead of a pickup blip stacked under it. */
+function runStampede(){
+  $("letters").classList.add("run");
+  Sound.stampede(); puff(22);
+}
 function syncHUD(){
   $("dist").textContent = Math.floor(metres) + " m";
   $("coins").textContent = coins;
@@ -1007,6 +1336,10 @@ function gameOver(){
   shake = 0;                 // it only decays in the play branch, so a fatal hit
                              // would otherwise leave the camera shaking at full
                              // strength for the whole wipeout
+  // updateFlyers only runs in the play branch, so anything still in the air
+  // would hang frozen over the wipeout. The letter is already banked in
+  // gotLetters, which is what the results card reads.
+  flyers = [];
   best = Math.max(best, coins); Sound.dead();
   $("pause").classList.remove("on");
   $("pausePanel").classList.remove("on");
@@ -1026,6 +1359,10 @@ function showOver(){
   $("fDist").textContent  = Math.floor(metres);
   $("fCoins").textContent = coins;
   $("fBest").textContent  = best;
+  buildWord($("fWord"), gotLetters);
+  $("fWordLbl").textContent = gotLetters >= WORD.length
+    ? "You spelled it"
+    : "Stampede letters  " + gotLetters + " / " + WORD.length;
   const won = coins >= CONFIG.revealAt;
   $("overTitle").textContent  = won ? "You Survived It" : "Wipeout";
   $("overKicker").textContent = won ? CONFIG.rideName : "Typhoon wiped out";
@@ -1185,6 +1522,9 @@ function update(dt){
   if (boostT > 0) boostT -= dt;
   if (shake > 0) shake = Math.max(0, shake - dt * 3);
   if (revealTimer > 0){ revealTimer -= dt; if (revealTimer <= 0) $("reveal").classList.remove("on"); }
+  // Held until the run-off has finished rather than hidden on the last pickup,
+  // or the word would vanish before it got anywhere.
+  if (stampedeT > 0){ stampedeT -= dt; if (stampedeT <= 0) $("letters").classList.add("gone"); }
 
   laneA += (laneAngle(lane) - laneA) * Math.min(1, dt * 11);
   camX = curveX(travelled) + Math.sin(laneA) * 0.34;
@@ -1192,12 +1532,17 @@ function update(dt){
 
   if (!revealed && coins >= CONFIG.revealAt){
     revealed = true; revealTimer = 3.1; comboFree = 2; invuln = 3.4;
-    ents = ents.filter(e => e.z < travelled + 4 || e.t === T.COIN || e.w === 0);
+    // T.LETTER is spared alongside coins: the reveal can land at any distance,
+    // and culling the letter in flight would silently cost a run its word.
+    ents = ents.filter(e => e.z < travelled + 4 || e.t === T.COIN
+                            || e.t === T.LETTER || e.w === 0);
     nextZ = travelled + 10;
     $("reveal").classList.add("on"); Sound.reveal();
   }
 
   spawn();
+  spawnLetter();
+  updateFlyers(dt);
 
   const lift = riderLift();
   const airborne = jumpT >= 0 && lift > 0.28;   // generous window on purpose
@@ -1209,6 +1554,14 @@ function update(dt){
 
     if (e.t === T.COIN){
       if (e.i === lane){ e.dead = true; coins += CONFIG.coinValue; Sound.coin(); }
+    } else if (e.t === T.LETTER){
+      if (e.i === lane){
+        e.dead = true;
+        if (e.gi === gotLetters){          // ignore anything left over from a
+          flyLetter(gotLetters);           // reveal cull or a double-tap frame
+          gotLetters++; puff(12);
+        }
+      }
     } else if (e.t === T.BOOST){
       e.dead = true; boostT = BOOST_DUR; Sound.boost(); puff(16);
     } else if (e.t === T.TUNNEL){
@@ -1709,6 +2062,36 @@ function sprite(img, e, hUnits, lift, fbTube, fbBody){
   }
 }
 
+/* Shared by the letter sitting in the chute and by the one flying to the HUD,
+   so a pickup can't change appearance halfway through its own journey.
+   Takes the letter's INDEX rather than its character, because the artwork has
+   two distinct E cells and the character alone can't tell them apart.
+   h is the drawn height of the letter, not a radius: with the disc gone there
+   is no circle to size against, and measuring the glyph directly is what lets
+   a flyer land at exactly the height of the HUD slot it is flying into.
+   The artwork carries its own outline and bevel, so all it needs against bright
+   water is a soft drop shadow to sit it in the scene. */
+function letterBadge(x, y, h, idx, alpha){
+  if (alpha < 1) ctx.globalAlpha = alpha;
+  const img = IMG["lt" + (idx + 1)];
+  ctx.shadowColor = "rgba(10,10,10,.45)";
+  ctx.shadowBlur = h * 0.14; ctx.shadowOffsetY = h * 0.05;
+  if (img){
+    const sw = WORD_SRC.w[idx], dw = h * (sw / WORD_SRC.h);
+    ctx.drawImage(img, WORD_SRC.x[idx], WORD_SRC.y, sw, WORD_SRC.h,
+                  x - dw / 2, y - h / 2, dw, h);
+  } else {                             // file still loading, or failed
+    ctx.font = "700 " + (h * 0.86).toFixed(1) + "px " + MONO;
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.lineWidth = Math.max(2, h * 0.1); ctx.strokeStyle = C.ink;
+    ctx.strokeText(WORD[idx], x, y);
+    ctx.fillStyle = C.yellow; ctx.fillText(WORD[idx], x, y);
+    ctx.textBaseline = "alphabetic";   // ctx is shared; the rest of the frame
+  }                                    // draws text on the default baseline
+  ctx.shadowColor = "transparent"; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+  if (alpha < 1) ctx.globalAlpha = 1;
+}
+
 function drawEnt(e){
   const dzf = e.z - travelled + CAM_DZ;
   if (e.w === 0) return drawEntInner(e);          // scenery never fades
@@ -1788,6 +2171,19 @@ function drawEntInner(e){
     const h = 0.323 * s * grow;
     const w = h * (img.width / img.height) * Math.max(0.18, Math.abs(c));
     ctx.drawImage(img, p.x - w/2, p.y - h/2, w, h);
+    return;
+  }
+
+  if (e.t === T.LETTER){
+    // Rides a little higher than a coin and bobs, so the rarer pickup reads as
+    // its own thing at a glance rather than as one more buckaroo.
+    const p = floorPt(e.z, e.a, 0.42);
+    const dist = e.z - travelled;
+    const grow = Math.max(0.25, Math.min(1, 1 - (dist - 2) / 14));
+    const lh = 0.62 * s * grow;        // same footprint the disc used to fill
+    if (lh < 6) return;
+    letterBadge(p.x, p.y + Math.sin(performance.now() * 0.005 + e.spin) * lh * 0.08,
+                lh, e.gi, 1);
     return;
   }
 
@@ -2050,45 +2446,56 @@ const MONO = "ui-monospace,Menlo,Consolas,monospace";
      cx/cy — the opaque centroid, i.e. the point the artwork turns
           about, as a fraction of its own canvas.
    Measured off the alpha; re-measure if the art is re-exported.
+   s resolves to sqrt(area_rider / area_frame), so it depends on the RESTING
+   sprite's area as well as the frame's — re-exporting typhoon-rider.png alone
+   invalidates all four. It reaches the draw as (h / img.height) * s, so a
+   rider export at a different pixel height silently rescales the whole set.
    ------------------------------------------------------------------ */
 const FLIP_REG = [
-  { s: 1.2063, cx: 0.5403, cy: 0.4706 },
-  { s: 1.2498, cx: 0.4089, cy: 0.5821 },
-  { s: 1.3012, cx: 0.5226, cy: 0.4291 },   // inverted
-  { s: 1.2485, cx: 0.5599, cy: 0.4977 },
+  { s: 2.3528, cx: 0.5403, cy: 0.4706 },
+  { s: 2.4377, cx: 0.4089, cy: 0.5821 },
+  { s: 2.5378, cx: 0.5226, cy: 0.4291 },   // inverted
+  { s: 2.4351, cx: 0.5599, cy: 0.4977 },
 ];
-const RIDER_CX = 0.5242, RIDER_CY = 0.5920;   // resting sprite's centroid
+const RIDER_CX = 0.5271, RIDER_CY = 0.5669;   // resting sprite's centroid
 
 /* ------------------------------------------------------------------
    LANE MOVE
-   Two hand-drawn frames per direction: lean in, then lean deeper, with
-   the spray thrown to the outside. Replaces the four-frame yaw spin,
-   which turned him a full 360 for what is really a weight shift.
-   Tube-registered like the duck: he leans while the ring stays in the
-   water, so the tube is the fixed feature. Registration differs a lot
-   between frames here — the tube bottom runs from 0.868 to 0.987 of
-   canvas — because a leaning ring sits differently in its own frame,
-   which is exactly what the per-frame anchor exists to absorb.
+   One hand-drawn pose per direction, held for the whole move. Deeper
+   leans were drawn and tried as a 3-frame sequence, but at this size
+   each frame is on screen for ~60ms and the lean read as a flicker
+   rather than as a weight shift — one pose held long enough to see
+   beats three the eye can't resolve.
+   Position is tube-registered like the duck: he leans while the ring
+   stays in the water, so cx/by are measured off the tube and hold it
+   planted.
+   SIZE is not. tw here is NOT the tube's measured width (0.8503 and
+   0.9330) — it is back-solved from sqrt(opaque area), the rotation
+   invariant handle FLIP_REG uses. The lean tilts the ring in-plane,
+   and a tilted ellipse's WIDTH is not invariant, so registering on it
+   would resize his body against the resting pose every time a lane
+   change starts and ends. Area matches both to within 0.1%.
+   Re-measuring means re-deriving against the resting sprite's area,
+   not just the frame's.
    ------------------------------------------------------------------ */
 const MOVE_REG = {
-  "-1": [ { tw: 0.9302, cx: 0.5095, by: 0.8682 },     // move-left__01
-          { tw: 0.8222, cx: 0.4822, by: 0.9774 } ],   // move-left__02
-   "1": [ { tw: 0.9487, cx: 0.5238, by: 0.9716 },     // move-right__01
-          { tw: 0.9396, cx: 0.4698, by: 0.9866 } ],
+  "-1": { tw: 0.8930, cx: 0.5336, by: 0.9866 },   // move-left_01
+   "1": { tw: 0.9315, cx: 0.4880, by: 0.9738 },   // move-right_01
 };
-const MOVE_KEY = { "-1": ["mvL0", "mvL1"], "1": ["mvR0", "mvR1"] };
+const MOVE_KEY = { "-1": "mvL", "1": "mvR" };
 
 /* The resting sprite's own tube, which every tube-registered set is matched to.
    Measured off typhoon-rider.png's alpha. */
-const RIDER_TUBE_W  = 0.9733;   // tube width,  fraction of the sprite's width
-const RIDER_TUBE_CX = 0.5050;   // tube centre, fraction of its width
-const RIDER_TUBE_BY = 0.9983;   // tube base,   fraction of its height
+const RIDER_TUBE_W  = 0.8742;   // tube width,  fraction of the sprite's width
+const RIDER_TUBE_CX = 0.5011;   // tube centre, fraction of its width
+const RIDER_TUBE_BY = 0.9766;   // tube base,   fraction of its height
 
-const MOVE_DUR = 0.34;          // roughly the length of the lane ease
-
-/* Lean in, hold the deep pose, ease back out — so it ends upright instead of
-   snapping home from full tilt. */
-const moveIdx = (t) => (t < 0.30 || t > 0.72) ? 0 : 1;
+/* Deliberately outlasts the lane ease, which is an exponential at dt*11 and so
+   is ~95% settled by 0.27s. Matching the ease exactly (it used to be 0.34) put
+   the pose on screen for barely a quarter second, and the lean was over before
+   the eye found it. The overhang leaves him leaning a beat after he has arrived,
+   which is what makes the move readable. */
+const MOVE_DUR = 0.42;
 
 /* ------------------------------------------------------------------
    DUCK
@@ -2193,9 +2600,8 @@ function drawRider(){
   const flipImg = fi >= 0 ? IMG["flip" + fi] : null;
   const di      = (!dieImg && !hurtImg && !flipImg && duckA > 0.05) ? duckIdx(duckA) : -1;
   const duckImg = di >= 0 ? IMG["duck" + di] : null;
-  const mi      = (!dieImg && !hurtImg && !flipImg && !duckImg && moveT > 0 && moveDir)
-                    ? moveIdx(1 - moveT / MOVE_DUR) : -1;
-  const moveImg = mi >= 0 ? IMG[MOVE_KEY[moveDir][mi]] : null;
+  const leaning = !dieImg && !hurtImg && !flipImg && !duckImg && moveT > 0 && moveDir;
+  const moveImg = leaning ? IMG[MOVE_KEY[moveDir]] : null;
 
   // wake, so he sits in the water rather than on it. Faded out on the wipeout
   // screen, where the water is stopped and he has been moved off the track.
@@ -2235,7 +2641,7 @@ function drawRider(){
     // No sy squash here: the duck art already flattens him, and squashing a
     // yawed spin frame would distort its tube.
     const R   = dieImg  ? DIE_REG[dyi]  : hurtImg ? HURT_REG[hi]
-              : duckImg ? DUCK_REG[di]  : MOVE_REG[moveDir][mi];
+              : duckImg ? DUCK_REG[di]  : MOVE_REG[moveDir];
     const im  = dieImg || hurtImg || duckImg || moveImg;
     const dw  = (w * RIDER_TUBE_W) / R.tw;
     const dh  = dw * (im.height / im.width);
@@ -2375,6 +2781,41 @@ function render(){
   drawRider();
   drawSpray();
   speedLines();
+
+  /* Outside the rolled frame on purpose: these fly to fixed HUD slots, which
+     never bank or shake with the camera. Resetting the transform also puts
+     them in the same screen space the slot rects were measured in. */
+  if (flyers.length){
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    drawFlyers();
+  }
+}
+
+/* ==================================================================
+   TITLE LINE DANCE
+   Twelve frames on the title card, swapped on the <img> rather than drawn
+   to the canvas — the panel is a DOM layer above the canvas, so a canvas
+   dance would be painted underneath its own card.
+   Driven off the existing rAF loop instead of its own setInterval: a second
+   timer would keep firing behind the game and drift against the frame clock.
+   The title only ever appears on first load — start() hides it and the
+   wipeout brings back #overPanel instead — so this stops on its own.
+   ================================================================== */
+const DANCE_KEYS = ["ld01","ld02","ld03","ld04","ld05","ld06",
+                    "ld07","ld08","ld09","ld10","ld11","ld12"];
+const DANCE_FPS  = 3;              // 1.2s a lap: a bar of the country track
+const heroDance  = $("heroDance");
+let danceT = 0, danceI = -1;
+
+function danceTick(dt){
+  if (state !== "title") return;
+  danceT += dt;
+  const i = Math.floor(danceT * DANCE_FPS) % DANCE_KEYS.length;
+  if (i === danceI) return;         // only touch the DOM when the frame changes
+  const im = IMG[DANCE_KEYS[i]];
+  if (!im) return;                  // a frame that failed to load holds the last
+  danceI = i;
+  heroDance.src = im.src;           // im.src, so it can only swap to a decoded frame
 }
 
 /* ==================================================================
@@ -2389,10 +2830,12 @@ function frame(now){
     skyT += dt;                     // sky drifts in every state, title included
     rushPhase = (rushPhase + dt * (0.75 + (boostT > 0 ? 1.5 : 0))) % 1;
     update(dt);
+    danceTick(dt);
   }
   render();                         // still drawn, so the frozen frame stays up
   requestAnimationFrame(frame);
 }
+buildWord($("introWord"), 0);   // title card shows the word unlit, as the goal
 reset();
 requestAnimationFrame(frame);
 </script>

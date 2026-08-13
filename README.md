@@ -11,7 +11,7 @@ and vanilla JS.
 ## Running it
 
 Serve the project over HTTP — don't open `index.html` directly via `file://`,
-since audio loading (`fetch` + `decodeAudioData`) silently falls back to a
+since audio loading (`fetch` + `decodeAudioData`) silently  falls back to a
 degraded path when there's no HTTP origin.
 
 ```bash
