@@ -20,6 +20,9 @@
     --white:    #fcf6f0;
     --pale:     #e4f6f6;
     --green:    #187230;
+    /* Bright counterpart to --green, for chips that carry ink text. --green is
+       a fill for large dark areas; at 1.5:1 against --ink it cannot hold type. */
+    --green-lt: #6ee06e;
     --navy:     #1e3048;
     --ink:      #0a0a0a;
 
@@ -118,14 +121,14 @@
     45% {transform:translateX(24vw) rotate(5deg)}
     100%{transform:translateX(78vw) rotate(7deg)}}
 
-  /* Game-over copy of the word: static, no pop, no run-off. (The title's copy
-     is gone — the how-to card carries the word now.) */
-  #wordBox{margin:12px 0 0;text-align:center}
-  #wordBox .lbl{display:block;font-size:9px;letter-spacing:.2em;
-        text-transform:uppercase;color:var(--sky-low);margin-bottom:6px}
+  /* The game-over copy of the word is static — no pop, no run-off — and now
+     lives inside #stats as a row rather than in a box of its own. Its styling
+     is down there with the board. */
   @media (prefers-reduced-motion:reduce){
     #letters b.got{animation:none}
     #letters.run b{animation:none;opacity:0}
+    /* The pill and the gold still carry the record; only the pop goes. */
+    #stats .rec::after{animation:none}
   }
 
   #speedbar{position:absolute;left:50%;transform:translateX(-50%);
@@ -287,12 +290,75 @@
      than the fifth card in it. */
   .haz span{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--orange)}
 
-  #stats{display:flex;margin-top:20px;border:3px solid var(--ink);border-radius:6px;
+  /* ONE results object, not two. The letters used to sit outside this board as
+     a separate labelled block, which put two competing result cards on top of
+     each other and stated the same fact twice — a "0 / 8" counter above a row
+     of eight tiles that already says 0 / 8 by being dim. They are a stat, so
+     they live in the stats board, as a row under the numbers.
+     Column now: a row of figures, then the word full-width beneath it. The
+     board sizes itself to whichever row is wider, which on a phone is the word,
+     and the figures share that width between them. */
+  #stats{display:flex;flex-direction:column;margin-top:20px;
+         border:3px solid var(--ink);border-radius:6px;
          overflow:hidden;box-shadow:5px 5px 0 var(--ink)}
-  #stats div{padding:12px 20px 13px;background:rgba(30,48,72,.9)}
-  #stats div + div{border-left:3px solid var(--ink)}
+  .statRow{display:flex}
+  /* Side padding gives way on narrow screens. The cells are equal thirds now
+     (flex:1 1 0), so on a 360px phone each is ~100px, and a fixed 20px a side
+     left only 60px of content — less than "Buckaroos" needs at 9px/.2em, let
+     alone the New best pill. It relaxes back to the roomier 20px by tablet. */
+  .statRow > div{padding:12px clamp(10px,3.4vw,20px) 13px;
+                 background:rgba(30,48,72,.9);flex:1 1 0}
+  .statRow > div + div{border-left:3px solid var(--ink)}
+  .statRow + .statRow{border-top:3px solid var(--ink)}
   #stats span{display:block;font-size:9px;letter-spacing:.2em;color:var(--sky-low);margin-bottom:4px}
-  #stats strong{font-weight:400;font-size:26px;font-variant-numeric:tabular-nums}
+  /* BLOCK, so the New best pill below can never come up alongside the figure.
+     strong is inline by default and the pill is inline-block, so the two share a
+     line whenever both fit — which depends on how many digits the figure has.
+     "270" and "440" pushed the pill onto its own line while "19" left room and
+     sat next to it, so the same board disagreed with itself cell by cell. */
+  #stats strong{display:block;font-weight:400;font-size:26px;font-variant-numeric:tabular-nums}
+  /* The letters row keeps the same label style as the figures above it, so it
+     reads as a fourth stat rather than as decoration that wandered in.
+     Bigger than the old standalone copy. That one was sized for a block of its
+     own at clamp(15px,3.8vw,26px), which works out at 84px of word on a 390px
+     phone — lost inside a board three times that wide, and it would have read
+     as an afterthought rather than as the stat it is. This fills the row the
+     way the numbers fill theirs. */
+  #statWord > div{padding:10px clamp(10px,3.4vw,20px) 12px}
+  #statWord .word{--lh:clamp(22px,6.2vw,34px);margin-top:2px}
+
+  /* A NEW RECORD on that figure.
+     It says so, in words. A bare star was the first attempt and it fails the
+     only test that matters: nothing on the card explains what it means, so it
+     reads as decoration on some cells and not others. There is no legend to put
+     it in and no room for one, so the badge has to carry its own meaning.
+     A pill under the figure, gold on ink like every other chip in the game. It
+     is inside the cell rather than pinned to a corner, so it cannot collide with
+     the label on the narrowest cell at the narrowest viewport — it just makes
+     the row a line taller, and .statRow's default stretch keeps the cells that
+     did not set a record the same height.
+     Nothing else in the cell changes — the label and the figure stay exactly as
+     they are on a cell that set no record, and the pill is the whole signal.
+     Recolouring them was tried twice and lost both times. Gold labels AND gold
+     figures turned the entire board gold whenever a run beat all four at once,
+     which the first comparison run usually does, and a signal that fires
+     everywhere is not a signal. Keeping just the figure gold left one cell
+     carrying two accent colours at once, gold type under a green chip, reading
+     as two unrelated things rather than one. */
+  /* Tracking and padding are sized so the pill clears the narrowest cell that
+     exists: 320px viewport, ~87px cell, ~65px of content once the side padding
+     is out. At .16em/8px it came to 69px and overflowed into #stats's
+     overflow:hidden. .12em/6px brings it to ~62px. */
+  #stats .rec::after{content:"New best";display:inline-block;margin-top:7px;
+        font-size:8px;letter-spacing:.12em;text-transform:uppercase;line-height:1;
+        color:var(--ink);background:var(--green-lt);
+        border:2px solid var(--ink);border-radius:999px;padding:3px 6px 4px}
+  /* Lands rather than appears. Only the pill moves: #stats is overflow:hidden to
+     keep its rounded corners, so scaling the WORD up to 1.28 pushed it past the
+     board's bottom edge and it came back clipped in half for the length of the
+     animation. The pill has its own margin to grow into. */
+  #stats .rec::after{animation:recPop .42s cubic-bezier(.16,1.4,.4,1)}
+  @keyframes recPop{from{transform:scale(.4);opacity:0} to{transform:scale(1);opacity:1}}
 
   #reveal{position:absolute;inset:0;display:none;align-items:center;justify-content:center;
           flex-direction:column;pointer-events:none;text-align:center;padding:20px}
@@ -495,7 +561,7 @@
       <h2 class="ride howHead">Ride It</h2>
 
       <section class="howSec">
-        <h3>Collect the word</h3>
+        <h3>Complete the word</h3>
         <div id="howWord" class="word"></div>
         <p>Eight letters are scattered down the flume, offered one at a time.
            Bank all eight in a single run to finish the ride and unlock the
@@ -568,13 +634,14 @@
     <div class="eyebrow" id="overKicker">Wipeout</div>
     <h2 class="ride" style="font-size:clamp(38px,11vw,80px)" id="overTitle">Nice Run</h2>
     <div id="stats">
-      <div><span>Descent</span><strong id="fDist">0</strong></div>
-      <div><span>Buckaroos</span><strong id="fCoins">0</strong></div>
-      <div><span>Best</span><strong id="fBest">0</strong></div>
-    </div>
-    <div id="wordBox">
-      <span class="lbl" id="fWordLbl">Stampede letters</span>
-      <div id="fWord" class="word"></div>
+      <div class="statRow">
+        <div><span>Descent</span><strong id="fDist">0</strong></div>
+        <div><span>Buckaroos</span><strong id="fCoins">0</strong></div>
+        <div><span>Score</span><strong id="fScore">0</strong></div>
+      </div>
+      <div class="statRow" id="statWord">
+        <div><span id="fWordLbl">Stampede letters</span><div id="fWord" class="word"></div></div>
+      </div>
     </div>
     <p class="tag" id="overTag">The real drop opens this summer.</p>
     <div id="overGap" aria-hidden="true"></div>
@@ -624,7 +691,7 @@
   </button>
   <div id="load">
     <div id="loadTrack"><div id="loadFill"></div><div id="loadTube"></div></div>
-    <div id="loadRow"><span id="loadMsg">Loading the slide</span><span id="loadPct">0%</span></div>
+    <div id="loadRow"><span id="loadMsg">Waiting in line...</span><span id="loadPct">0%</span></div>
   </div>
 </div>
 
@@ -1310,8 +1377,102 @@ function tunnelStraight(z){
 const FULL_WIDTH = { 2:true, 3:true, 5:true };     // wave, tunnel, boost span the chute
 
 let state = "title";
-let metres = 0, coins = 0, best = 0;
+let metres = 0, coins = 0;
 let speed = CONFIG.startSpeed, lives = CONFIG.lives;
+
+/* ------------------------------------------------------------------
+   RECORDS
+   A personal best per figure on the board, plus a run counter.
+   Persisted, because a record that forgets itself on reload is not a
+   record. Wrapped in try/catch and backed by a plain object either
+   way: this page is opened straight off the filesystem as often as it
+   is served, and a file:// origin is opaque in some browsers — Safari
+   throws on localStorage there outright. Losing persistence is a
+   downgrade to session-only bests; losing the game to an exception is
+   not acceptable, so nothing here is allowed to throw.
+   `runs` is what stops the first play flagging four records at once.
+   Everything beats an empty slate, and "NEW BEST" on all four figures
+   of your first run tells you nothing.
+   ------------------------------------------------------------------ */
+const BEST_KEY = "stampede.best.v1";
+const BEST = { dist: 0, coins: 0, score: 0, letters: 0, runs: 0 };
+/* Whether the browser actually gave us storage. Chromium blocks Web Storage on
+   file:// origins, and this page is opened off the filesystem as often as it is
+   served — so this is not a rare edge case here, it is the common one. When it
+   is false the records still work for the length of a session, but every reload
+   starts from an empty slate, which means the first run after a reload can
+   never flag anything. That is the difference between "records" and "records
+   since you last hit refresh", and it is worth being able to see which you have
+   got: `Stampede.records()` in the console reports it. */
+let bestStored = false;
+(() => {
+  try {
+    const raw = localStorage.getItem(BEST_KEY);
+    if (raw) Object.assign(BEST, JSON.parse(raw));
+    localStorage.setItem(BEST_KEY, JSON.stringify(BEST));   // prove it writes
+    bestStored = true;
+  } catch (e) { /* opaque origin, private mode, quota — session-only is fine */ }
+})();
+function saveBest(){
+  if (!bestStored) return;
+  try { localStorage.setItem(BEST_KEY, JSON.stringify(BEST)); } catch (e) {}
+}
+/* Console handle, so "why did that not flag?" is answerable without a debugger.
+   Reports the banked bests, whether they will survive a reload, and lets you
+   wipe them to test the badges from a clean slate. */
+window.Stampede = Object.assign(window.Stampede || {}, {
+  records: () => ({ ...BEST, persistsAcrossReload: bestStored }),
+  clearRecords: () => {
+    Object.assign(BEST, { dist:0, coins:0, score:0, letters:0, runs:0 });
+    try { localStorage.removeItem(BEST_KEY); } catch (e) {}
+    return "records cleared — the next run counts as your first, so it will not flag";
+  },
+});
+
+/* ------------------------------------------------------------------
+   SCORE
+   Four terms: buckaroos, letters, tubes left, and how fast you spelled
+   the word.
+   The last two only exist on a COMPLETED run, and that is not a
+   simplification — it is the only way they can mean anything here.
+   `lives` is always 0 on the results card, because gameOver() is
+   reached from exactly one place, `if (lives <= 0)`; by the time you
+   are reading a score you have always lost all three tubes. And an
+   endless runner has no finish line to be timed against. Spelling
+   STAMPEDE is the one thing in this game you can actually complete, so
+   both terms are snapshotted at the instant the eighth letter lands:
+   how many tubes you still had, and how long you had been riding.
+   Miss the word and there is simply no completion bonus, which is
+   right — you did not complete it.
+   ------------------------------------------------------------------ */
+const SC_COIN   = 10;     // per buckaroo
+const SC_LETTER = 250;    // per letter, so the full word is worth 2000
+const SC_TUBE   = 500;    // per tube still unspent when the word landed
+const SC_FAST   = 3000;   // the whole speed bonus, at par or better
+
+/* Par is measured, not picked. Letters are offered every LETTER_GAP (50 world
+   units, 180m) with the first at 0.55 of a gap, so the eighth is offered after
+   377.5 units. Integrating the speed ramp (4.4 -> 8.0 at 0.20/s, topping out
+   18s in) puts a flawless run — never miss an offer, never take a hit — at
+   51.2s. Every missed offer costs a full lap of the gap, about 6.3s, and a hit
+   also drops speed to 62%, so misses and hits both show up here as time.
+   SC_CUTOFF is roughly eight missed offers: past that the bonus is spent. */
+const SC_PAR    = 51;
+const SC_CUTOFF = 110;
+
+/* Wall-clock seconds of actual riding — not paused, not the death animation.
+   spellT/spellLives are the completion snapshot, -1 until the word is done. */
+let runT = 0, spellT = -1, spellLives = 0;
+
+function runScore(){
+  let s = coins * SC_COIN + gotLetters * SC_LETTER;
+  if (spellT >= 0){
+    s += spellLives * SC_TUBE;
+    s += SC_FAST * Math.max(0, Math.min(1,
+           (SC_CUTOFF - spellT) / (SC_CUTOFF - SC_PAR)));
+  }
+  return Math.round(s);
+}
 /* FREE SLIDE STEERING
    `lane` used to be an integer in {-1,0,1}. It is now a CONTINUOUS position in
    the same units — lane 1 is still the right-hand lane, but 0.4 is a real place
@@ -1419,6 +1580,7 @@ function reset(){
   revealed = false;
   ents = []; spray = []; nextZ = 8; comboFree = 0;
   gotLetters = 0; shownLetters = 0; letterZ = LETTER_GAP * 0.55; stampedeT = -1;
+  runT = 0; spellT = -1; spellLives = 0;
   flyers = [];
   closeReveal();                     // a fresh run never starts with it up
   paintLetters();
@@ -1771,6 +1933,15 @@ function drawTubes(){
    a node that has already run it keeps its end state (off-screen right), so a
    reused node would start the next run invisible. Fresh elements have no
    animation history. */
+/* Flags the stat CELL a figure sits in, not the figure itself, so the label
+   goes gold with it — the badge is a star in front of the label, and a label
+   that stayed blue under a gold number would read as two unrelated changes.
+   Toggled rather than only added: the panel is reused run after run and a
+   record left over from the last one is a lie. */
+function markRecord(el, isRecord){
+  el.parentNode.classList.toggle("rec", !!isRecord);
+}
+
 function buildWord(box, upto){
   box.innerHTML = "";
   for (let i = 0; i < WORD.length; i++){
@@ -1995,7 +2166,11 @@ function gameOver(){
   // would hang frozen over the wipeout. The letter is already banked in
   // gotLetters, which is what the results card reads.
   flyers = [];
-  best = Math.max(best, coins); Sound.dead();
+  /* The records are banked in showOver(), not here: they have to be COMPARED
+     against before they are updated, and showOver is where the comparison and
+     the badges live. Folding it in there keeps one place that can get it wrong
+     rather than two. */
+  Sound.dead();
   $("pause").classList.remove("on");
   $("pausePanel").classList.remove("on");
 }
@@ -2011,13 +2186,40 @@ function layoutOverRider(){
 function showOver(){
   state = "over";
   $("hud").classList.remove("on");
-  $("fDist").textContent  = Math.floor(metres);
+
+  const dist = Math.floor(metres), score = runScore();
+  $("fDist").textContent  = dist;
   $("fCoins").textContent = coins;
-  $("fBest").textContent  = best;
+  $("fScore").textContent = score.toLocaleString();
   buildWord($("fWord"), gotLetters);
   $("fWordLbl").textContent = gotLetters >= WORD.length
     ? "You spelled it"
     : "Stampede letters  " + gotLetters + " / " + WORD.length;
+
+  /* Records. Compared BEFORE they are banked, or every run ties itself.
+     Strictly greater, so matching a best is not a new one — which matters most
+     for the letters, where 8 is the ceiling: spell the word twice and only the
+     first run is the record, correctly.
+     Suppressed entirely on run 1 — see BEST. */
+  markRecord($("fDist"),  BEST.runs > 0 && dist       > BEST.dist);
+  markRecord($("fCoins"), BEST.runs > 0 && coins      > BEST.coins);
+  markRecord($("fScore"), BEST.runs > 0 && score      > BEST.score);
+  markRecord($("fWord"),  BEST.runs > 0 && gotLetters > BEST.letters);
+
+  BEST.dist    = Math.max(BEST.dist,    dist);
+  BEST.coins   = Math.max(BEST.coins,   coins);
+  BEST.score   = Math.max(BEST.score,   score);
+  BEST.letters = Math.max(BEST.letters, gotLetters);
+  BEST.runs++;
+  saveBest();
+
+  /* console.debug, so it sits under the console's Verbose filter and is silent
+     by default — but when a record does not flag, this says in one line whether
+     the run simply lost or whether there was nothing to compare against. */
+  console.debug("[stampede] run", BEST.runs,
+    { dist, coins, score, letters: gotLetters },
+    "vs best", { dist: BEST.dist, coins: BEST.coins, score: BEST.score, letters: BEST.letters },
+    bestStored ? "(records persist)" : "(SESSION ONLY — storage blocked, likely file://)");
   // Same bar as the reveal: a run "won" if it spelled the word.
   const won = gotLetters >= WORD.length;
   $("overTitle").textContent  = won ? "You Survived It" : "Wipeout";
@@ -2163,6 +2365,11 @@ function update(dt){
     return;
   }
 
+  /* Riding time, for the score's speed term. Counted here — after the early
+     return — so it is time spent PLAYING: the pause panel, the reveal card and
+     the wipeout animation all sit in other states and none of them charge you. */
+  runT += dt;
+
   const target = boostT > 0 ? CONFIG.maxSpeed + 1.8 : CONFIG.maxSpeed;
   speed = Math.min(target, speed + CONFIG.accel * dt * (boostT > 0 ? 6 : 1));
   travelled += speed * dt;
@@ -2245,7 +2452,14 @@ function update(dt){
           gotLetters++; puff(12);
           // Math.max so a longer window already running (a hit taken a moment
           // ago) is never cut short by finishing the word.
-          if (gotLetters >= WORD.length) invuln = Math.max(invuln, WIN_INVULN);
+          if (gotLetters >= WORD.length){
+            invuln = Math.max(invuln, WIN_INVULN);
+            /* The completion snapshot. Taken HERE, at the instant the eighth
+               letter lands, because both of these are gone by the results card:
+               lives is 0 by definition there, and the clock keeps running for
+               however long you carry on riding afterwards. */
+            if (spellT < 0){ spellT = runT; spellLives = lives; }
+          }
         }
       }
     } else if (e.t === T.BOOST){
