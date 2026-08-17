@@ -15,10 +15,41 @@ since audio loading (`fetch` + `decodeAudioData`) silently  falls back to a
 degraded path when there's no HTTP origin.
 
 ```bash
-python3 server.py
+python3 server.py          # pass a port as the first argument to change it
 ```
 
-Then open `http://127.0.0.1:8000/` in a browser.
+It prints two URLs — one for this machine, one for your phone:
+
+```
+Serving /path/to/stampede
+  this machine   http://127.0.0.1:8000/
+  phone / LAN    http://192.168.1.42:8000/
+```
+
+## Testing on a phone
+
+The server binds `0.0.0.0` and sends `Cache-Control: no-store`, so it is
+reachable from a phone and won't serve a stale build. To use it:
+
+1. Put the phone on the **same Wi-Fi network** as this machine.
+2. Run `python3 server.py` and type the `phone / LAN` URL it prints into the
+   phone's browser.
+
+If the phone can't reach it:
+
+- **macOS firewall** — System Settings → Network → Firewall. Either turn it off
+  for the session, or allow incoming connections for Python.
+- **Wrong network** — a phone on cellular, or on a "guest" Wi-Fi SSID, is not on
+  the same network even if it looks like the same router. Check the phone is on
+  the identical SSID.
+- **Client isolation** — some routers (and most public/corporate Wi-Fi) block
+  devices from talking to each other. Use a personal hotspot from the phone and
+  connect this machine to it, then re-run the server to get the new address.
+- **Address changed** — the LAN IP is assigned by DHCP and can change between
+  sessions. Re-read the printed URL rather than reusing a bookmark.
+
+To confirm the phone is genuinely getting fresh bytes, check the request appears
+in the server's log output when you reload.
 
 ## Controls
 

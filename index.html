@@ -118,10 +118,10 @@
     45% {transform:translateX(24vw) rotate(5deg)}
     100%{transform:translateX(78vw) rotate(7deg)}}
 
-  /* Title and game-over copies of the word: static, no pop, no run-off. */
-  #wordIntro,#wordBox{margin:14px 0 0;text-align:center}
-  #wordBox{margin-top:12px}
-  #wordIntro .lbl,#wordBox .lbl{display:block;font-size:9px;letter-spacing:.2em;
+  /* Game-over copy of the word: static, no pop, no run-off. (The title's copy
+     is gone — the how-to card carries the word now.) */
+  #wordBox{margin:12px 0 0;text-align:center}
+  #wordBox .lbl{display:block;font-size:9px;letter-spacing:.2em;
         text-transform:uppercase;color:var(--sky-low);margin-bottom:6px}
   @media (prefers-reduced-motion:reduce){
     #letters b.got{animation:none}
@@ -135,10 +135,33 @@
   #speedbar i.lit{background:var(--yellow)}
 
   /* ---------- panels ---------- */
+  /* Centred, but scroll-safe. `justify-content:center` alone CLIPS a column
+     that outgrows its box — and clips it at BOTH ends, so the headline loses
+     its top and the last control loses its bottom with no way to reach either.
+     Auto margins on the first and last child centre the stack while there is
+     room and collapse to nothing when there isn't, which leaves overflow-y to
+     do its job. touch-action is re-enabled because body sets `none` for the
+     game, which would otherwise make the overflow unreachable on a phone. */
   .panel{position:absolute;inset:0;display:none;flex-direction:column;
-         align-items:center;justify-content:center;text-align:center;padding:24px;
+         align-items:center;justify-content:flex-start;text-align:center;
+         /* bottom padding clears the mute button, which floats over every panel
+            and was clipping the corner of the last control card on short screens */
+         padding:24px 24px calc(env(safe-area-inset-bottom,0px) + 66px);
+         overflow-y:auto;touch-action:pan-y;
          background:radial-gradient(130% 100% at 50% 15%,rgba(48,180,252,.82),rgba(30,48,72,.97))}
   .panel.on{display:flex}
+  /* Centred by a PAIR of auto margins rather than justify-content, because a
+     centred flex column with overflow-y:auto clips its own top once the content
+     is taller than the panel — auto margins collapse instead of clipping.
+     They hang off ::before/::after, not :first-child/:last-child. The last
+     child of #overPanel is #ctaBtn, and a blank CONFIG.ctaUrl sets it to
+     display:none — which stops it being a flex item at all, so its
+     margin-bottom:auto silently did nothing and every panel it applied to sat
+     bottom-aligned instead of centred. Pseudo-element flex items are always
+     present, so the pair can never go missing whatever is hidden. */
+  .panel::before,.panel::after{content:"";flex:none}
+  .panel::before{margin-top:auto}
+  .panel::after{margin-bottom:auto}
   /* The wipeout screen's wash is painted on the canvas instead, so Typhoon can
      sit on top of it. This panel supplies only the text and buttons. */
   #overPanel{background:none}
@@ -149,8 +172,11 @@
   #overGap{flex:none;width:1px;height:0}
   .eyebrow{font-size:10px;letter-spacing:.4em;text-transform:uppercase;
            color:var(--yellow);margin-bottom:10px}
+  /* 12.5vw, not 15: eight condensed caps plus a 7px stroke and a skew ran wider
+     than the viewport on a phone, so the S and the final E were cut off by the
+     screen edges. Desktop is unaffected — it sits on the 118px ceiling. */
   .ride{font-family:var(--display);text-transform:uppercase;transform:skewX(-7deg);
-        font-size:clamp(46px,15vw,118px);line-height:.84;color:var(--white);margin:0;
+        font-size:clamp(40px,12.5vw,118px);line-height:.84;color:var(--white);margin:0;
         -webkit-text-stroke:7px var(--ink);paint-order:stroke fill;
         text-shadow:7px 7px 0 var(--orange)}
   .park{font-family:var(--display);text-transform:uppercase;transform:skewX(-7deg);
@@ -159,8 +185,8 @@
   .tag{margin:14px 0 0;font-size:12px;letter-spacing:.14em;text-transform:uppercase;
        color:rgba(252,246,240,.85);max-width:32ch;line-height:1.7}
   #heroWrap{position:relative;display:flex;align-items:flex-end;justify-content:center;
-            margin:10px 0 0;height:min(30vh,240px)}
-  /* Fixed box rather than width:auto. The twelve frames are cropped tight and
+            margin:8px 0 0;height:min(24vh,190px)}
+  /* Fixed box rather than width:auto. The dance frames are cropped tight and
      run 203-264px wide, so an auto-width image resizes the flex item on every
      frame and he skates sideways as he dances. contain + bottom holds him
      centred with his feet on one line. */
@@ -179,9 +205,87 @@
              padding:11px 24px 12px;margin-top:12px;box-shadow:4px 4px 0 var(--ink)}
   .btn:focus-visible,.hudbtn:focus-visible{outline:3px solid var(--yellow);outline-offset:4px}
 
-  .keys{margin-top:22px;display:flex;gap:20px;flex-wrap:wrap;justify-content:center;
-        font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:rgba(252,246,240,.65)}
-  .keys b{display:block;color:var(--yellow);font-size:15px;margin-bottom:4px;letter-spacing:.05em}
+  /* ---------- controls ----------
+     Replaces the old two-item .keys strip. Each control is a keycap built from
+     the same parts as .btn — cream face, 3px keyline, hard offset shadow — so
+     the instructions look like they belong to the same machine as the buttons.
+     Keyboard and touch wording are both in the markup and swapped by body.touch
+     rather than written in by JS, which keeps one copy of each string. */
+  /* flex:1 1 0 rather than a px basis: three equal columns that CANNOT wrap.
+     A 130px basis wrapped the third card onto its own row on a 412px phone,
+     which pushed the stack past the bottom of the screen. */
+  /* max-width in px only. `min(94vw,560px)` measured the WINDOW while width:100%
+     measured the panel's padded box, and on a phone the vw figure won — which
+     let the row run wider than the space it had and pushed the third card off
+     the screen edge. The panel's own box is the honest constraint. */
+  .controls{margin-top:18px;display:flex;gap:10px;justify-content:center;
+            width:100%;max-width:560px}
+  .ctl{flex:1 1 0;min-width:0;max-width:180px;display:flex;flex-direction:column;
+       align-items:center;gap:5px;padding:12px 8px 11px;border-radius:8px;
+       background:rgba(30,48,72,.55);border:3px solid var(--ink);
+       box-shadow:4px 4px 0 var(--ink)}
+  .ctl .cap{display:flex;align-items:center;justify-content:center;
+            min-width:52px;height:40px;padding:0 10px;border-radius:6px;
+            background:var(--white);color:var(--ink);border:3px solid var(--ink);
+            box-shadow:0 4px 0 var(--ink);font-size:19px;line-height:1}
+  .ctl b{font-family:var(--display);text-transform:uppercase;transform:skewX(-7deg);
+         font-size:18px;letter-spacing:.04em;color:var(--yellow);margin-top:2px}
+  .ctl span{font-size:9px;line-height:1.6;letter-spacing:.08em;text-transform:uppercase;
+            color:rgba(252,246,240,.72)}
+  /* On the how-to card the same control gets a paragraph rather than a caption,
+     so it turns on its side: cap, name, then the explanation with room to run. */
+  #howPanel .controls{flex-direction:column;gap:10px}
+  #howPanel .ctl{flex:none;max-width:none;flex-direction:row;align-items:center;
+                 gap:13px;text-align:left;padding:12px 14px}
+  #howPanel .ctl .cap{flex:none}
+  #howPanel .ctl b{margin:0;flex:none;min-width:58px}
+  #howPanel .ctl span{flex:1;line-height:1.7}
+  .tc{display:none}
+  body.touch .tc{display:block}
+  body.touch .kb{display:none}
+
+  /* ---------- how to play ----------
+     The one panel that can outgrow the screen, so it scrolls. touch-action has
+     to be re-enabled here: body sets `none` for the game, which would otherwise
+     leave this panel unscrollable on a phone with no visible reason why. */
+  /* Darker than the other panels on purpose: this is the one screen that is
+     mostly READING, and the shared wash leaves the park backdrop showing
+     through behind body copy. */
+  #howPanel{padding:0;background:radial-gradient(130% 90% at 50% 0%,
+            rgba(30,48,72,.93),rgba(16,26,40,.975))}
+  #howScroll{width:100%;max-height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;
+             touch-action:pan-y;display:flex;flex-direction:column;align-items:center;
+             text-align:center;
+             padding:calc(env(safe-area-inset-top,0px) + 28px) 22px
+                     calc(env(safe-area-inset-bottom,0px) + 34px)}
+  .howHead{font-size:clamp(34px,10vw,64px);margin-bottom:4px}
+  .howSec{width:100%;max-width:min(92vw,560px);margin-top:26px;
+          padding-top:22px;border-top:3px solid rgba(10,10,10,.35)}
+  .howSec:first-of-type{border-top:none;padding-top:0}
+  .howSec h3{font-family:var(--display);text-transform:uppercase;transform:skewX(-7deg);
+             font-size:23px;letter-spacing:.05em;color:var(--white);margin:0 0 12px;
+             -webkit-text-stroke:4px var(--ink);paint-order:stroke fill}
+  .howSec p{margin:12px auto 0;max-width:40ch;font-size:11px;line-height:1.85;
+            letter-spacing:.08em;color:rgba(252,246,240,.8)}
+  .howSec .word{--lh:clamp(18px,4.6vw,30px)}
+  .howCoin{width:54px;height:54px;object-fit:contain;
+           filter:drop-shadow(0 4px 0 rgba(10,10,10,.3))}
+  .howLead{margin-top:0 !important}
+
+  #hazards{margin-top:16px;display:grid;gap:12px;
+           grid-template-columns:repeat(auto-fit,minmax(132px,1fr))}
+  .haz{display:flex;flex-direction:column;align-items:center;gap:5px;
+       padding:14px 8px 12px;border-radius:8px;background:rgba(30,48,72,.55);
+       border:3px solid var(--ink);box-shadow:4px 4px 0 var(--ink)}
+  .haz img,.haz svg{width:100%;max-width:88px;height:62px;object-fit:contain;
+                    filter:drop-shadow(0 3px 0 rgba(10,10,10,.28))}
+  .haz b{font-family:var(--display);text-transform:uppercase;transform:skewX(-7deg);
+         font-size:17px;letter-spacing:.04em;color:var(--white)}
+  /* One card style for every entry, tunnel included. It used to take a green
+     background, a green accent line and the whole row to itself, which made it
+     read as a different KIND of thing — a banner sitting under the grid rather
+     than the fifth card in it. */
+  .haz span{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--orange)}
 
   #stats{display:flex;margin-top:20px;border:3px solid var(--ink);border-radius:6px;
          overflow:hidden;box-shadow:5px 5px 0 var(--ink)}
@@ -277,14 +381,57 @@
         transform:translateX(-50%);font-size:10px;letter-spacing:.18em;text-transform:uppercase;
         color:rgba(252,246,240,.75);pointer-events:none;transition:opacity .6s;
         text-shadow:0 2px 0 rgba(10,10,10,.5)}
-  #load{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-        background:var(--sky);font-size:11px;letter-spacing:.3em;text-transform:uppercase}
-  #load.off{display:none}
+  /* ---------- loading ----------
+     The progress bar is the ride in miniature: a chute with the same black
+     keyline and hard offset shadow the HUD boards carry, water flowing down it,
+     and Typhoon's tube riding the leading edge. One custom property (--p, 0..1)
+     drives both the fill width and the tube's position, so they cannot drift
+     apart, and both ease at the same .35s — the bar GLIDES between assets
+     instead of stepping, which matters because a fast connection would
+     otherwise fire every step in one frame. */
+  #load{position:absolute;inset:0;z-index:60;display:flex;flex-direction:column;
+        align-items:center;justify-content:center;gap:20px;background:var(--sky);
+        transition:opacity .45s ease}
+  /* Deliberately still pointer-blocking while it fades. Going click-through on
+     the tap that dismisses it let the browser re-hit-test the click onto DROP IN
+     underneath, skipping the title screen entirely. .gone takes it out. */
+  #load.off{opacity:0}
+  #load.gone{display:none}
+  #loadTrack{position:relative;width:min(64vw,300px);height:18px;border-radius:9px;
+             background:rgba(30,48,72,.55);border:3px solid var(--ink);
+             box-shadow:4px 4px 0 var(--ink)}
+  /* inset:0 then right:auto — the fill is pinned left and grows rightward */
+  #loadFill{position:absolute;inset:0;right:auto;width:calc(var(--p,0) * 100%);
+            border-radius:6px;overflow:hidden;transition:width .35s ease;
+            background:linear-gradient(180deg,var(--sky-low),var(--blue) 55%,var(--blue-dp))}
+  #loadFill::after{content:"";position:absolute;inset:0;
+        background:repeating-linear-gradient(115deg,rgba(252,246,240,.34) 0 6px,
+                                             rgba(252,246,240,0) 6px 16px);
+        animation:flow 1.1s linear infinite}
+  @keyframes flow{to{background-position:64px 0}}
+  /* same recipe as the HUD's spare tubes, so the loader reads as the same game */
+  #loadTube{position:absolute;top:50%;left:calc(var(--p,0) * 100%);width:26px;height:26px;
+            margin:-13px 0 0 -13px;border-radius:50%;background:var(--orange);
+            border:3px solid var(--ink);box-shadow:inset 0 0 0 2px rgba(252,246,240,.55);
+            transition:left .35s ease;animation:bob 1.5s ease-in-out infinite}
+  @keyframes bob{50%{transform:translateY(-3px)}}
+  #loadRow{display:flex;align-items:baseline;gap:12px;font-size:11px;letter-spacing:.3em;
+           text-transform:uppercase;text-shadow:0 2px 0 rgba(10,10,10,.35)}
+  #loadPct{font-size:13px;letter-spacing:.12em;color:var(--yellow);
+           font-variant-numeric:tabular-nums}
+  /* Waiting on the tap that buys us audio. The percentage has done its job by
+     now, so it steps aside and the prompt takes the eye. */
+  #load.gate{cursor:pointer}
+  #load.gate #loadPct{display:none}
+  #load.gate #loadMsg{color:var(--yellow);font-size:13px;
+                      animation:pulse 1.5s ease-in-out infinite}
+  @keyframes pulse{50%{opacity:.4}}
   /* ::before included, or the flash would sit there at full opacity forever —
      its fade-out IS the animation being switched off. */
   @media (prefers-reduced-motion:reduce){
     #reveal .slab{animation:none}
     #reveal.on::before{animation:none;opacity:0}
+    #loadFill::after,#loadTube,#load.gate #loadMsg{animation:none}
   }
 </style>
 </head>
@@ -306,7 +453,7 @@
     </div>
     <div id="letters" aria-label="Stampede letters collected"></div>
     <div id="speedbar"></div>
-    <div id="hint">Swipe to steer</div>
+    <div id="hint">Hold &amp; slide to steer</div>
   </div>
 
   <div class="panel on" id="titlePanel">
@@ -316,15 +463,104 @@
     <div id="heroWrap">
       <img id="heroDance" alt="">
     </div>
-    <p class="tag" id="tagline">Grab the Buckaroos. Dodge the crowd. Ride it before you ride it.</p>
-    <div id="wordIntro">
-      <span class="lbl">Collect every letter</span>
-      <div id="introWord" class="word"></div>
-    </div>
     <button class="btn" id="playBtn" type="button">Drop In</button>
-    <div class="keys">
-      <div><b>&larr; &rarr;</b>Steer</div>
-      <div><b>&uarr;</b>Jump the wave</div>
+    <button class="btn ghost" id="howBtn" type="button">How to Play</button>
+    <div class="controls">
+      <div class="ctl">
+        <div class="cap">&larr;&nbsp;&rarr;</div>
+        <b>Slide</b>
+        <span class="kb">Hold an arrow</span>
+        <span class="tc">Hold &amp; slide</span>
+      </div>
+      <div class="ctl">
+        <div class="cap">&uarr;</div>
+        <b>Jump</b>
+        <span class="kb">Up or Space</span>
+        <span class="tc">Flick up</span>
+      </div>
+      <div class="ctl">
+        <div class="cap">&darr;</div>
+        <b>Duck</b>
+        <span class="kb">Down key</span>
+        <span class="tc">Flick down</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- How to play. Opened from the title and closed back to it; the run's state
+       is never touched, so the title keeps rendering behind it. -->
+  <div class="panel" id="howPanel">
+    <div id="howScroll">
+      <div class="eyebrow">How to Play</div>
+      <h2 class="ride howHead">Ride It</h2>
+
+      <section class="howSec">
+        <h3>Collect the word</h3>
+        <div id="howWord" class="word"></div>
+        <p>Eight letters are scattered down the flume, offered one at a time.
+           Bank all eight in a single run to finish the ride and unlock the
+           reveal. Miss one and it comes back around — but the run has to last.</p>
+      </section>
+
+      <section class="howSec">
+        <h3>Grab Buckaroos</h3>
+        <img class="howCoin" id="howCoin" alt="">
+        <p>Coins are pure score. They cost you nothing to take and nothing to
+           miss, so chase them for the leaderboard.</p>
+      </section>
+
+      <section class="howSec">
+        <h3>Dodge, jump, duck</h3>
+        <p class="howLead">Every hazard has one right answer. Hit one and it
+           costs a tube — three and the run is over.</p>
+        <div id="hazards">
+          <div class="haz"><img id="hazCow" alt=""><b>Cow tube</b><span>Slide around</span></div>
+          <div class="haz"><img id="hazYeti" alt=""><b>Snowman tube</b><span>Slide around</span></div>
+          <div class="haz"><img id="hazWave" alt=""><b>Wave</b><span>Jump it</span></div>
+          <div class="haz"><img id="hazPig" alt=""><b>Pig jet</b><span>Duck under</span></div>
+          <div class="haz good">
+            <!-- style, not fill/stroke attributes: var() is not substituted in
+                 SVG presentation attributes, only in CSS declarations. -->
+            <svg viewBox="0 0 60 44" aria-hidden="true">
+              <path d="M4 42V24a26 26 0 0 1 52 0v18"
+                    style="fill:var(--yellow);stroke:var(--ink);stroke-width:5;stroke-linejoin:round"/>
+              <path d="M18 42V25a12 12 0 0 1 24 0v17"
+                    style="fill:var(--navy);stroke:var(--ink);stroke-width:5;stroke-linejoin:round"/>
+            </svg>
+            <b>Tunnel</b><span>Ride through &mdash; free speed</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="howSec">
+        <h3>Controls</h3>
+        <div class="controls">
+          <div class="ctl">
+            <div class="cap">&larr;&nbsp;&rarr;</div>
+            <b>Slide</b>
+            <span class="kb">Hold an arrow key and he keeps sliding that way —
+                             tap it for a nudge.</span>
+            <span class="tc">Press and HOLD anywhere, then move your thumb left
+                             and right. He follows it like a dial, so you can sit
+                             between lanes instead of snapping between them.</span>
+          </div>
+          <div class="ctl">
+            <div class="cap">&uarr;</div>
+            <b>Jump</b>
+            <span class="kb">Up arrow, W or Space.</span>
+            <span class="tc">Flick up, or tap — you can do it mid-slide without
+                             letting go.</span>
+          </div>
+          <div class="ctl">
+            <div class="cap">&darr;</div>
+            <b>Duck</b>
+            <span class="kb">Down arrow or S. Hold it to stay flat.</span>
+            <span class="tc">Flick down. Holding your thumb low keeps you tucked.</span>
+          </div>
+        </div>
+      </section>
+
+      <button class="btn" id="howBack" type="button">Got It</button>
     </div>
   </div>
 
@@ -349,7 +585,7 @@
   <div id="reveal">
     <div id="revealHat" aria-hidden="true"></div>
     <div class="slab">
-      <div class="k">Coming Summer 2026</div>
+      <div class="k">Coming Summer 2027</div>
       <div class="n" id="revealName">Stampede</div>
     </div>
     <img id="revealSlide" alt="">
@@ -386,7 +622,10 @@
       <path class="ico-play" d="M7 4.2 19.5 12 7 19.8 Z"/>
     </svg>
   </button>
-  <div id="load">Loading the slide…</div>
+  <div id="load">
+    <div id="loadTrack"><div id="loadFill"></div><div id="loadTube"></div></div>
+    <div id="loadRow"><span id="loadMsg">Loading the slide</span><span id="loadPct">0%</span></div>
+  </div>
 </div>
 
 <script>
@@ -401,8 +640,8 @@ const CONFIG = {
   parkName:  "Typhoon Texas",
   rideName:  "Stampede",          // <- your real slide name
   eyebrow:   "Now testing at Typhoon Texas",
-  tagline:   "Grab the Buckaroos. Dodge the crowd. Ride it before you ride it.",
-  openingLine: "Coming Summer 2026",
+  tagline:   "Grab the Letters, and the Buckaroos. Dodge the crowd. Ride it before you ride it.",
+  openingLine: "Coming Summer 2027",
   overTag:   "The real drop opens this summer.",
   ctaLabel:  "Get Season Passes",
   ctaUrl:    "",                     // blank hides the button
@@ -463,23 +702,22 @@ const ART = {
   pig3:     "assets/sprites/obstacles/pig-3.png",
   pig4:     "assets/sprites/obstacles/pig-4.png",
 
-  /* Title-screen line dance, played in numeric order. ld04 points at
-     "line-dance_04-05.png" on purpose: that file is the real frame 4 (both
-     hands on the tube), while the export that landed as line-dance_04.png is a
-     15x932 sliver with nothing in it. The sprite sheet has twelve distinct
-     cells and these are them. */
+  /* Title-screen line dance, played in numeric order. ld04 used to point at
+     "line-dance_04-05.png" to dodge a bad export — the original
+     line-dance_04.png was a 15x932 sliver with nothing in it. The frames were
+     re-exported on 2026-08-14 and line-dance_04.png is now the real frame 4
+     (both hands on the tube), so the workaround is gone and the file it pointed
+     at no longer exists. Nine frames — 10-12 were dropped from the loop and
+     their files are no longer loaded. */
   ld01:     "assets/sprites/typhoon-sprites/line-dance/line-dance_01.png",
   ld02:     "assets/sprites/typhoon-sprites/line-dance/line-dance_02.png",
   ld03:     "assets/sprites/typhoon-sprites/line-dance/line-dance_03.png",
-  ld04:     "assets/sprites/typhoon-sprites/line-dance/line-dance_04-05.png",
+  ld04:     "assets/sprites/typhoon-sprites/line-dance/line-dance_04.png",
   ld05:     "assets/sprites/typhoon-sprites/line-dance/line-dance_05.png",
   ld06:     "assets/sprites/typhoon-sprites/line-dance/line-dance_06.png",
   ld07:     "assets/sprites/typhoon-sprites/line-dance/line-dance_07.png",
   ld08:     "assets/sprites/typhoon-sprites/line-dance/line-dance_08.png",
   ld09:     "assets/sprites/typhoon-sprites/line-dance/line-dance_09.png",
-  ld10:     "assets/sprites/typhoon-sprites/line-dance/line-dance_10.png",
-  ld11:     "assets/sprites/typhoon-sprites/line-dance/line-dance_11.png",
-  ld12:     "assets/sprites/typhoon-sprites/line-dance/line-dance_12.png",
 
   /* The word as artwork, one file per letter. The CSS word and the canvas
      pickups both read from these, so a letter cannot look like two different
@@ -535,15 +773,40 @@ const $ = (id) => document.getElementById(id);
 const IMG = {};
 let pending = 0, failed = 0;
 
+/* Progress is counted in FILES, not bytes: an <img> only reports its size once
+   it has a Content-Length and a progress event, which img loading doesn't give
+   us. Every sprite therefore counts equally, which is honest enough — the bar's
+   job is to show the wait ending, not to measure it. A failed file still counts,
+   or one 404 would strand the bar short of full forever. */
+const LOAD_TOTAL = Object.keys(ART).length;
+const LOAD_T0 = performance.now();
+const LOAD_FLOOR = 700;     // ms the loader stays up even on a warm cache, so a
+                            // fast load reads as a quick fill rather than a flash
+let loadDone = 0;
+
+function loadStep(){
+  loadDone++;
+  const p = LOAD_TOTAL ? loadDone / LOAD_TOTAL : 1;
+  $("load").style.setProperty("--p", p.toFixed(4));
+  $("loadPct").textContent = Math.round(p * 100) + "%";
+}
+
 function load(key, src){
   pending++;
   const im = new Image();
-  im.onload  = () => { IMG[key] = im; if (--pending === 0) ready(); };
-  im.onerror = () => { failed++;      if (--pending === 0) ready(); };
+  im.onload  = () => { IMG[key] = im; loadStep(); if (--pending === 0) ready(); };
+  im.onerror = () => { failed++;      loadStep(); if (--pending === 0) ready(); };
   im.src = src;
 }
 function ready(){
-  $("load").classList.add("off");
+  /* Finish the bar before dismissing it. Hiding on the last onload skipped
+     straight from wherever the fill had eased to over to nothing, which read as
+     the loader giving up rather than completing. */
+  $("load").style.setProperty("--p", "1");
+  $("loadPct").textContent = "100%";
+  $("loadMsg").textContent = failed ? "Ready (" + failed + " missing)" : "Ready";
+  const held = Math.max(0, LOAD_FLOOR - (performance.now() - LOAD_T0));
+  setTimeout(finishLoading, held + 340);
   if (IMG.coinA) $("coinIcon").src = ART.coinA;
   // Checked against a literal key rather than DANCE_KEYS, which is declared
   // further down: onload can land before that initialiser has run.
@@ -553,6 +816,42 @@ function ready(){
   if (IMG.slide) $("revealSlide").src = ART.slide;
   else $("revealSlide").style.display = "none";
 }
+function dismissLoader(){
+  $("load").classList.add("off");                          // fade
+  setTimeout(() => $("load").classList.add("gone"), 500);   // then out of the layout
+}
+
+/* ---------- the last step of loading is getting the sound on ----------
+   A browser will not start audio before the page has been touched — verified
+   both ways: with Chrome's autoplay policy lifted the title tune starts on its
+   own, and under the normal policy it never does, no matter how it is asked.
+   So the title screen cannot simply appear with music playing.
+   Rather than drop the player onto a silent title and hope they touch something
+   (the first touch is usually DROP IN, which starts the run and takes the title
+   tune with it), the loader holds for one tap and spends it on the music. The
+   gate only appears when it is actually needed: if the context is already
+   running — a repeat visit, or a browser that allows autoplay — loading ends
+   the way it always did, silently and on its own. */
+/* Read by the main keydown handler, which is registered earlier and therefore
+   runs FIRST on the same event — a flag cleared inside go() would come too late
+   to stop Space from also starting a run. */
+let loaderGateArmed = false;
+
+function finishLoading(){
+  const a = Sound.unlock();
+  if (a && a.state === "running"){        // audio is already free to play
+    dismissLoader();
+    startTitleMusic(false);
+    return;
+  }
+  $("loadMsg").textContent = "Tap to start";
+  $("load").classList.add("gate");
+  loaderGateArmed = true;
+  const go = () => { loaderGateArmed = false; dismissLoader(); startTitleMusic(true); };
+  window.addEventListener("pointerdown", go, { once:true });
+  window.addEventListener("keydown",     go, { once:true });
+}
+
 for (const k in ART) load(k, ART[k]);
 
 /* ---------- config into the DOM ---------- */
@@ -560,7 +859,10 @@ $("parkName").textContent = CONFIG.parkName;
 $("rideName").textContent = CONFIG.rideName;
 $("revealName").textContent = CONFIG.rideName;
 $("eyebrow").textContent  = CONFIG.eyebrow;
-$("tagline").textContent  = CONFIG.tagline;
+/* CONFIG.tagline no longer has a home on the title card — the sell line and the
+   "collect every letter" prompt both moved into #howPanel, which can explain
+   them properly instead of compressing them into one sentence. The key is left
+   in CONFIG because #overPanel's overTag still reads the same way. */
 $("overTag").textContent  = CONFIG.overTag;
 $("ctaBtn").textContent   = CONFIG.ctaLabel;
 $("reveal").querySelector(".k").textContent = CONFIG.openingLine;
@@ -860,6 +1162,29 @@ const Sound = (function(){
             if (musicEl){ try { musicEl.pause(); } catch (e) {} } },
     unhold(){ held = false; if (ac && ac.state === "suspended") ac.resume();
               if (musicEl){ try { musicEl.play(); } catch (e) {} } },
+    /* Backgrounding. Same silence as hold(), with one difference that matters:
+       it will not CREATE a context. hold() goes through ctxr(), so calling it
+       on a page that was hidden before anyone touched it would spin up an
+       AudioContext for the sole purpose of suspending it — and on iOS that
+       counts against the gesture the real unlock still needs.
+       Returns whether there was anything to silence, so the caller can tell a
+       backgrounded run from a page that never made a sound. */
+    suspendAll(){
+      if (!ac && !musicEl) return false;
+      held = true;
+      if (ac && ac.state === "running") ac.suspend();
+      if (musicEl){ try { musicEl.pause(); } catch (e) {} }
+      return true;
+    },
+    resumeAll(){
+      if (!ac && !musicEl) return false;
+      held = false;
+      if (ac && ac.state === "suspended") ac.resume();
+      // Only restart the element if a track was actually playing when we left:
+      // musicEl is nulled by musicStop, so a non-null one is a live track.
+      if (musicEl){ try { const p = musicEl.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {} }
+      return true;
+    },
     // quietest of the samples on purpose: coins arrive in lines of 3-5 and each
     // play overlaps the last, so this one stacks where the others never do
     coin(){ if (!sample("coin", 0.05)){ tone(880, 1650, 0.1, "triangle", 0.13);
@@ -987,11 +1312,23 @@ const FULL_WIDTH = { 2:true, 3:true, 5:true };     // wave, tunnel, boost span t
 let state = "title";
 let metres = 0, coins = 0, best = 0;
 let speed = CONFIG.startSpeed, lives = CONFIG.lives;
+/* FREE SLIDE STEERING
+   `lane` used to be an integer in {-1,0,1}. It is now a CONTINUOUS position in
+   the same units — lane 1 is still the right-hand lane, but 0.4 is a real place
+   to be. Everything downstream already multiplied it by LANE_A, so the geometry
+   needed no change; what did change is collision, which can no longer ask
+   "same lane?" and instead asks "close enough?" (see LANE_HIT/LANE_PICK).
+   laneA stays the EASED angle the rider is actually drawn at, and is what
+   collisions read, so what you see is what you hit.
+   Obstacles and pickups still SPAWN on the three whole-numbered lanes, so the
+   course reads exactly as before; only the rider is free. */
 let lane = 0, laneA = 0;
 let jumpT = -1, tuckT = 0;
 let invuln = 0, boostT = 0, shake = 0;
 let hurtT = 0;              // drives the damage blink; see drawRider
 let moveT = 0, moveDir = 0;  // lane-change lean
+let leanV = 0;               // smoothed crossing speed, in lane units/s; picks
+                             // the lean pose now that no discrete move does
 let dieT = 0;                // wipeout animation, gates the game-over panel
 let deathX = 0, deathY = 0;  // eased screen position for the wipeout pose
 let overAnchorY = 0;         // centre of #overGap once the panel is laid out
@@ -1075,7 +1412,9 @@ function reset(){
   travelled = 0; metres = 0; coins = 0;
   speed = CONFIG.startSpeed; lives = CONFIG.lives;
   lane = 0; laneA = 0; jumpT = -1; tuckT = 0;
-  invuln = 0; boostT = 0; shake = 0; hurtT = 0; moveT = 0; moveDir = 0; duckA = 0;
+  touchId = null; steering = false;   // a thumb still down across a restart no
+                                      // longer owns the wheel it anchored on
+  invuln = 0; boostT = 0; shake = 0; hurtT = 0; moveT = 0; moveDir = 0; leanV = 0; duckA = 0;
   tunnelIn = 0; lastTunZ = -1e9; dieT = 0;
   revealed = false;
   ents = []; spray = []; nextZ = 8; comboFree = 0;
@@ -1206,10 +1545,41 @@ function spawnLetter(){
 /* ==================================================================
    INPUT
    ================================================================== */
-function moveLane(d){
+const LANE_MAX = 1;          // outer lanes; obstacles never spawn past these, so
+                             // sliding wider would only be sliding out of play
+const clampLane = (v) => v < -LANE_MAX ? -LANE_MAX : v > LANE_MAX ? LANE_MAX : v;
+
+/* Pixels of thumb travel per lane unit. Scaled off the viewport so the sweep is
+   the same SHARE of the screen everywhere, then clamped: below ~72px a phone's
+   touch jitter reads as steering, and above ~150px the full left-to-right sweep
+   stops being a thumb move and becomes a wrist move. */
+const laneUnitPx = () =>
+  Math.max(72, Math.min(150, Math.min(window.innerWidth, window.innerHeight) * 0.22));
+
+/* Collision widths, in lane units, now that "same lane" is not a question the
+   game can ask. They are deliberately UNEQUAL: pickups reach further than the
+   rider (0.55, so a coin line can be hoovered by riding roughly over it) while
+   obstacles reach less far (0.40), which means the gap between two riders is
+   genuinely threadable and a near miss stays a miss. Equal widths were tried
+   first and made the chute feel narrower than it looks. */
+const LANE_PICK = 0.55, LANE_HIT = 0.40;
+
+/* Lane units/second above which a move is a MOVE and gets the lean pose.
+   Read off a SMOOTHED crossing speed (leanV), not the raw frame-to-frame one.
+   The raw figure is useless here: an exponential ease answers any change of
+   target with a first-frame spike of delta*13, so an 8px thumb correction
+   momentarily reads 1.17 lanes/s — indistinguishable from a real move, and the
+   pose strobed on every trim. Smoothed at dt*9 that same nudge peaks at 0.39
+   while a half-lane jab reaches 2.2 and a full crossing ~4, so 1.1 sits in
+   clear air between a correction and a committed move. */
+const LEAN_RATE = 1.1;
+
+const KEY_RATE = 2.6;        // lane units/second on a held arrow. Crossing the
+                             // whole chute takes ~0.77s, which lands close to
+                             // the old two-tap cadence without the teleport.
+function moveLane(d){        // kept for keyboard: one nudge, still continuous
   if (state !== "play") return;
-  const n = Math.max(-1, Math.min(1, lane + d));
-  if (n !== lane){ lane = n; moveT = MOVE_DUR; moveDir = d; puff(9); }
+  lane = clampLane(lane + d * 0.34);
 }
 function jump(){ if (jumpT < 0 && state === "play"){ jumpT = 0; tuckT = 0; Sound.jump(); } }
 function tuck(){ if (state === "play" && jumpT < 0 && tuckT <= 0){ tuckT = 0.55; Sound.duck(); } }
@@ -1218,8 +1588,18 @@ const keys = {};
 window.addEventListener("keydown", (e) => {
   const k = e.key.toLowerCase();
   if (["arrowleft","arrowright","arrowup","arrowdown"," "].includes(k)) e.preventDefault();
+  /* The loader's tap-to-start gate owns this keypress. Without it Space both
+     dismissed the gate and fell through to start(), skipping the title. */
+  if (loaderGateArmed) return;
   if (keys[k]) return;
   keys[k] = true;
+  /* The how-to card swallows the keyboard while it is up. Without this, Space
+     would start a run behind a panel the player is still reading — the title
+     is only hidden, not torn down, so every title shortcut is still live. */
+  if ($("howPanel").classList.contains("on")){
+    if (k === "escape" || k === "enter" || k === " ") closeHow();
+    return;
+  }
   if ((state === "title" || state === "over") && (k === " " || k === "enter")) { start(); return; }
   if (k === "arrowleft"  || k === "a") moveLane(-1);
   if (k === "arrowright" || k === "d") moveLane(1);
@@ -1229,22 +1609,112 @@ window.addEventListener("keydown", (e) => {
 });
 window.addEventListener("keyup", (e) => { keys[e.key.toLowerCase()] = false; });
 
-let tx = 0, ty = 0, tt = 0, swiped = false;
+/* ------------------------------------------------------------------
+   TOUCH — hold and slide
+   The thumb is a JOYSTICK, not a swipe detector: wherever it lands
+   becomes lane-zero-relative-to-here, and from then on its horizontal
+   offset maps straight onto the rider's position. Hold it 40px right
+   of where you pressed and he sits half a lane right; drag back and he
+   comes back with you, continuously, no lane steps.
+
+   Two details make it feel like a slide rather than a slider:
+
+   1. RE-ANCHORING at the rail. Push past the outer lane and the anchor
+      follows your thumb, so the moment you reverse, he reverses. Without
+      it, over-pushing builds up slack you have to unwind first, which
+      reads as the controls sticking.
+   2. Vertical is measured against a REFERENCE THAT EXPIRES (JUMP_WIN).
+      A jump is 30px of travel inside 130ms — a flick. A thumb that
+      wanders down the glass over a second never adds up to one, so
+      steering and jumping share the same finger without fighting.
+   ------------------------------------------------------------------ */
+const JUMP_PX = 30, JUMP_WIN = 130;   // px of vertical flick, and its window
+let touchId = null;                   // the steering finger; later ones are ignored
+let anchorX = 0, anchorLane = 0;      // thumb origin, and the lane it stood for
+let refY = 0, refT = 0;               // expiring vertical reference
+let tapT = 0, tapMoved = 0;           // tap-to-jump bookkeeping
+let steering = false;                 // true while a finger owns the wheel
+
 cv.addEventListener("touchstart", (e) => {
-  const t = e.changedTouches[0];
-  tx = t.clientX; ty = t.clientY; tt = performance.now(); swiped = false;
   Sound.unlock();
+  if (touchId !== null) return;
+  const t = e.changedTouches[0];
+  touchId = t.identifier;
+  anchorX = t.clientX; anchorLane = lane;
+  refY = t.clientY; refT = performance.now();
+  tapT = refT; tapMoved = 0;
+  steering = state === "play";
 }, { passive:true });
+
 cv.addEventListener("touchmove", (e) => {
-  if (swiped || state !== "play") return;
-  const t = e.changedTouches[0], dx = t.clientX - tx, dy = t.clientY - ty;
-  if (Math.abs(dx) > 28 && Math.abs(dx) > Math.abs(dy)){ moveLane(dx > 0 ? 1 : -1); swiped = true; }
-  else if (dy < -30){ jump(); swiped = true; }
-  else if (dy >  30){ tuck(); swiped = true; }
+  if (touchId === null) return;
+  let t = null;
+  for (const c of e.changedTouches) if (c.identifier === touchId) { t = c; break; }
+  if (!t) return;
+  const now = performance.now();
+  tapMoved = Math.max(tapMoved, Math.abs(t.clientX - anchorX));
+
+  /* Not playing (paused, dying, reveal card up): keep re-anchoring under the
+     thumb so the pause doesn't bank up an offset. Without this, a thumb that
+     wandered while the pause panel was up would snap the rider across the
+     chute the instant play resumed. */
+  if (state !== "play"){
+    steering = false;
+    anchorX = t.clientX; anchorLane = lane;
+    refY = t.clientY; refT = now;
+    return;
+  }
+  steering = true;
+
+  // ---- steer: thumb offset -> lane position ----
+  const want = anchorLane + (t.clientX - anchorX) / laneUnitPx();
+  lane = clampLane(want);
+  if (want !== lane){ anchorX = t.clientX; anchorLane = lane; }   // re-anchor at the rail
+
+  // ---- jump / duck: a flick against the expiring reference ----
+  if (now - refT > JUMP_WIN){ refY = t.clientY; refT = now; }
+  const dy = t.clientY - refY;
+  if (dy < -JUMP_PX){ jump(); refY = t.clientY; refT = now; tapMoved = 999; }
+  else if (dy > JUMP_PX){ tuck(); refY = t.clientY; refT = now; tapMoved = 999; }
 }, { passive:true });
-cv.addEventListener("touchend", () => {
-  if (!swiped && performance.now() - tt < 260 && state === "play") jump();
-}, { passive:true });
+
+function endTouch(e){
+  for (const c of e.changedTouches){
+    if (c.identifier !== touchId) continue;
+    // A tap is a press that never really moved. Lifting the thumb leaves the
+    // rider where he is — there is no snap back to centre, because the lane he
+    // is in is the lane you steered him to.
+    if (tapMoved < 12 && performance.now() - tapT < 260 && state === "play") jump();
+    touchId = null; steering = false;
+  }
+}
+cv.addEventListener("touchend", endTouch, { passive:true });
+cv.addEventListener("touchcancel", endTouch, { passive:true });
+
+/* ---------- how to play ----------
+   Hazard art is pulled from ART rather than hardcoded here, so the card can
+   never show a different cow than the chute does, and a file that moves only
+   has to move in one place. A missing file hides its own tile instead of
+   leaving a broken-image box on the card. */
+const HOW_ART = { howCoin:"coinA", hazCow:"cow", hazYeti:"yeti", hazWave:"wave2", hazPig:"pig2" };
+for (const id in HOW_ART){
+  const src = ART[HOW_ART[id]];
+  if (src) $(id).src = src;
+  else     $(id).closest(".haz")?.remove();
+}
+if ("ontouchstart" in window) document.body.classList.add("touch");
+
+function openHow(){
+  $("titlePanel").classList.remove("on");
+  $("howPanel").classList.add("on");
+  $("howScroll").scrollTop = 0;        // always opens at the top, not where it
+}                                      // was left after the last read
+function closeHow(){
+  $("howPanel").classList.remove("on");
+  if (state === "title") $("titlePanel").classList.add("on");
+}
+$("howBtn").addEventListener("click", openHow);
+$("howBack").addEventListener("click", closeHow);
 
 $("playBtn").addEventListener("click", start);
 $("againBtn").addEventListener("click", start);
@@ -1260,8 +1730,25 @@ $("mute").addEventListener("click", () => {
   $("mute").classList.toggle("off", !on);
   $("mute").setAttribute("aria-label", on ? "Mute sound" : "Unmute sound");
 });
-document.addEventListener("visibilitychange", () => { last = performance.now(); });
-if (!("ontouchstart" in window)) $("hint").textContent = "\u2190 \u2192 steer  \u00b7  \u2191 jump  \u00b7  \u2193 duck";
+/* ---------- leaving the page takes the sound with it ----------
+   A Web Audio context does not stop when a tab is backgrounded or the browser
+   is sent behind another app: it keeps playing, so the tune follows the player
+   out of the game. visibilitychange covers tab switches and app switches on
+   both platforms; pagehide covers the cases it misses — iOS navigating away or
+   dropping the page into the back/forward cache.
+   Coming back is deliberately NOT symmetrical: a run that was already paused
+   stays silent, because the pause screen is supposed to be. */
+function toBackground(){ Sound.suspendAll(); }
+function toForeground(){
+  last = performance.now();          // never bank the time away into one frame
+  if (state !== "paused") Sound.resumeAll();
+}
+document.addEventListener("visibilitychange", () => {
+  document.hidden ? toBackground() : toForeground();
+});
+window.addEventListener("pagehide", toBackground);
+window.addEventListener("pageshow", () => { if (!document.hidden) toForeground(); });
+if (!("ontouchstart" in window)) $("hint").textContent = "hold \u2190 \u2192 steer  \u00b7  \u2191 jump  \u00b7  \u2193 duck";
 
 /* ==================================================================
    HUD
@@ -1453,6 +1940,7 @@ function start(){
   $("titlePanel").classList.remove("on");
   $("overPanel").classList.remove("on");
   $("pausePanel").classList.remove("on");
+  $("howPanel").classList.remove("on");   // a run can be started from the how-to
   $("pause").classList.add("on");
   $("pause").classList.remove("paused");
   $("pause").setAttribute("aria-label", "Pause");
@@ -1696,9 +2184,37 @@ function update(dt){
     if (stampedeT <= 0){ $("letters").classList.add("gone"); showReveal(); }
   }
 
-  laneA += (laneAngle(lane) - laneA) * Math.min(1, dt * 11);
+  /* Held-arrow steering, the keyboard's answer to a held thumb. Skipped while a
+     finger is on the glass so the two can't fight over the same variable. */
+  if (!steering){
+    const kd = ((keys["arrowleft"] || keys["a"]) ? -1 : 0)
+             + ((keys["arrowright"] || keys["d"]) ?  1 : 0);
+    if (kd) lane = clampLane(lane + kd * KEY_RATE * dt);
+  }
+
+  /* The ease is now the ONLY thing between input and position — with lane
+     changing continuously there is no step for it to smooth, so it reads as the
+     rider's weight rather than as a lane transition. Slightly stiffer than the
+     old dt*11 because a stepless input can afford to track closer. */
+  const laneAPrev = laneA;
+  laneA += (laneAngle(lane) - laneA) * Math.min(1, dt * 13);
   camX = curveX(travelled) + Math.sin(laneA) * 0.34;
   camY = curveY(travelled) - CAM_UP + Math.cos(laneA) * 0.1;
+
+  /* Lean pose, re-derived from how fast he is ACTUALLY crossing rather than
+     from a discrete move event, which no longer exists. moveT is topped up
+     every frame he is moving and then runs out on its own, so the pose holds
+     for the whole slide and lingers a beat past the end — the same overhang
+     MOVE_DUR used to buy, now earned continuously.
+     LEAN_RATE is in lane units/second: below it he is trimming his line, above
+     it he is committing to a move, and only the latter is worth a new pose. */
+  const laneRate = dt > 0 ? (laneA - laneAPrev) / LANE_A / dt : 0;
+  leanV += (laneRate - leanV) * Math.min(1, dt * 9);
+  if (Math.abs(leanV) > LEAN_RATE){
+    moveDir = leanV > 0 ? 1 : -1;
+    moveT = Math.max(moveT, 0.18);
+    if (Math.abs(leanV) > LEAN_RATE * 2 && Math.random() < 0.35) puff(2);
+  }
 
   spawn();
   spawnLetter();
@@ -1708,14 +2224,21 @@ function update(dt){
   const airborne = jumpT >= 0 && lift > 0.28;   // generous window on purpose
   const ducking  = tuckT > 0;
 
+  /* Where he is DRAWN, in lane units — the eased angle, not the input target.
+     Reading the target would let a hit land a tenth of a second before the
+     sprite arrives, which is the one thing free steering must not do: the whole
+     point of a stepless slide is that the picture is the hitbox. */
+  const laneNow = laneA / LANE_A;
+  const nearLane = (i, w) => Math.abs(i - laneNow) < w;
+
   for (const e of ents){
     if (e.dead || e.w === 0) continue;          // w:0 == scenery, never collides
     if (e.z > travelled + 0.5 || e.z < travelled - 1.2) continue;
 
     if (e.t === T.COIN){
-      if (e.i === lane){ e.dead = true; coins += CONFIG.coinValue; Sound.coin(); }
+      if (nearLane(e.i, LANE_PICK)){ e.dead = true; coins += CONFIG.coinValue; Sound.coin(); }
     } else if (e.t === T.LETTER){
-      if (e.i === lane){
+      if (nearLane(e.i, LANE_PICK)){
         e.dead = true;
         if (e.gi === gotLetters){          // ignore anything left over from a
           flyLetter(gotLetters);           // reveal cull or a double-tap frame
@@ -1742,8 +2265,8 @@ function update(dt){
       // rather than a parallel penalty so it can never drift out of step with
       // what colliding with anything else does.
       if (!ducking && !e.triggered){ e.triggered = true; hitRider(); }
-    } else if ((e.t === T.COW || e.t === T.YETI) && e.i === lane){
-      e.dead = true; hitRider();                          // another rider in your lane
+    } else if ((e.t === T.COW || e.t === T.YETI) && nearLane(e.i, LANE_HIT)){
+      e.dead = true; hitRider();                          // another rider in your path
     }
   }
 
@@ -2653,11 +3176,11 @@ const RIDER_TUBE_W  = 0.8742;   // tube width,  fraction of the sprite's width
 const RIDER_TUBE_CX = 0.5011;   // tube centre, fraction of its width
 const RIDER_TUBE_BY = 0.9766;   // tube base,   fraction of its height
 
-/* Deliberately outlasts the lane ease, which is an exponential at dt*11 and so
-   is ~95% settled by 0.27s. Matching the ease exactly (it used to be 0.34) put
-   the pose on screen for barely a quarter second, and the lean was over before
-   the eye found it. The overhang leaves him leaning a beat after he has arrived,
-   which is what makes the move readable. */
+/* Unused since steering went continuous — there is no discrete lane change left
+   to hold a pose for, so update() tops moveT up frame by frame while he is
+   actually crossing instead (see LEAN_RATE). Kept as the record of what the
+   lean pose used to be worth: 0.42s, deliberately outlasting the old lane ease
+   so the lean was still on screen a beat after he had arrived. */
 const MOVE_DUR = 0.42;
 
 /* ------------------------------------------------------------------
@@ -2964,9 +3487,11 @@ function render(){
    The title only ever appears on first load — start() hides it and the
    wipeout brings back #overPanel instead — so this stops on its own.
    ================================================================== */
-const DANCE_KEYS = ["ld01","ld02","ld03","ld04","ld05","ld06",
-                    "ld07","ld08","ld09","ld10","ld11","ld12"];
-const DANCE_FPS  = 3;              // 1.2s a lap: a bar of the country track
+/* Nine frames, not twelve: 10-12 were dropped from the loop on 2026-08-14 and
+   are no longer part of the dance. */
+const DANCE_KEYS = ["ld01","ld02","ld03","ld04","ld05",
+                    "ld06","ld07","ld08","ld09"];
+const DANCE_FPS  = 3;              // 3s a lap at nine frames (was 4s at twelve)
 const heroDance  = $("heroDance");
 let danceT = 0, danceI = -1;
 
@@ -3022,13 +3547,41 @@ function startTitleMusic(fromGesture){
   const a = Sound.unlock();
   if (!fromGesture && (!a || a.state !== "running")) return;
   titleTune = true;
-  Sound.music("start", null, 1.2);
+  Sound.music("start", null, 0);      // full volume from the first sample — the
+                                      // title tune announces the ride, and a
+                                      // 1.2s rise made it sound like something
+                                      // already playing that you walked in on
 }
-window.addEventListener("click",   () => startTitleMusic(true));
-window.addEventListener("keydown", () => startTitleMusic(true));
-window.addEventListener("touchend", () => startTitleMusic(true));
+/* Autoplay is a browser POLICY, not a switch: on mobile Safari and on a domain
+   Chrome has no engagement history with, audio cannot start until the page has
+   been touched, and nothing here can override that. So this takes the tune at
+   the earliest moment each browser actually allows:
+     - straight away, if the context is already running (a repeat visit);
+     - the instant the context flips to running, if the browser unblocks it
+       without a gesture;
+     - otherwise on the first gesture — and on pointerdown/touchstart rather
+       than click/touchend, so it starts as the finger LANDS instead of when it
+       lifts, which is most of the perceived delay on a phone. */
+const titleAC = Sound.unlock();
+if (titleAC && titleAC.addEventListener)
+  titleAC.addEventListener("statechange", () => startTitleMusic(false));
+/* The press that STARTS THE RUN is not a cue to start the title tune: pointerdown
+   would begin it and the click a moment later hands over to the ride track, so
+   all you hear is a blip. Nothing else is excluded — pressing How to Play, or
+   touching anywhere on the title, still brings the music up.
+   (The keyboard needs no such guard: the game's own keydown handler is
+   registered earlier on window, so Space has already moved state off "title"
+   before this one runs.) */
+const musicGesture = (e) => {
+  if (e && e.target && e.target.closest && e.target.closest("#playBtn")) return;
+  startTitleMusic(true);
+};
+window.addEventListener("pointerdown", musicGesture);
+window.addEventListener("touchstart",  musicGesture, { passive:true });
+window.addEventListener("click",       musicGesture);
+window.addEventListener("keydown",     () => startTitleMusic(true));
 
-buildWord($("introWord"), 0);   // title card shows the word unlit, as the goal
+buildWord($("howWord"), WORD.length);   // shown lit on the how-to card: the goal
 reset();
 startTitleMusic(false);
 requestAnimationFrame(frame);
