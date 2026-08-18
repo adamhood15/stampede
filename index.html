@@ -128,7 +128,12 @@
     #letters b.got{animation:none}
     #letters.run b{animation:none;opacity:0}
     /* The pill and the gold still carry the record; only the pop goes. */
-    #stats .rec::after{animation:none}
+    #overPanel.textIn #stats .rec::after{animation:none}
+    /* The card's copy still WAITS for Typhoon — that is sequencing, not motion,
+       and it is the whole point of the beat. It just fades in place instead of
+       rising, keeping the same stagger so the order still reads. */
+    #overPanel.textIn > :not(#overRider){animation-name:overFade}
+    @keyframes overFade{from{opacity:0} to{opacity:1}}
   }
 
   #speedbar{position:absolute;left:50%;transform:translateX(-50%);
@@ -168,11 +173,55 @@
   /* The wipeout screen's wash is painted on the canvas instead, so Typhoon can
      sit on top of it. This panel supplies only the text and buttons. */
   #overPanel{background:none}
-  /* Reserves the slot Typhoon is drawn into. He lives on the canvas, so the
-     panel cannot lay him out — but it CAN leave a hole the right size, which
-     keeps the buttons clear of him at any screen size. Height is set in JS from
-     his drawn size. */
-  #overGap{flex:none;width:1px;height:0}
+  /* Typhoon's landing spot, and a real box in the layout rather than a hole cut
+     for one. Width and height are written by layoutOverRider() to the pixel size
+     the canvas draws him at, so the flex column reserves exactly his footprint
+     and the buttons above cannot be climbed into.
+     margin-top matches .btn's, so the gap above him reads like the gaps between
+     the controls rather than like a mistake. */
+  /* No max-width here on purpose: width AND height are written together as an
+     exact pair, and a max-width that clamped one without the other would stretch
+     him. He is only ever about a tenth of the viewport wide, so there is nothing
+     for it to save. */
+  #overRider{flex:none;display:block;margin-top:20px}
+
+  /* The copy WAITS for Typhoon. He settles into #overRider — the slot at the
+     FOOT of this card — over about a second after the wipeout, and the card used
+     to arrive with him, so the eye had to choose between a moving character and
+     a board of numbers landing at the same instant, and lost both. Now the panel
+     is shown (it has to be, or his slot cannot be measured and he has nowhere to
+     move TO) with every child held invisible, and JS adds .textIn once he has
+     arrived and held the beat.
+     Hidden with opacity rather than display or visibility on purpose: the whole
+     stack has to keep its height from the first frame, because the panel is
+     centred and #overRider's position — which IS his target — depends on how
+     tall the content above it is. Anything that changes the layout when the text
+     appears would move the slot out from under him after he had landed. */
+  #overPanel:not(.textIn) > *{opacity:0;pointer-events:none}
+  /* He is on his own switch, .riderIn, and it is thrown a beat AFTER the copy —
+     see handOverRider. Until then he is still the canvas drawing, still easing
+     into place, and this img must not show or there would be two of him.
+     No fade: it is a swap between two identical rectangles inside one frame, and
+     any transition would show the seam it is there to hide. */
+  #overPanel:not(.riderIn) > #overRider{opacity:0}
+  /* Everything EXCEPT him gets the staggered entrance. */
+  #overPanel.textIn > :not(#overRider){
+    animation:overIn .46s cubic-bezier(.16,1.25,.4,1) both;
+    animation-delay:calc(var(--d,0) * 1ms)}
+  /* `translate`, not `transform`: .ride and .btn are permanently skewed, and a
+     transform in the keyframes would wipe that skew out for the length of the
+     animation — the headline would straighten up and then snap back over. The
+     individual translate property composes with the skew instead of replacing
+     it, so each element rises in its own resting shape. */
+  @keyframes overIn{from{opacity:0;translate:0 16px} to{opacity:1;translate:0 0}}
+  /* Read order, top down, with the board given a beat of its own. */
+  #overKicker{--d:0}
+  #overTitle {--d:80}
+  #overTag   {--d:160}
+  #stats     {--d:260}
+  #againBtn  {--d:380}
+  #ctaBtn    {--d:450}
+
   .eyebrow{font-size:10px;letter-spacing:.4em;text-transform:uppercase;
            color:var(--yellow);margin-bottom:10px}
   /* 12.5vw, not 15: eight condensed caps plus a 7px stroke and a skew ran wider
@@ -357,15 +406,38 @@
      keep its rounded corners, so scaling the WORD up to 1.28 pushed it past the
      board's bottom edge and it came back clipped in half for the length of the
      animation. The pill has its own margin to grow into. */
-  #stats .rec::after{animation:recPop .42s cubic-bezier(.16,1.4,.4,1)}
+  /* Scoped to .textIn so the pop plays when the board is actually LOOKED at.
+     The rec class is set in showOver, a couple of seconds before the card's copy
+     is revealed, so an unscoped animation ran out its 0.42s behind opacity:0 and
+     the pill was simply sitting there by the time anyone saw it. */
+  #overPanel.textIn #stats .rec::after{animation:recPop .42s cubic-bezier(.16,1.4,.4,1);
+                                       animation-delay:calc(var(--d,0) * 1ms + 200ms);
+                                       animation-fill-mode:both}
   @keyframes recPop{from{transform:scale(.4);opacity:0} to{transform:scale(1);opacity:1}}
 
-  #reveal{position:absolute;inset:0;display:none;align-items:center;justify-content:center;
-          flex-direction:column;pointer-events:none;text-align:center;padding:20px}
+  /* THE WIN CARD
+     A poster, not a stack of items: the slide art is the whole point of the
+     screen and gets the top of it at the biggest size that fits, the sign is
+     pinned across its foot, and the two buttons sit at the other end of the
+     screen where a thumb already is.
+     flex-start rather than centre is what puts the art AT the top. It is also
+     not space-between, which was the first attempt: pinning the buttons to the
+     floor of a 844px phone left 240px of open water THROUGH the middle of the
+     card, and a hole between a poster and its buttons reads as a layout that
+     failed rather than as air. The whole composition sits together at the top
+     and the leftover height falls below it, where the slide receding into the
+     distance is doing something with it. */
+  #reveal{position:absolute;inset:0;display:none;align-items:center;
+          justify-content:flex-start;
+          flex-direction:column;pointer-events:none;text-align:center;
+          /* Only a modest bottom pad. The stack is top-anchored, so nothing
+             reaches down to the mute button on its own — and 74px of it here was
+             enough to give a 640px phone a scrollbar for padding alone. */
+          padding:clamp(10px,3.4vh,30px) 14px calc(env(safe-area-inset-bottom,0px) + 30px)}
   /* Takes pointer events once it is up: the run is frozen behind it and this is
      a modal choice, so nothing underneath should be reachable. Same wash as
      .panel so the win screen sits in the same family as pause and game over. */
-  #reveal.on{display:flex;pointer-events:auto;
+  #reveal.on{display:flex;pointer-events:auto;overflow-y:auto;touch-action:pan-y;
     background:radial-gradient(130% 100% at 50% 15%,rgba(48,180,252,.82),rgba(30,48,72,.97))}
   /* The flash moved onto a pseudo-element. It used to animate #reveal's own
      background, which cannot cross-fade from a flat colour into the gradient
@@ -373,50 +445,155 @@
   #reveal.on::before{content:"";position:absolute;inset:0;z-index:0;
     background:rgba(252,246,240,.85);animation:flashOut .5s ease-out forwards}
   #reveal > *{position:relative;z-index:1}   /* keeps content over the flash */
+
+  /* The poster block: art, sign, and Typhoon, composed as one thing so they
+     scale together and overlap each other rather than queueing up in a column.
+     --hh lives here rather than on #revealHat because #revealArt needs it too —
+     it is what keeps the art box from collapsing under him if slide.png is
+     missing (see the IMG.slide guard in JS). */
+  /* --lap is the overlap between the art and the sign, and it is ONE number on
+     purpose: the sign is pulled up by it and Typhoon stands on it, so a change
+     to the composition moves both together instead of leaving him hovering. */
+  #revealStage{--hh:clamp(56px,16.5vh,150px);--lap:clamp(16px,4vh,42px);
+               position:relative;width:min(100%,660px);
+               display:flex;flex-direction:column;align-items:center}
+  /* A sunburst behind the reveal, the way a park announces anything.
+     Two decisions worth keeping. It is STATIC: the card is a paused screen but
+     the game is still rendering behind it, and rotating a conic gradient this
+     size repaints the whole thing every frame — the hat animation is the moving
+     part here and it should not have to share.
+     And it hangs off the CARD at inset:0 rather than off the stage, so it cannot
+     be larger than what it sits in. As an oversized absolute box inside the
+     stage it grew #reveal's scroll height instead, which put a scrollbar and a
+     strip of dead page under a card that fitted perfectly well.
+     Masked to a soft disc around the art so it reads as light coming off the
+     slide rather than as a graphic with an edge. */
+  #reveal.on::after{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
+    background:repeating-conic-gradient(from 8deg at 50% 30%,
+      rgba(252,246,240,.17) 0deg 7deg, rgba(252,246,240,0) 7deg 18deg);
+    -webkit-mask-image:radial-gradient(72% 46% at 50% 30%,#000 22%,rgba(0,0,0,.45) 58%,transparent 82%);
+            mask-image:radial-gradient(72% 46% at 50% 30%,#000 22%,rgba(0,0,0,.45) 58%,transparent 82%);
+    animation:revealRays .9s ease-out both}
+  /* Shrink-wraps the art exactly — it is a column flex item under
+     align-items:center, so its width is the image's width and nothing else.
+     That is what lets Typhoon be positioned against the ART's corner rather
+     than against a full-width box he would otherwise float beside.
+     Carries NO z-index and NO transform of its own, and both are load-bearing:
+     either one would make it a stacking context, and Typhoon's z-index would
+     then be trapped inside it — the sign would paint over him however high he
+     was stacked. That is why the entrance animation is on the img rather than
+     on this box. Being positioned and later in tree order is enough to put it
+     above the rays. */
+  #revealArt{position:relative;min-width:var(--hh);min-height:var(--hh)}
+  /* The prize, and now the headline: as big as the screen will take it.
+     Sized by WIDTH with the height folded into the same min() — 1360x1156 art,
+     so a 46vh height cap is a 46vh*1.176 width cap. One property, no object-fit,
+     and the element's box is exactly the artwork: no letterbox padding for the
+     hat to be positioned against. */
+  #revealSlide{display:block;width:min(92vw, calc(46vh * 1.176), 640px);height:auto;
+               filter:drop-shadow(0 12px 0 rgba(10,10,10,.22));
+               animation:revealArtIn .52s cubic-bezier(.16,1.25,.4,1) both}
   /* Same windowing trick as the letters: one --hh drives the box, the scale of
-     the contact sheet behind it, and --fx/--fy pick the frame. */
-  #revealHat{--hh:clamp(110px,24vh,220px);
-    height:var(--hh);width:calc(var(--hh) * .6765);margin-bottom:14px;
+     the contact sheet behind it, and --fx/--fy pick the frame.
+     Parked on the art's bottom-right corner and hanging a little off both edges,
+     so he stands ON the sign at the end of it — in front of the slab (z-index),
+     clear of the type, and never over the middle of the artwork. */
+  /* right:1%, not the -3% it started at. The measured frame box is the hat and
+     the body; the tube's ink runs a few pixels wider than it, so hanging him off
+     the art's right edge put that overhang against the screen edge and the phone
+     cut him. Inside the artwork he cannot reach it at any width. */
+  #revealHat{position:absolute;right:1%;bottom:var(--lap);z-index:3;
+    height:var(--hh);width:calc(var(--hh) * .6765);
     background-image:url("assets/sprites/typhoon-sprites/hat-tilt/typhoon-hat-tilt.png");
     background-repeat:no-repeat;
     background-size:calc(var(--hh) * 3.7647) auto;
     background-position:calc(var(--hh) * var(--fx) * -1) calc(var(--hh) * var(--fy) * -1);
-    filter:drop-shadow(0 8px 0 rgba(10,10,10,.25))}
-  /* The prize: the actual slide, sat between the sign and the choice. Sized in
-     vh alongside the hat so the whole card shrinks together rather than
-     overflowing a short screen. */
-  #revealSlide{height:clamp(80px,17vh,180px);width:auto;max-width:86vw;
-               object-fit:contain;margin-top:16px;
-               filter:drop-shadow(0 8px 0 rgba(10,10,10,.22))}
-  #revealBtns{display:flex;gap:14px;flex-wrap:wrap;justify-content:center}
-  #revealBtns .btn{margin-top:18px}
+    filter:drop-shadow(0 8px 0 rgba(10,10,10,.25));
+    animation:revealPop .42s cubic-bezier(.16,1.4,.4,1) .26s both}
+  /* The caption carries the achievement, which the sign cannot: the sign is the
+     ride's own announcement and would say the same thing on a billboard. Sized
+     to break under the slab rather than run past it. */
+  #revealNote{margin:16px auto 0;max-width:26ch;
+              animation:overIn .46s cubic-bezier(.16,1.25,.4,1) .34s both}
+  #revealBtns{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;
+              margin-top:clamp(20px,5vh,52px);
+              animation:overIn .46s cubic-bezier(.16,1.25,.4,1) .46s both}
+  #revealBtns .btn{margin-top:0}
   /* Deliberately not .ghost's orange — that is the banner's own colour, and a
      button matching the sign above it reads as part of the sign rather than as
      something to press. Deep water blue keeps it in palette and well clear of
      the yellow primary. */
-  #revealAgain{background:var(--blue-dp);color:var(--white)}
-  /* A landscape phone is only ~390px tall and the full stack wants ~476px, so
-     the card would push its own buttons off screen — and they are the only way
-     out of a modal. Everything shrinks rather than anything being dropped: the
-     slide is the prize and the buttons are the exit. */
+  /* Both Start Overs, on the win card and on pause, so the same words are the
+     same colour wherever they appear. */
+  #revealAgain,#pauseAgainBtn{background:var(--blue-dp);color:var(--white)}
+  /* A landscape phone is only ~360px tall and the poster wants far more, so the
+     card would push its own buttons off screen — and they are the only way out
+     of a modal. The art already shrinks on its own (its width cap is written in
+     vh), so only the type and the padding need taking in here. */
   @media (max-height:560px){
-    #revealHat{--hh:clamp(70px,16vh,110px);margin-bottom:8px}
-    #reveal .slab{padding:10px 20px 12px}
-    #reveal .slab .n{font-size:clamp(28px,7vw,48px)}
-    #revealSlide{height:clamp(56px,12vh,90px);margin-top:8px}
-    #revealBtns .btn{margin-top:10px;font-size:20px;padding:8px 22px 10px}
+    #reveal{padding-bottom:calc(env(safe-area-inset-bottom,0px) + 58px)}
+    /* The art is height-bound here and the type is width-bound, which on a
+       740x360 phone made the SIGN twice the width of the slide — the one thing
+       this screen is supposed to be about, reduced to a thumbnail over its own
+       nameplate. Both get a vh term so they shrink as one. */
+    #revealSlide{width:min(88vw, calc(38vh * 1.176), 640px)}
+    #reveal .slab{padding:8px 18px 10px;border-width:4px;box-shadow:8px 8px 0 var(--ink)}
+    #reveal .slab .k{font-size:9px;margin-bottom:4px}
+    #reveal .slab .n{font-size:max(22px, min(6.6vw, 8vh));-webkit-text-stroke-width:4px}
+    #revealNote{display:none}          /* the exit outranks the copy on a 360px-tall screen */
+    #revealBtns{margin-top:14px}
+    #revealBtns .btn{font-size:20px;padding:8px 22px 10px}
   }
-  #reveal .slab{background:var(--orange);border:5px solid var(--ink);padding:16px 30px 20px;
+  /* Turned on its side, the card stops being a poster and becomes a spread: the
+     art takes the left half at nearly TWICE the height a stacked layout could
+     give it, and the sign moves alongside instead of underneath. Stacking is
+     what wastes a landscape phone — 360px of height split three ways left the
+     slide smaller than its own nameplate.
+     Scoped to the stage, so #reveal keeps its column and the buttons stay where
+     a thumb expects them. */
+  @media (max-height:560px) and (orientation:landscape){
+    #revealStage{--lap:0px;width:auto;
+      display:grid;grid-template-columns:auto auto;grid-template-areas:"art sign";
+      align-items:center;gap:0 clamp(10px,2.4vw,26px)}
+    #revealArt{grid-area:art}
+    #revealSign{grid-area:sign;justify-self:start}
+    /* Height-driven now: the constraint in landscape is the ceiling, not the
+       side walls, and going through the height directly is what buys the size. */
+    #revealSlide{width:auto;height:min(70vh, 40vw)}
+    #revealNote{display:block;margin-top:8px;font-size:10px;letter-spacing:.1em}
+    #reveal{padding-bottom:calc(env(safe-area-inset-bottom,0px) + 16px)}
+    #revealBtns{margin-top:10px}
+  }
+  /* Pinned ACROSS the foot of the art rather than sitting under it. The negative
+     margin is the whole composition: it turns two stacked boxes into one poster,
+     and it buys back the height the art wanted. Sits in front of the artwork and
+     behind Typhoon (z-index 2 against his 3), so he stands on the sign and the
+     sign lies on the slide.
+     The overlap is on this wrapper rather than on the slab itself, so the sign
+     and its caption move as one block — and so the landscape grid can drop the
+     overlap by zeroing --lap without touching anything else. */
+  #revealSign{position:relative;z-index:2;margin-top:calc(-1 * var(--lap))}
+  #reveal .slab{background:var(--orange);border:5px solid var(--ink);padding:14px 28px 18px;
     transform:skewX(-7deg) rotate(-2.5deg);box-shadow:12px 12px 0 var(--ink);
-    animation:slam .45s cubic-bezier(.16,1.4,.4,1)}
+    animation:slam .45s cubic-bezier(.16,1.4,.4,1) .14s both}
   #reveal .slab .k{font-size:10px;letter-spacing:.38em;text-transform:uppercase;
                    color:var(--ink);margin-bottom:8px}
+  /* The vh term is the guard against a wide, short window sizing the name off
+     the width alone and running it past the artwork it belongs to. */
   #reveal .slab .n{font-family:var(--display);text-transform:uppercase;
-    font-size:clamp(38px,11vw,88px);line-height:.85;color:var(--white);
+    font-size:clamp(38px,min(10.5vw,15vh),84px);line-height:.85;color:var(--white);
     -webkit-text-stroke:6px var(--ink);paint-order:stroke fill}
   @keyframes slam{from{transform:skewX(-7deg) rotate(-2.5deg) scale(2.1);opacity:0}
                   to{transform:skewX(-7deg) rotate(-2.5deg) scale(1);opacity:1}}
   @keyframes flashOut{to{opacity:0}}
+  /* The art arrives first and the rest lands on it: art, sign, Typhoon, buttons.
+     Rising rather than appearing, and scaled from just under 1 so it reads as
+     the poster being put up rather than as a slideshow transition. */
+  @keyframes revealArtIn{from{opacity:0;scale:.9;translate:0 -14px}
+                         to{opacity:1;scale:1;translate:0 0}}
+  @keyframes revealPop{from{opacity:0;scale:.6;translate:0 18px}
+                       to{opacity:1;scale:1;translate:0 0}}
+  @keyframes revealRays{from{opacity:0} to{opacity:1}}
 
   #flash{position:absolute;inset:0;background:var(--orange);opacity:0;
          pointer-events:none;transition:opacity .18s}
@@ -495,7 +672,11 @@
   /* ::before included, or the flash would sit there at full opacity forever —
      its fade-out IS the animation being switched off. */
   @media (prefers-reduced-motion:reduce){
-    #reveal .slab{animation:none}
+    /* Every one of these animates only from an invisible or displaced start to
+       the element's resting state, so switching them off leaves the finished
+       poster exactly as designed — it simply arrives all at once. */
+    #reveal .slab,#revealSlide,#revealHat,#revealNote,#revealBtns,
+    #reveal.on::after{animation:none}
     #reveal.on::before{animation:none;opacity:0}
     #loadFill::after,#loadTube,#load.gate #loadMsg{animation:none}
   }
@@ -633,6 +814,7 @@
   <div class="panel" id="overPanel">
     <div class="eyebrow" id="overKicker">Wipeout</div>
     <h2 class="ride" style="font-size:clamp(38px,11vw,80px)" id="overTitle">Nice Run</h2>
+    <p class="tag" id="overTag">The real drop opens this summer.</p>
     <div id="stats">
       <div class="statRow">
         <div><span>Descent</span><strong id="fDist">0</strong></div>
@@ -643,19 +825,50 @@
         <div><span id="fWordLbl">Stampede letters</span><div id="fWord" class="word"></div></div>
       </div>
     </div>
-    <p class="tag" id="overTag">The real drop opens this summer.</p>
-    <div id="overGap" aria-hidden="true"></div>
     <button class="btn" id="againBtn" type="button">Ride Again</button>
     <button class="btn ghost" id="ctaBtn" type="button">Get Season Passes</button>
+    <!-- Typhoon, for real. He is drawn on the CANVAS while he is still moving —
+         the wipeout and the settle — and then HANDED OVER to this img the frame
+         he lands, which is the frame the copy comes in (see revealOverText).
+         A canvas rider cannot be laid out, so the panel could only guess at the
+         room he needed and the guess was wrong at some screen heights: he came
+         up through the buttons, because nothing in the flex column knew he was
+         there. This element is a flex item like everything else, so the column
+         reserves his exact box and the buttons are pushed clear of it at every
+         size, with no measuring to get wrong.
+         Sized in JS by layoutOverRider() rather than in CSS: it has to match the
+         canvas draw EXACTLY, down to the sprite's tube registration, or the
+         handoff is a visible jump.
+         Last on purpose. He used to be reserved at the top of the stack, which
+         meant a climb of most of the screen from wherever the crash left him —
+         a long, slow drift with nothing else happening. Down here he is within
+         ~60px of where he already is, so the move reads as him picking himself
+         up and settling, and the card fills in above him. -->
+    <img id="overRider" alt="" aria-hidden="true">
   </div>
 
+  <!-- The win card, as a ride announcement poster: the slide itself is the
+       headline act, the sign is pinned across the foot of it, and Typhoon
+       stands on the sign's end tipping his hat at what he has just shown you.
+       Order matters — #revealArt first so the sign and Typhoon overlap it from
+       in front, and #revealBtns last so the column can push them to the bottom
+       of the screen while the art holds the top. -->
   <div id="reveal">
-    <div id="revealHat" aria-hidden="true"></div>
-    <div class="slab">
-      <div class="k">Coming Summer 2027</div>
-      <div class="n" id="revealName">Stampede</div>
+    <div id="revealStage">
+      <div id="revealArt">
+        <img id="revealSlide" alt="">
+        <div id="revealHat" aria-hidden="true"></div>
+      </div>
+      <!-- Sign and caption travel together: on a landscape phone the stage
+           becomes two columns and this is the right-hand one. -->
+      <div id="revealSign">
+        <div class="slab">
+          <div class="k">Coming Summer 2027</div>
+          <div class="n" id="revealName">Stampede</div>
+        </div>
+        <p class="tag" id="revealNote"></p>
+      </div>
     </div>
-    <img id="revealSlide" alt="">
     <div id="revealBtns">
       <button class="btn" id="revealGo" type="button">Keep Riding</button>
       <button class="btn ghost" id="revealAgain" type="button">Start Over</button>
@@ -667,6 +880,11 @@
     <h2 class="ride" style="font-size:clamp(38px,11vw,80px)">Take a Breath</h2>
     <p class="tag">The slide will wait.</p>
     <button class="btn" id="resumeBtn" type="button">Resume</button>
+    <!-- Second, and secondary. Resume is what you came here for and keeps the
+         primary yellow; this one is the ghost below it, so the run you are in
+         the middle of cannot be thrown away by a thumb landing on the wrong
+         half of the screen. -->
+    <button class="btn ghost" id="pauseAgainBtn" type="button">Start Over</button>
   </div>
 
   <div id="flash"></div>
@@ -707,6 +925,7 @@ const CONFIG = {
   parkName:  "Typhoon Texas",
   rideName:  "Stampede",          // <- your real slide name
   eyebrow:   "Now testing at Typhoon Texas",
+  winNote:   "You spelled it. Here is the real thing.",   // blank hides the line
   tagline:   "Grab the Letters, and the Buckaroos. Dodge the crowd. Ride it before you ride it.",
   openingLine: "Coming Summer 2027",
   overTag:   "The real drop opens this summer.",
@@ -933,6 +1152,11 @@ $("eyebrow").textContent  = CONFIG.eyebrow;
 $("overTag").textContent  = CONFIG.overTag;
 $("ctaBtn").textContent   = CONFIG.ctaLabel;
 $("reveal").querySelector(".k").textContent = CONFIG.openingLine;
+/* The one line of copy on the win card, under the sign. Blank hides it outright
+   rather than leaving an empty box in the middle of the poster — same contract
+   as ctaUrl below, so either can be switched off from CONFIG alone. */
+$("revealNote").textContent = CONFIG.winNote || "";
+if (!CONFIG.winNote) $("revealNote").style.display = "none";
 if (!CONFIG.ctaUrl) $("ctaBtn").style.display = "none";
 document.title = CONFIG.parkName + " — " + CONFIG.rideName;
 
@@ -1429,6 +1653,44 @@ window.Stampede = Object.assign(window.Stampede || {}, {
   },
 });
 
+/* ?records — the readout, for a device with no console. This is the question a
+   missing badge actually asks: what am I being compared against?
+   An alert rather than anything on the page, because it must not depend on the
+   screen being investigated, and because it is the one piece of UI a phone
+   browser cannot hide. Deferred to a timer so it lands after the first paint
+   instead of freezing a white page. */
+if (/[?&]records\b/.test(location.search)){
+  const snapshot = { ...BEST };
+  setTimeout(() => alert(
+    "STAMPEDE — banked records\n\n" +
+    "descent   " + snapshot.dist + " m\n" +
+    "buckaroos " + snapshot.coins + "\n" +
+    "score     " + snapshot.score + "\n" +
+    "letters   " + snapshot.letters + " / 8\n" +
+    "runs      " + snapshot.runs + "\n\n" +
+    "A New best pill needs a run STRICTLY above one of these.\n" +
+    (snapshot.runs === 0 ? "runs is 0, so the next run cannot flag whatever it scores.\n" : "") +
+    (bestStored ? "These survive a reload." : "STORAGE IS BLOCKED — these reset on every reload, so the first run after each one can never flag.")
+  ), 400);
+}
+
+/* ?fresh — the same wipe, from the URL, because the device this is tested on is
+   a phone and a phone has no console.
+   It exists because "the New best pills stopped appearing" is the expected
+   behaviour of a working badge, not a bug: they are STRICTLY-greater
+   comparisons against banked personal bests, so once a few good runs are in the
+   store, the short deliberate runs you do while working on the results card
+   beat nothing and flag nothing.
+   `runs` is left at 1 rather than 0 on purpose. clearRecords() sets it to 0,
+   which suppresses the badges for one more run — right for a real first play,
+   useless when the whole point is to look at them. At 1 with every figure zeroed
+   the next run flags everything it scores, which is what you asked the URL for. */
+if (/[?&]fresh\b/.test(location.search)){
+  Object.assign(BEST, { dist:0, coins:0, score:0, letters:0, runs:1 });
+  saveBest();
+  console.debug("[stampede] ?fresh — records zeroed; the next run flags anything above 0");
+}
+
 /* ------------------------------------------------------------------
    SCORE
    Four terms: buckaroos, letters, tubes left, and how fast you spelled
@@ -1492,7 +1754,13 @@ let leanV = 0;               // smoothed crossing speed, in lane units/s; picks
                              // the lean pose now that no discrete move does
 let dieT = 0;                // wipeout animation, gates the game-over panel
 let deathX = 0, deathY = 0;  // eased screen position for the wipeout pose
-let overAnchorY = 0;         // centre of #overGap once the panel is laid out
+/* Where the canvas has to land him so his blit sits exactly on the #overRider
+   img — NOT the img's own corner; see layoutOverRider for the offsets. */
+let overAnchorX = 0, overAnchorY = 0;
+let overTextIn = false;      // has the card's copy been revealed yet?
+let overTextT  = 0;          // seconds since the panel appeared; gates the copy
+let overRiderDom = false;    // true once the DOM img has taken him off the canvas
+let overTilt = 0;            // 1 -> 0 as he straightens out of the crash lean
 let duckA = 0;               // eased 0..1 tuck, see DUCK block
 let revealed = false;
 let ents = [], spray = [], nextZ = 0, comboFree = 0;
@@ -1577,6 +1845,17 @@ function reset(){
                                       // longer owns the wheel it anchored on
   invuln = 0; boostT = 0; shake = 0; hurtT = 0; moveT = 0; moveDir = 0; leanV = 0; duckA = 0;
   tunnelIn = 0; lastTunZ = -1e9; dieT = 0;
+  /* Give the canvas its rider back. The results card takes him OFF the canvas
+     and replaces him with a DOM img (see handOverRider), and that flag lived
+     only in showOver's reset — so Ride Again started a run whose rider was
+     still handed over to a panel that was no longer on screen, and the whole
+     next run played with an invisible Typhoon. Cleared with the rest of the
+     per-run state, which is the one place every route into a run passes
+     through: the button, the keyboard, and the reveal card's Start Over.
+     drawRider's guard is scoped to the "over" state as well, so even a flag
+     left set somewhere cannot take him off the water again. */
+  overRiderDom = false; overTextIn = false; overTextT = 0; overTilt = 0;
+  $("overPanel").classList.remove("textIn", "riderIn");
   revealed = false;
   ents = []; spray = []; nextZ = 8; comboFree = 0;
   gotLetters = 0; shownLetters = 0; letterZ = LETTER_GAP * 0.55; stampedeT = -1;
@@ -1885,6 +2164,7 @@ $("ctaBtn").addEventListener("click", () => {
 });
 $("pause").addEventListener("click", togglePause);
 $("resumeBtn").addEventListener("click", resumeGame);
+$("pauseAgainBtn").addEventListener("click", pauseRestart);
 $("revealGo").addEventListener("click", revealContinue);
 $("revealAgain").addEventListener("click", revealRestart);
 $("mute").addEventListener("click", () => {
@@ -2050,6 +2330,11 @@ function showReveal(){
      would take the win music down with the run. The card is the one paused
      screen that is supposed to be playing something. */
   $("pause").classList.remove("on"); // no pause button while a modal is up
+  /* And the HUD with it. The metre readout and the buckaroo count sat ghosting
+     through the wash in the corners the poster now reaches into, which is the
+     one thing on this screen that is neither the slide, the sign, nor the way
+     out. revealContinue puts it back; start() does its own. */
+  $("hud").classList.remove("on");
   $("reveal").classList.add("on"); Sound.reveal();
 
   /* Same hand-off as the wipeout: the outgoing track is left ramping on its own
@@ -2083,6 +2368,7 @@ function revealContinue(){
   closeReveal();
   state = "play"; Sound.unhold();
   $("pause").classList.add("on");
+  $("hud").classList.add("on");      // taken down by showReveal for the poster
   Sound.musicStop(1.1);              // and back the same way it came
   Sound.music("ride", null, 1.2);
   last = performance.now();          // or the frozen span arrives as one huge dt
@@ -2145,6 +2431,16 @@ function resumeGame(){
   $("pause").setAttribute("aria-label", "Pause");
   last = performance.now();
 }
+/* Abandon the run from the pause screen. start() already does the whole job —
+   reset, unhold the audio, HUD back up, panels down, the pause button
+   un-paused, the ride track faded in over the outgoing one — so this is only
+   the guard around it, and it is the same guard resumeGame carries for the same
+   reason: the win card ALSO parks the game in "paused", and the two routes out
+   of that state must not be reachable from each other's screen. */
+function pauseRestart(){
+  if (state !== "paused" || revealOpen) return;
+  start();
+}
 function togglePause(){
   if (revealOpen) return;
   if (state === "paused") resumeGame(); else pauseGame();
@@ -2157,8 +2453,18 @@ function gameOver(){
   if (state === "dying" || state === "over") return;
   state = "dying"; dieT = DIE_DUR;
   Sound.musicStop(MUSIC_FADE);             // rides out over the wipeout
+  /* Where he actually is ON SCREEN at the instant of the crash — floorPt gives
+     the point in the world's own coordinates, and up to this frame he has been
+     drawn inside the rolled camera, so that is not where the eye last saw him.
+     From here he is drawn UNROTATED (see render), so the crash point has to be
+     pushed through the same roll or he teleports the moment he dies: measured
+     at up to 107px on a hard bank, which the old ease hid only because he was
+     already sliding. He holds still now, so it would be a plain snap. */
   const p0 = floorPt(travelled, laneA, riderLift());
-  deathX = p0.x; deathY = p0.y;      // ease from wherever he actually crashed
+  const rr = rollAngle(), rc = Math.cos(rr), rs = Math.sin(rr);
+  const px = p0.x - W / 2, py = p0.y - horizon;
+  deathX = W / 2   + px * rc - py * rs;
+  deathY = horizon + px * rs + py * rc;
   shake = 0;                 // it only decays in the play branch, so a fatal hit
                              // would otherwise leave the camera shaking at full
                              // strength for the whole wipeout
@@ -2173,19 +2479,178 @@ function gameOver(){
   Sound.dead();
   $("pause").classList.remove("on");
   $("pausePanel").classList.remove("on");
+  /* The HUD goes NOW, not when the results card appears. It used to come down
+     in showOver(), a full DIE_DUR later, so the metre readout, the buckaroo
+     count, the spare tubes and the STAMPEDE word all sat over the wipeout for
+     the whole 1.6s — and Typhoon tumbles up into that corner of the screen. */
+  $("hud").classList.remove("on");
 }
 
+/* Where he sits before the panel exists to be measured — and the SAME number
+   the measurement falls back to. These were two different constants, 0.30 here
+   and 0.66 in layoutOverRider, and that is a boomerang waiting to happen: a
+   measurement that comes back empty writes 0.66 into overAnchorY, which is
+   truthy, so he commits to one spot and the next good measurement hauls him to
+   another. One constant, used in both places.
+   Low, because #overRider is now the LAST child of the card: this is only the
+   stand-in for a measurement that has not happened yet, and it should guess in
+   the same half of the screen the real slot is in, or the one frame before the
+   panel is measured is a jump. */
+const OVER_ANCHOR = 0.72;
+
+/* How hard he is pulled to that slot, as an exponential rate — the ease is
+   `p += (target - p) * dt * rate`, so the time constant is 1/rate and he covers
+   about 95% of the distance in 3/rate seconds.
+   Both were 4, which is a 0.25s constant, and that was too brisk to read as
+   anything but a snap. They stay at the slower settings chosen for the old
+   climb to the top of the card even though the trip is now short — over ~60px
+   the same rate is a soft landing rather than a long drift, which is exactly
+   what the beat wants. The horizontal is only ever a small correction back to
+   centre, so it stays quicker and the two arrive at roughly the same moment
+   instead of him sliding sideways after he has stopped moving. */
+const OVER_EASE_X = 3.0;    // ~0.33s constant, ~1.0s to settle
+const OVER_EASE_Y = 1.5;    // ~0.67s constant, ~2.0s to settle
+
+/* When the copy is allowed in — see the CSS on #overPanel:not(.textIn).
+   The trigger is ARRIVAL, not a timer: he is judged home once he is within
+   OVER_TEXT_NEAR of the slot, so the text always lands on a rider that has
+   stopped, whatever the ease is retuned to or however far he had to climb.
+   The two bounds are there because an exponential ease never technically
+   arrives and the anchor can still be re-measured under him:
+   MIN is what actually paces this beat now. The slot moved to the bottom of the
+   card, so the trip is short and pure arrival would fire at ~0.6s — quick enough
+   that the copy treads on the end of his move. It holds the beat instead, and it
+   is the ONE constant to turn if the pause wants to be longer or shorter.
+   MAX is the backstop that guarantees the results are readable even if the
+   anchor never settles (a font or letter tile loading late can keep nudging it,
+   and each nudge restarts the ease). */
+const OVER_TILT_OUT  = 0.55;   // s to straighten out of the crash lean
+const OVER_TEXT_NEAR = 0.02;   // fraction of screen height counted as "there"
+const OVER_TEXT_MIN  = 1.00;   // s — the held beat between his landing and the copy
+const OVER_TEXT_MAX  = 2.20;   // s — hard ceiling if he never quite settles
+const OVER_SNAP      = 1.0;    // px from the slot before the DOM img takes over
+const OVER_HAND_MAX  = 5.00;   // s — hand over regardless; the residual is ~0 by then
+/* An exponential ease never actually arrives, and this one has to: the DOM img
+   is at the slot exactly, so every pixel still outstanding is a pixel of twitch
+   at the handoff. A constant floor rides on top of the ease and closes the last
+   few pixels at a fixed rate, landing him ON the number instead of forever
+   halving the distance to it. Small enough to be invisible against the ease at
+   the start of the move — it is a fifth of the opening speed — and it turns a
+   two-second crawl through the last 3px into a tenth of a second. */
+const OVER_CLOSE     = 26;     // px/s minimum approach speed
+function overEase(v, t, rate, dt){
+  v += (t - v) * Math.min(1, dt * rate);
+  const d = t - v, step = OVER_CLOSE * dt;
+  return Math.abs(d) <= step ? t : v + Math.sign(d) * step;
+}
+
+function revealOverText(){
+  if (overTextIn) return;
+  overTextIn = true;
+  $("overPanel").classList.add("textIn");
+}
+
+/* The other half of the sequence, and deliberately NOT tied to the copy.
+   Typhoon stops being a canvas blit and becomes the #overRider img that has been
+   sitting in the layout all along at opacity 0. The two drawings are the same
+   rectangle to the pixel (that is layoutOverRider's whole job), so the swap is
+   invisible — but only if he has actually finished moving. The copy comes in
+   when he is CLOSE, which is a judgement about pacing and is deliberately loose;
+   this waits until he is within OVER_SNAP of the slot, which is a judgement
+   about pixels. Tying them together meant handing over with up to 17px still to
+   travel, and that lands as a visible twitch even though nothing else changes.
+   So: he keeps easing on the canvas after the card has filled in, and slips into
+   the DOM a second or so later with nobody the wiser.
+   The last sub-pixel is closed by hand — being within OVER_SNAP is not being
+   there, and the img is exactly there. */
+function handOverRider(){
+  if (overRiderDom) return;
+  deathX = overAnchorX || W / 2;
+  deathY = overAnchorY || H * OVER_ANCHOR;
+  overTilt = 0;
+  overRiderDom = true;
+  $("overPanel").classList.add("riderIn");
+}
+
+/* Sizes his box and works out where the canvas has to put him so that the two
+   are the SAME rectangle.
+   The img is the authority — it is what the flex column measures and what the
+   buttons are pushed off — so this runs the canvas draw's own arithmetic in
+   reverse: given where layout put the img, where does deathX/deathY have to end
+   up for drawRider's registered blit to land exactly on it?
+   That arithmetic is drawRider's die branch, and it must stay in step with it:
+     draw box = (deathX + tcx - R.cx*dw, deathY + h*0.38 + tby - R.by*dh, dw, dh)
+   Everything here is CSS pixels: the placed rider is drawn with the DPR
+   transform only (see render), and getBoundingClientRect is CSS pixels too, so
+   the two coordinate systems are already the same one. */
 function layoutOverRider(){
-  const h = Math.max(0.52 * (focal / CAM_DZ), H * 0.12);
-  const gap = $("overGap");
-  gap.style.height = Math.round(h * 1.06) + "px";
-  const r = gap.getBoundingClientRect();
-  overAnchorY = r.height ? r.top + r.height / 2 : H * 0.66;
+  const el  = $("overRider");
+  const im  = IMG.die2, rid = IMG.rider;
+  const h   = Math.max(0.52 * (focal / CAM_DZ), H * 0.12);
+
+  /* One source of truth for the file — the ART table, same as every other
+     sprite. Set here rather than in the markup so re-pointing the art moves the
+     canvas frame and the DOM frame together. */
+  if (im && el.getAttribute("src") !== ART.die2) el.setAttribute("src", ART.die2);
+
+  if (!im || !rid){
+    /* Art still loading, or missing. Reserve a plausible square-ish box so the
+       buttons stay clear, and fall back to centring him in it. */
+    el.style.width = Math.round(h) + "px";
+    el.style.height = Math.round(h * 1.06) + "px";
+    const rf = el.getBoundingClientRect();
+    overAnchorX = W / 2;
+    overAnchorY = rf.height ? rf.top + rf.height / 2 : H * OVER_ANCHOR;
+    return;
+  }
+
+  const R   = DIE_REG[2];                        // "out cold" — the frame he holds
+  const w   = h * (rid.width / rid.height);
+  const dw  = (w * RIDER_TUBE_W) / R.tw;
+  const dh  = dw * (im.height / im.width);
+  el.style.width  = Math.round(dw) + "px";
+  el.style.height = Math.round(dh) + "px";
+
+  const r = el.getBoundingClientRect();
+  if (!r.height){ overAnchorX = W / 2; overAnchorY = H * OVER_ANCHOR; return; }
+  const tcx = (RIDER_TUBE_CX - 0.5)  * w;
+  const tby = (RIDER_TUBE_BY - 0.88) * h;
+  overAnchorX = r.left - tcx + R.cx * dw;
+  overAnchorY = r.top  - h * 0.38 - tby + R.by * dh;
+}
+
+/* Measuring once, in showOver, assumes the panel's layout is final the instant
+   it is shown. It is not always: his own box is being sized in the same breath
+   (and the img may still be decoding), the board above it grows a line whenever
+   a New best pill appears, and the letter tiles are eight background images that
+   the browser is free to settle after the first layout pass. Anything that
+   changes the content height moves his slot, because the panel is centred —
+   half the growth goes above the stack and half below, and he is at the BOTTOM
+   of it, so every late line still pushes his box down under him.
+   So: measure, then again on the next frame, then once more after the pill's
+   animation has finished. Cheap, and it makes the anchor track the slot instead
+   of guessing it once. It matters more now that the canvas has to land on the
+   img exactly rather than merely near it. */
+function settleOverRider(){
+  layoutOverRider();
+  requestAnimationFrame(layoutOverRider);
+  setTimeout(layoutOverRider, 480);
 }
 
 function showOver(){
-  state = "over";
-  $("hud").classList.remove("on");
+  state = "over";        // the HUD came down back in gameOver(), with the crash
+
+  /* The panel goes up EMPTY-LOOKING: laid out and measurable, but with every
+     child held at opacity 0 — Typhoon's img included — until he has settled into
+     his slot. update() lifts the hold — see OVER_TEXT_NEAR. Cleared here rather
+     than
+     in start(), so the one function that shows the card is also the one that
+     arms the sequence and there is no way to show it already revealed.
+     overTilt starts at 1 and is eased out below: he is drawn leaning by however
+     far up the wall the crash lane was, which the DOM img cannot be, so he
+     straightens as he settles and the two poses agree by the time they swap. */
+  overTextIn = false; overTextT = 0; overRiderDom = false; overTilt = 1;
+  $("overPanel").classList.remove("textIn", "riderIn");
 
   const dist = Math.floor(metres), score = runScore();
   $("fDist").textContent  = dist;
@@ -2225,7 +2690,7 @@ function showOver(){
   $("overTitle").textContent  = won ? "You Survived It" : "Wipeout";
   $("overKicker").textContent = won ? CONFIG.rideName : "Typhoon wiped out";
   $("overPanel").classList.add("on");
-  layoutOverRider();          // only measurable once the panel is displayed
+  settleOverRider();          // only measurable once the panel is displayed
   /* Crossfade rather than a hand-off. The ride track is 1.6s into a 2.4s linear
      fade, so it is still audible; this rises over 1.3s and reaches full at 2.9s,
      just after the 2.56s death cry ends. The three overlap instead of butting
@@ -2334,10 +2799,41 @@ function update(dt){
      speed the crash happened at and actually stop. DIE_BRAKE is set so a
      full-speed run is stationary well before the panel appears, leaving a beat
      of stillness on the wipeout. */
-  if (state === "dying" || state === "over"){
-    const ty = overAnchorY || H * 0.66;
-    deathX += (W / 2 - deathX) * Math.min(1, dt * 4);
-    deathY += (ty    - deathY) * Math.min(1, dt * 4);
+  /* He does NOT travel during the wipeout. The beat is: lose the last tube, HUD
+     off, he holds where he crashed while the death animation and the cry play
+     out and the ride brakes to a stop — then, and only then, the card comes up
+     and he slides into the slot at the foot of it.
+     So the ease is gated on "over" alone. It used to run through "dying" too,
+     which meant he started moving the moment he was hit, arrived before the
+     animation had finished, and the card then appeared around something that
+     had already stopped moving. */
+  if (state === "over"){
+    const tx = overAnchorX || W / 2;
+    const ty = overAnchorY || H * OVER_ANCHOR;
+    deathX = overEase(deathX, tx, OVER_EASE_X, dt);
+    deathY = overEase(deathY, ty, OVER_EASE_Y, dt);
+    /* Out of the lean, linearly and faster than he travels, so he is square to
+       the screen well before the DOM img takes over — that img is a plain,
+       unrotated element, and any lean still on him at the swap would be a snap.
+       See OVER_TILT_OUT. */
+    overTilt = Math.max(0, overTilt - dt / OVER_TILT_OUT);
+    overTextT += dt;
+    /* Third beat: the copy. He has the screen to himself while he settles into
+       the slot, and only once he is parked there does the card fill in above
+       him. */
+    if (!overTextIn){
+      const home = Math.abs(deathY - ty) < H * OVER_TEXT_NEAR;
+      if (overTextT >= OVER_TEXT_MAX || (home && overTextT >= OVER_TEXT_MIN))
+        revealOverText();
+    }
+    /* Fourth, and invisible: canvas hands him to the DOM. Held until the copy is
+       in as well, because the CSS that hides the card also hides his img — swap
+       first and there would be a frame with no Typhoon at all. */
+    else if (!overRiderDom){
+      const still = Math.abs(deathX - tx) < OVER_SNAP
+                 && Math.abs(deathY - ty) < OVER_SNAP && overTilt <= 0;
+      if (still || overTextT >= OVER_HAND_MAX) handOverRider();
+    }
   }
 
   if (state === "dying"){
@@ -2790,6 +3286,32 @@ const RAIL_W   = 0.25;      // total rail width, in chute angle
 const RAIL_INK = 0.020;     // black keyline — absolute, so it stays a LINE
                             // however wide the rail itself is set
 
+/* THE LIP.
+   The rail alone stops dead on the rim line, which is the chute's own
+   silhouette — so it can only ever cover rib art that strays INBOARD. Through a
+   hard turn the strays go the other way: ribs are axis-aligned rectangles spun
+   from a single z, the rail is a smooth curve through many, and where the track
+   bends a rib's outer corner lands outside the curve its own rim point sits on.
+   Cap corners then jut past the silhouette into the park, in a sawtooth that
+   moves with the turn.
+   Nothing drawn inside the rim can cover those. So the rail now wraps OVER the
+   edge and hangs down the outside, like the fascia board on the real thing:
+   out by RAIL_OUT of arc, then down by RAIL_DROP. Anything a rib pushes past the
+   rim has that lip in front of it, and the silhouette stays a smooth curve at
+   any bank angle.
+   Both are in the cylinder's own units — RAIL_OUT is chute angle, RAIL_DROP is
+   chute radii straight down — so the lip scales with the slide instead of being
+   a pixel offset that would be a wide skirt up close and nothing at distance. */
+const RAIL_OUT  = 0.12;
+const RAIL_DROP = 0.18;
+/* Two tones down the outer face, lighter where it turns over the rim and darker
+   toward the bottom edge. One flat colour was the first go and it read as a
+   plank nailed to the side of the flume; the break is what makes it a surface
+   curving away from the sun. Same family as RAIL_RAMP, continuing past the rim
+   rather than starting a new palette. */
+const RAIL_LIP  = [186, 124, 0];
+const RAIL_LIP2 = [148,  95, 0];
+
 /* Cross-section shading that turns the flat band into a rounded rail: deep
    shadow where it meets the chute, up through the gold body to a specular
    just inside the keyline. Widths are FRACTIONS of RAIL_W, so retuning the
@@ -2826,9 +3348,13 @@ function rimRails(){
   const yFar = wall(zB, A_MAX).y;
   const yLit = wall(travelled - CAM_DZ + (RIB_FAR - FADE_DZ), A_MAX).y;
 
-  const band = (sg, aIn, rgb, lit) => {
-    const sO = Math.sin(sg * A_MAX),         cO = Math.cos(A_MAX);
-    const sI = Math.sin(sg * (A_MAX - aIn)), cI = Math.cos(A_MAX - aIn);
+  /* One strip of the rail, given its two edges. Each edge is an angle around the
+     chute plus an optional drop straight down in chute radii — the drop is what
+     the lip needs and the flat bands leave at zero, so both live in one routine
+     rather than two that could disagree about where the rim is. */
+  const strip = (sg, oA, oDy, iA, iDy, rgb, lit) => {
+    const sO = sg * Math.sin(oA), cO = Math.cos(oA) + oDy;
+    const sI = sg * Math.sin(iA), cI = Math.cos(iA) + iDy;
     const head = "rgba(" + (rgb[0]*lit|0) + "," + (rgb[1]*lit|0) + "," + (rgb[2]*lit|0) + ",";
     const g = ctx.createLinearGradient(0, yFar, 0, yLit);
     g.addColorStop(0, head + "0)");
@@ -2850,8 +3376,17 @@ function rimRails(){
 
   for (const sg of [-1, 1]){
     const lit = sg < 0 ? 1 : 0.86;                    // the sun sits left of centre
-    for (const b of RAIL_RAMP) band(sg, b.f * RAIL_W, b.c, lit);
-    band(sg, RAIL_INK, [10, 10, 10], 1);              // keyline last, on the silhouette
+    /* The lip goes down FIRST, and its inner edge starts inboard of the rim so
+       the rounded bands land on top of it with an overlap rather than an abutment
+       — abutting translucent polygons seam along the shared edge. */
+    strip(sg, A_MAX + RAIL_OUT, RAIL_DROP,        A_MAX - RAIL_W * 0.3, 0, RAIL_LIP2, lit);
+    strip(sg, A_MAX + RAIL_OUT, RAIL_DROP * 0.42, A_MAX - RAIL_W * 0.3, 0, RAIL_LIP,  lit);
+    // its own keyline, along the bottom edge: that edge IS the silhouette now
+    strip(sg, A_MAX + RAIL_OUT, RAIL_DROP, A_MAX + RAIL_OUT, RAIL_DROP - RAIL_INK,
+          [10, 10, 10], 1);
+    for (const b of RAIL_RAMP) strip(sg, A_MAX, 0, A_MAX - b.f * RAIL_W, 0, b.c, lit);
+    // and the old one, which is now the fold where the rail turns over the edge
+    strip(sg, A_MAX, 0, A_MAX - RAIL_INK, 0, [10, 10, 10], 1);
   }
 }
 
@@ -2969,17 +3504,176 @@ function sprite(img, e, hUnits, lift, fbTube, fbBody){
    h is the drawn height of the letter, not a radius: with the disc gone there
    is no circle to size against, and measuring the glyph directly is what lets
    a flyer land at exactly the height of the HUD slot it is flying into.
-   The artwork carries its own outline and bevel, so all it needs against bright
-   water is a soft drop shadow to sit it in the scene. */
-function letterBadge(x, y, h, idx, alpha){
+   The artwork carries its own outline and bevel, so on top of that it needs two
+   things against bright water: a SUNBURST behind it to say "this one is worth
+   crossing a lane for", and a soft drop shadow under it to sit it in the scene.
+   ------------------------------------------------------------------
+   THE SUNBURST
+   A soft glow was the first attempt and it lost: bright gold light on bright
+   sunlit water is a small contrast either way you turn the dial, so at a
+   readable strength it looked like a smudge and at a subtle one it was invisible.
+   Rays win because they work on SHAPE rather than on brightness — hard-edged
+   wedges radiating out of the letter read even where their colour nearly matches
+   what is behind them, and they are the park's own visual language.
+   Wedges from a point taper on their own, so this is just a fan of pie slices
+   with equal gaps, filled through one radial gradient that takes them all to
+   transparent at the rim. One gradient, not one per wedge: the fill is set once
+   and every slice draws through the same ramp.
+   It turns, slowly and in one shared phase for every letter on screen (not
+   offset by e.spin, which is what the bob uses) — two letters are almost never
+   in frame together, and when the last one is flying to the HUD while the next
+   is spawning, one shared rotation reads as the word calling and two
+   independent ones read as a glitch. */
+/* Drawn height of a letter at full size, as a fraction of the projection scale
+   at its depth. It is the one number that sizes the pickup, and the sunburst
+   below is written in multiples of it, so the two can never drift apart. */
+const LETTER_H = 0.53;
+const SUN_RAYS = 13;                 // wedges; an odd count keeps the fan from
+                                     // reading as a symmetrical cross
+const SUN_R    = 1.06;               // outer radius, in letter heights
+/* radians per second. 0.2 was the first setting and it was a rotation only on
+   paper: at 13 wedges a ray takes its neighbour's place every 2pi/13 radians,
+   so that speed needed 2.4s to advance the fan by a single ray and read as a
+   still image for the whole second a letter is on screen. At 0.95 the fan turns
+   through a ray twice a second — plainly moving, without spinning fast enough
+   to strobe against the frame rate. */
+const SUN_SPIN = 0.95;
+const SUN_RAY  = "246,186,0";        // C.gold — the letters' own colour
+const SUN_CORE = "252,246,240";      // C.white, warming the middle of the fan
+
+function letterSun(x, y, h, flare){
+  const R = h * SUN_R * (1 + 0.14 * flare);
+  ctx.save();
+  ctx.translate(x, y);
+  /* Built at the origin AFTER the translate, because a canvas gradient is
+     resolved in the transform that is current when it PAINTS — one defined
+     around absolute x,y would be dragged off the letter by this rotate. */
+  ctx.rotate(performance.now() * 0.001 * SUN_SPIN);
+  /* The cream field the rays sit ON, and the reason they read at all. Gold on
+     blue water is one colour against another of similar weight; gold on cream is
+     the poster relationship the reference uses, and it survives being 40px wide
+     over a chute full of ribs and foam. Soft-edged, so it is a wash of light
+     rather than a plate behind the letter. */
+  /* Both ramps hold FLAT and then drop over the last stretch, rather than fading
+     the whole way out. Two reasons, and they pull the same way.
+     The letter is opaque and covers the inner 40% of this circle, so a gradient
+     that is brightest in the middle spends its strength where nobody can see it
+     and leaves only the tail of the fade on show.
+     And a ray that fades along its length has no edge — it reads as a smear of
+     light, which is not what this artwork is. Flat colour with a short falloff
+     at the tip keeps the wedge a SHAPE, hard-sided the way everything else in
+     this game is drawn, without ending every ray on the same hard circle. */
+  const core = ctx.createRadialGradient(0, 0, 0, 0, 0, R * 0.90);
+  core.addColorStop(0,    "rgba(" + SUN_CORE + "," + (0.44 + 0.28 * flare).toFixed(3) + ")");
+  core.addColorStop(0.58, "rgba(" + SUN_CORE + "," + (0.34 + 0.24 * flare).toFixed(3) + ")");
+  core.addColorStop(1,    "rgba(" + SUN_CORE + ",0)");
+  ctx.fillStyle = core;
+  ctx.beginPath(); ctx.arc(0, 0, R * 0.90, 0, 6.284); ctx.fill();
+
+  const ray = ctx.createRadialGradient(0, 0, h * 0.14, 0, 0, R);
+  const ra  = (0.92 + 0.08 * flare).toFixed(3);
+  ray.addColorStop(0,    "rgba(" + SUN_RAY + "," + ra + ")");
+  ray.addColorStop(0.84, "rgba(" + SUN_RAY + "," + ra + ")");
+  ray.addColorStop(0.94, "rgba(" + SUN_RAY + "," + (0.55 * ra).toFixed(3) + ")");
+  ray.addColorStop(1,    "rgba(" + SUN_RAY + ",0)");
+  ctx.fillStyle = ray;
+  const step = Math.PI / SUN_RAYS;   // one wedge plus one gap of the same width
+  for (let i = 0; i < SUN_RAYS; i++){
+    const a0 = i * 2 * step;
+    ctx.beginPath(); ctx.moveTo(0, 0);
+    ctx.arc(0, 0, R, a0, a0 + step);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+}
+
+/* ------------------------------------------------------------------
+   THE SHINE
+   A steady glow says "this is lit". A sweep says "look at this NOW",
+   and that is the job: a letter is on screen at a readable size for
+   barely a second before you have to have committed to its lane.
+   So each one glints ONCE as it comes into range — a hard bright band
+   travelling across the glyph, the highlight you would see rake across
+   gold as it turns.
+   The band is clipped to the letter by drawing the glyph into a scratch
+   canvas and painting the gradient over it with source-atop, which
+   lands only where pixels already are. It cannot be done in place on
+   the main canvas: the scene under the letter is opaque too, so
+   source-atop there would paint the band straight across the water.
+   The scratch buffer is sized in DEVICE pixels and blitted back into a
+   CSS-pixel box, because the main context carries a DPR transform — at
+   CSS size the sweep would come back soft on a phone while the letter
+   under it stayed sharp.
+   ------------------------------------------------------------------ */
+/* Fired off DRAWN SIZE rather than world distance, so the glint always plays at
+   the same apparent size instead of at the same depth. Distance was the first
+   try and it is the wrong axis: how big a letter looks at 8 units out depends on
+   focal, which depends on the viewport, so the same threshold glinted a 20px
+   letter on a phone and a 34px one on a desktop. 18px is the point where the
+   glyph is legible as a letter rather than a bright speck. */
+const SHINE_MIN_H = 18;              // px tall before the glint fires
+const SHINE_DUR   = 0.62;            // seconds, in RIDE time — it pauses with
+                                     // the run rather than playing out behind
+                                     // the pause panel. Long enough that the
+                                     // sweep spans the letter roughly doubling
+                                     // in size as it comes at you.
+const shineCv  = document.createElement("canvas");
+const shineCtx = shineCv.getContext("2d");
+
+function letterShine(x, y, h, idx, k){
+  const img = IMG["lt" + (idx + 1)];
+  if (!img) return;
+  const sw = WORD_SRC.w[idx], dw = h * (sw / WORD_SRC.h);
+  const bw = Math.ceil(dw * DPR), bh = Math.ceil(h * DPR);
+  if (bw < 2 || bh < 2) return;
+  shineCv.width = bw; shineCv.height = bh;     // assigning size also clears it
+  const g = shineCtx;
+  g.drawImage(img, WORD_SRC.x[idx], WORD_SRC.y, sw, WORD_SRC.h, 0, 0, bw, bh);
+  g.globalCompositeOperation = "source-atop";
+  /* The gradient's axis runs from top-left to bottom-right, so the BAND — which
+     is perpendicular to it — rakes across on the diagonal. It starts and ends
+     entirely off the glyph, which is what makes it a pass rather than a fade. */
+  const band = bw * 0.55;
+  const cx = -band + k * (bw + 2 * band);
+  const a = Math.sin(Math.PI * k);             // in and out with the sweep
+  const grad = g.createLinearGradient(cx - band, 0, cx + band, bh);
+  grad.addColorStop(0,    "rgba(255,255,255,0)");
+  grad.addColorStop(0.40, "rgba(255,255,255," + (0.08 * a).toFixed(3) + ")");
+  grad.addColorStop(0.50, "rgba(255,255,255," + (0.95 * a).toFixed(3) + ")");
+  grad.addColorStop(0.60, "rgba(255,255,255," + (0.08 * a).toFixed(3) + ")");
+  grad.addColorStop(1,    "rgba(255,255,255,0)");
+  g.fillStyle = grad;
+  g.fillRect(0, 0, bw, bh);
+  ctx.drawImage(shineCv, x - dw / 2, y - h / 2, dw, h);
+}
+
+/* shineK is the sweep's 0..1 progress, or -1 for a letter that is not glinting
+   — which is every letter most of the time, and every FLYER always: one that is
+   already banked and on its way to the HUD has been noticed. */
+function letterBadge(x, y, h, idx, alpha, shineK){
   if (alpha < 1) ctx.globalAlpha = alpha;
   const img = IMG["lt" + (idx + 1)];
-  ctx.shadowColor = "rgba(10,10,10,.45)";
-  ctx.shadowBlur = h * 0.14; ctx.shadowOffsetY = h * 0.05;
-  if (img){
+  /* The burst swells with the sweep instead of holding steady through it. The
+     band alone is clipped INSIDE the glyph, so on a letter that is still small
+     it is a few bright pixels; the flare is what makes the glint carry. */
+  const shining = shineK >= 0 && shineK <= 1;
+  const flare = shining ? Math.sin(Math.PI * shineK) : 0;
+  const draw = () => {
+    if (!img) return false;
     const sw = WORD_SRC.w[idx], dw = h * (sw / WORD_SRC.h);
     ctx.drawImage(img, WORD_SRC.x[idx], WORD_SRC.y, sw, WORD_SRC.h,
                   x - dw / 2, y - h / 2, dw, h);
+    return true;
+  };
+  letterSun(x, y, h, flare);
+
+  ctx.shadowOffsetX = 0;
+  ctx.shadowColor = "rgba(10,10,10,.45)";
+  ctx.shadowBlur = h * 0.14; ctx.shadowOffsetY = h * 0.05;
+  if (img){
+    draw();
+    ctx.shadowColor = "transparent"; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+    if (shining) letterShine(x, y, h, idx, shineK);
   } else {                             // file still loading, or failed
     ctx.font = "700 " + (h * 0.86).toFixed(1) + "px " + MONO;
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
@@ -3080,10 +3774,20 @@ function drawEntInner(e){
     const p = floorPt(e.z, e.a, 0.42);
     const dist = e.z - travelled;
     const grow = Math.max(0.25, Math.min(1, 1 - (dist - 2) / 14));
-    const lh = 0.62 * s * grow;        // same footprint the disc used to fill
+    /* 0.62 was inherited from the disc this pickup used to sit on, and it was
+       sized for a disc: a bare glyph filling that same footprint arrives too
+       large, and now it arrives with a sunburst around it as well. */
+    const lh = LETTER_H * s * grow;
     if (lh < 6) return;
+    /* One glint per letter, fired the first frame it is big enough to read and
+       stamped on the ENTITY — so it cannot re-fire, and a letter you miss gets
+       a fresh one when the word offers it again, because that is a new entity.
+       Timed in runT rather than wall clock: the sweep should not play out
+       behind the pause panel and be over by the time you come back. */
+    if (e.shine0 === undefined && lh >= SHINE_MIN_H) e.shine0 = runT;
+    const k = e.shine0 === undefined ? -1 : (runT - e.shine0) / SHINE_DUR;
     letterBadge(p.x, p.y + Math.sin(performance.now() * 0.005 + e.spin) * lh * 0.08,
-                lh, e.gi, 1);
+                lh, e.gi, 1, k);
     return;
   }
 
@@ -3451,6 +4155,16 @@ const triIdx = (t) => t < 0.34 ? 0 : t < 0.68 ? 1 : 2;
 const flipFrame = (t) => t < 0.14 ? 0 : t < 0.40 ? 1 : t < 0.72 ? 2 : 3;
 
 function drawRider(){
+  /* Handed over. Once he has landed on the results card he is the #overRider
+     img, not a blit — see handOverRider — and drawing him here as well would
+     put a second, identical Typhoon under the DOM one, half a pixel out
+     wherever the rounding disagreed.
+     The state test is not redundant with the flag: it is what guarantees this
+     can only ever silence him on the screen that replaced him. A flag that
+     outlived its screen once already, and an invisible rider is a far worse
+     failure than a double-drawn one. */
+  if (overRiderDom && state === "over") return;
+
   const img = IMG.rider;
   const lift = riderLift();
   let p = floorPt(travelled, laneA, lift);
@@ -3517,8 +4231,16 @@ function drawRider(){
 
   ctx.save();
   ctx.translate(p.x, p.y);
+  /* The lean is the lane he was on, and on the results card it has to go: the
+     DOM img that takes over from this blit is a plain unrotated element, so
+     anything left of the lean would snap out at the handoff. overTilt runs it
+     off over OVER_TILT_OUT while he settles, and it also fixes a smaller thing
+     of its own — the card used to frame him at up to 17 degrees off vertical,
+     a different angle every run depending on where he happened to crash.
+     The jump component goes with it: dying mid-jump left a frozen air angle in
+     the pose for the whole card. */
   const tilt = -(laneA / LANE_A) * 0.54;
-  ctx.rotate(tilt - air * 0.08);
+  ctx.rotate(state === "over" ? tilt * overTilt : tilt - air * 0.08);
   const sy = duck ? 0.72 : 1, sx = 1 - Math.abs(bank) * 0.1;
 
   if (flipImg){
@@ -3678,7 +4400,19 @@ function render(){
      wash on the canvas instead lets Typhoon sit on top of it and stay readable
      through the whole wipeout. */
   deathWash();
+  /* On the wipeout and results screens he is NOT part of the rolled world — he
+     is placed against a DOM slot, and #overRider is measured with
+     getBoundingClientRect(), which is unrotated screen space. Drawn inside the
+     roll he gets rotated about the vanishing point along with everything else,
+     so the ease that puts deathX on that slot was being undone by the bank: a crash
+     on a hard turn landed him up to 79px left of the slot he was aimed at, and
+     a different distance every run depending on where the track happened to be
+     bending. Same reasoning as the flyers below, which reset for the same
+     reason — a fixed screen slot has to be drawn in fixed screen space. */
+  const placed = state === "dying" || state === "over";
+  if (placed){ ctx.save(); ctx.setTransform(DPR, 0, 0, DPR, 0, 0); }
   drawRider();
+  if (placed) ctx.restore();
   drawSpray();
   speedLines();
 
