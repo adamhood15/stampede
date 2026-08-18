@@ -1037,12 +1037,11 @@ const MUSIC = {
 };
 
 const SFX = {
-  jump:  "assets/sound-effects/player/Player%20Jumping.wav",
+  jump:  "assets/sound-effects/player/Player%20Jumping.mp3",
   coin:  "assets/sound-effects/collectibles/Coin%20Collect.mp3",
-  hit:   "assets/sound-effects/player/Horse%20Whinny.mp3",
   boost: "assets/sound-effects/interactions/Speed%20Boost%2005.mp3",
-  hurt:  "assets/sound-effects/player/typhoon-hurt.wav",
-  dead:  "assets/sound-effects/player/typhoon-dead.wav",
+  hurt:  "assets/sound-effects/player/typhoon-hurt.mp3",
+  dead:  "assets/sound-effects/player/typhoon-dead.mp3",
   letter:"assets/sound-effects/letter-collect/Happy%20Game%20Notification.mp3",
   stampede:"assets/sound-effects/special/stampede-sound.mp3",
 };
@@ -1298,7 +1297,11 @@ const Sound = (function(){
     el.__fade = h;
   }
 
-  function musicPlay(key, vol, fadeIn){
+  /* onFail fires when the element path is REFUSED (play() rejects). Without it
+     a caller cannot tell "started" from "silently blocked", and a caller that
+     latches on the assumption of success can never retry — that is exactly how
+     the title tune was lost on mobile. */
+  function musicPlay(key, vol, fadeIn, onFail){
     musicStop(0);
     const v = vol == null ? MUSIC_VOL : vol;
     const fi = fadeIn || 0;
@@ -1329,7 +1332,9 @@ const Sound = (function(){
         if (fi > 0){ el.volume = 0; elFade(el, target, fi); }   // same rise here
         else       { elFade(el, target, 0); }
         try { el.currentTime = 0; } catch (e) {}
-        const pr = el.play(); if (pr && pr.catch) pr.catch(() => {});
+        const pr = el.play();
+        if (pr && pr.catch) pr.catch(() => { if (musicEl === el) musicEl = null;
+                                             if (onFail) onFail(); });
         note("audio-element");
       } catch (e) {}
     }
@@ -1483,10 +1488,9 @@ const Sound = (function(){
     jump(){ if (!sample("jump", 0.9)) hiss(0.22, 700, 0.11); },
     land(){ hiss(0.18, 380, 0.14); },
     duck(){ hiss(0.14, 520, 0.08); },
-    hit(){  if (!sample("hit", 0.45)){ tone(180, 55, 0.34, "square", 0.2);
-                                       hiss(0.3, 240, 0.16); } },
-    // Typhoon's own voice. Falls back to the whinny, then to the synth, so a
-    // failed decode still leaves the hit audible.
+    /* Synth only, and deliberately not a sample: this is what a survivable hit
+       falls back to, so it must not reach for the death cry. */
+    hit(){  tone(180, 55, 0.34, "square", 0.2); hiss(0.3, 240, 0.16); },
     hurt(){ if (!sample("hurt", 0.9)) this.hit(); },
     dead(){ if (!sample("dead", 0.55)) tone(300, 70, 0.8, "sawtooth", 0.16); },
     soak(){ hiss(0.42, 900, 0.17); tone(260, 120, 0.28, "sine", 0.08); },
@@ -4493,12 +4497,37 @@ let titleTune = false;
 function startTitleMusic(fromGesture){
   if (titleTune || state !== "title") return;
   const a = Sound.unlock();
-  if (!fromGesture && (!a || a.state !== "running")) return;
-  titleTune = true;
-  Sound.music("start", null, 0);      // full volume from the first sample — the
+  if (!a) return;
+
+  /* Commit ONLY once the context is genuinely running. Taking a gesture at its
+     word cost us the whole title tune on mobile: pointerdown/touchstart fire
+     BEFORE the browser grants user activation, so resume() was a no-op, the
+     source started into a suspended context and played to nobody — and because
+     titleTune latched anyway, the click that WOULD have carried the activation
+     hit the guard above and returned. The tune then surfaced for an instant on
+     Drop In, when the context finally resumed with that dead source still
+     started, before start() swapped in the ride track.
+     Latch on confirmed playback, and every later gesture is free to retry. */
+  if (a.state === "running"){
+    titleTune = true;
+    Sound.music("start", null, 0, () => { titleTune = false; });
+                                      // full volume from the first sample — the
                                       // title tune announces the ride, and a
                                       // 1.2s rise made it sound like something
                                       // already playing that you walked in on
+    return;
+  }
+  if (!fromGesture) return;
+
+  /* Suspended under a gesture: resume() resolves asynchronously, so state
+     cannot be tested inline — that is what the old code was working around.
+     Wait for the promise instead. If this gesture was not the one that carried
+     the activation, it simply never resolves and the next one tries again. */
+  if (a.resume) a.resume().then(() => {
+    if (titleTune || state !== "title" || a.state !== "running") return;
+    titleTune = true;
+    Sound.music("start", null, 0, () => { titleTune = false; });
+  }).catch(() => {});
 }
 /* Autoplay is a browser POLICY, not a switch: on mobile Safari and on a domain
    Chrome has no engagement history with, audio cannot start until the page has

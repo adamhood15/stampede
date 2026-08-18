@@ -1,49 +1,45 @@
 # Handoff — `index.html`
 
 "Typhoon Texas — Buckaroo Run": a single-file HTML5 canvas water-slide runner.
-Everything (markup, CSS, game) is in one file. Assets load from `assets/` as real
-files.
+Everything (markup, CSS, game) is in one file, ~4,535 lines. Assets load from
+`assets/` as real files.
 
-| file | lines | what it is |
-|---|---|---|
-| `index.html` | 3,036 | `main`'s version — three fixed lanes, swipe to steer |
-| `index copy.html` | 3,569 | the experiment on `finger-slide-feature`: free slide steering, new loading screen, How to Play card |
+**Start with [`AGENTS.md`](AGENTS.md)** — the short operating brief, read every
+session. This file is the long form behind it: architecture in depth, the full
+lessons list, and the open-work queue. Where the two overlap, AGENTS.md is the
+summary and this is the detail; if they ever disagree, this file is the one that
+went stale.
 
-**All current work is in `index copy.html`.** It is untracked and has never been
-merged. `index.html` is untouched apart from being the thing to diff against.
-When the experiment is accepted, it replaces `index.html` wholesale — there is no
-partial merge worth doing, the two have diverged across steering, panels, loading
-and audio.
+The `finger-slide-feature` experiment (`index copy.html`) that earlier versions
+of this document described **merged into `index.html` long ago** and the file is
+gone. Everything below describes `index.html` on `main` unless it says otherwise.
 
 ## Standing instructions from the user
 
-- **Do not add unnecessary comments.** Comments in this file explain *why* a
-  constant has its value or why an approach was rejected — never what the code does.
-- **Measure before coding.** Repeatedly in this project my initial hypothesis was
-  wrong and measurement overturned it (see "Lessons" below). Verify against the
-  real assets/geometry first.
-- **Plan before editing** on anything structural. The user interrupted one session
-  because I started editing mid-investigation.
-- **Follow D.R.Y. Engineering Concept**
-- **Follow Explicit variable naming conventions** Instead of naming variables t give the variable an accurate name for what it actually does or contains
-- **Ask clarifying questions**: Don't fill in the blanks yourself when the user is not explicit enough, always ask follow up questions before planning your edits.
-- **Check mobile viewports on every UI change.** Added 2026-08-14 after a title
-  screen shipped that was clipped top and bottom on the user's phone. Screenshot
-  it at phone sizes before saying it works — see "Tooling".
+**These now live in [`AGENTS.md`](AGENTS.md)** — do not duplicate them here, or
+the two copies will drift. In brief: ask rather than assume, measure before
+coding, plan before structural edits, DRY, explicit variable names, comments
+explain *why* not *what*, check mobile viewports on every UI change, and confirm
+before committing.
 
 ## Running it
 
 ```
-python3 server.py          # serves on 127.0.0.1:8000, loopback only
+python3 server.py          # pass a port as the first argument to change it
 ```
-Use the server, not `file://` — `fetch` fails on `file://` and audio silently falls
-back to a second code path (see Audio).
 
-For phone testing the server must bind `0.0.0.0`, and the phone must be sent
-no-store headers or it will replay a cached build for hours. A session server
-doing both (plus serving `index copy.html` at `/`) lived in the scratchpad; see
-"Tooling". A cached page cost an hour once — the steering was reported broken
-when the phone was simply running the previous build.
+`server.py` already does what phone testing needs: it binds `0.0.0.0` (a
+loopback bind is invisible to the phone), sends `Cache-Control: no-store`, and
+prints both a localhost URL and the LAN URL to type into the phone. The
+scratchpad `serve_copy.py` that earlier versions of this document referred to is
+obsolete — it existed to serve `index copy.html`, which no longer exists.
+
+Use the server, not `file://` — `fetch` fails on `file://` and audio silently
+falls back to a second code path (see Audio).
+
+A cached page cost an hour once: the steering was reported broken when the phone
+was simply running the previous build. Confirm the request appears in the
+server log before debugging the code.
 
 ## Architecture
 
@@ -77,9 +73,9 @@ chuteBacking()  ->  ribs / lane guides / water (far to near)
 Tunnels get their own pass and must apply `farFade()` per ring, or they draw
 beyond the faded-out chute (that was a regression).
 
-### Steering — free slide (`index copy.html` only)
+### Steering — free slide
 
-The single biggest divergence from `main`. `lane` used to be an integer in
+`lane` used to be an integer in
 `{-1,0,1}`; it is now a **continuous float in the same units**. Everything
 downstream already multiplied it by `LANE_A`, so the geometry, camera bank and
 rider tilt needed no change at all. Obstacles and pickups still *spawn* on the
@@ -298,27 +294,209 @@ reported broken.
 
 ## Open work
 
-**Task 1 — jump / duck windows are too tight.** The user's words: "feels too
-tight and unfair." Not started. The levers are in the collision loop: `T.WAVE`
-tests `airborne` (`jumpT >= 0 && lift > 0.28`), `T.PIG` tests `ducking`
-(`tuckT > 0`), both inside the z-band `e.z > travelled + 0.5 || e.z < travelled -
-1.2`. Candidates: lower the 0.28 lift threshold, widen `JUMP_DUR`/`tuckT`, narrow
-the hazard z-band, or add coyote time after the input. Measure before and after.
+Rewritten 2026-08-18. The user set the four priorities in items 1–4; everything
+below them was verified against the working tree that day rather than carried
+over from the previous list, so line numbers and file states are current.
 
-**Task 2 — `index.html` still references the deleted `line-dance_04-05.png`.**
-One-line fix, but it is on `main`'s file and outside the current branch's scope.
+**Nothing here has been started.**
 
-**Task 3 — 80° plunge set-piece.** Blocked on camera pitch: the fixed-pitch camera
-tops out around 31.7°, and at 80° the vanishing point sits ~4,764 px below the
-horizon. Best done as a scripted set-piece. Needs new art: a steep-section rib
-(near-circular cross-section), a crest/lip piece, a plunge rider pose, a runout
-splash. A 45° version was built and then **reverted at the user's request**.
-Agree camera pitch with the user as a standalone change before revisiting drops.
+### 1. Fix the audio bug on mobile — DONE 2026-08-18
 
-**Task 4 — mobile render cost. Still not profiled on device.** Suspected cost
-centres: 120 water streaks (~115 strokes/frame), 12 rail polygons rebuilding
-gradients every frame, the 1774 px park aerial rescaled every frame, ribs drawn
-from dz 0.85. Cheapest suspected win: cap `DPR` at 1.5 (currently `min(2, dpr)`).
+**Symptom.** On Android and iPhone the title tune never played. Past the loader
+the title screen sat silent; the tune only surfaced as a fraction of a second on
+the Drop In press, immediately replaced by the ride track. Desktop was fine.
+Last known-good build was `a5ac618` (Aug 13).
+
+**It was not the autoplay policy.** An earlier session concluded phones simply
+block autoplay. The user pushed back — it had worked before — and was right.
+
+**Root cause: `titleTune` latched on intent instead of on confirmed playback.**
+`4d00c90` moved the unlock from `click`/`touchend` to
+`pointerdown`/`touchstart` to cut perceived latency. On mobile those fire
+*before* the browser grants user activation, so `resume()` was a no-op, the
+BufferSource started into a **suspended** context and played to nobody — and
+`titleTune = true` latched regardless, so `startTitleMusic`'s opening guard
+turned every later gesture, including the `click` that WOULD have carried the
+activation, into a no-op. The blip on Drop In was that same dead source becoming
+audible the instant the context finally resumed, a frame before `start()`
+swapped in the ride track.
+
+**Reproduced and verified**, not reasoned about: headless Chrome at 412x915 with
+`mobile: true`, `--autoplay-policy=document-user-activation-required`, over the
+LAN IP (a plain-http origin with no engagement history), driving real
+`Input.dispatchTouchEvent` taps.
+
+| after the loader tap | `titleTune` | AudioContext |
+|---|---|---|
+| before the fix | `true` | **`suspended`** — silent |
+| `a5ac618` (Aug 13) | `true` | `running` |
+| after the fix | `true` | `running` |
+
+Clearing the latch by hand and re-tapping restored sound, which isolated the
+latch as the blocker rather than the policy.
+
+**The fix.** `startTitleMusic` now commits only when the context is genuinely
+running: if it is, play and latch; if it is suspended under a gesture, wait on
+the `resume()` promise and re-check inside `.then()`. A gesture that did not
+carry the activation simply never resolves, and the next one retries. The
+`state !== "title"` guard inside the callback stops a late resolution from
+starting the title tune mid-run.
+
+The same latch-on-assumption bug existed on the `<audio>` element path, where a
+rejected `play()` was swallowed by `pr.catch(() => {})`. `musicPlay` takes an
+`onFail` callback now and releases the latch when the element path is refused.
+
+Desktop regression-checked under `no-user-gesture-required`: unchanged.
+
+**Still open on this item:** none of it is committed, and it has not yet been
+confirmed on the user's actual phone — headless emulation reproduced the fault
+and shows it fixed, but the real device is the only proof that counts.
+
+### 2. Write AGENTS.md — DONE 2026-08-18
+
+[`AGENTS.md`](AGENTS.md) now exists: the short operating brief, meant to be read
+every session. **It does not replace this file** — the split settled on is
+AGENTS.md for the rules and the traps, this file for the architecture detail and
+the open-work queue, with AGENTS.md pointing here for depth.
+
+To keep them from drifting, the standing instructions were **removed from this
+file** rather than copied — they live in AGENTS.md alone now. Three other stale
+passages were corrected at the same time: the opening section still described
+`index copy.html` on `finger-slide-feature` as where the work lived, the
+steering section still claimed to describe that file, and "Running it" claimed
+`server.py` was loopback-only when it binds `0.0.0.0`.
+
+Every symbol AGENTS.md names was checked against `index.html` before it shipped.
+
+### 3. Optimise mobile loading on slower networks
+
+**PNG compression done 2026-08-18. Referenced sprites: 26.25 MB -> 6.93 MB, a
+73.6% cut.** With the user's own music re-encode the same day, the first load is
+now **10.1 MB across 63 files, down from 34.3 MB**.
+
+Method, and why it was not a single blanket pass:
+
+- `pngquant --quality=70-98 --speed 1` then `oxipng -o max --strip safe`.
+  `--strip` is where the `caBX` (Canva) and `tEXt`/`iTXt` chunks went.
+- **Files already in a palette were left to the lossless pass only.** Twelve of
+  them (`letters_*`, `coin-a/b`, `cow-tube`, `yeti-tube`) had been quantised
+  before; re-quantising only loses more for nothing.
+- **The registration sprites were held to a stricter bar than the rest.** Only
+  the rider, backflip, move, duck, hurt, die and pig frames feed a measured
+  constant. `pig-1`, `pig-4`, `die_01` and `hurt_01` drifted past tolerance
+  under lossy, so those four are **lossless — their alpha is bit-identical**.
+  The backdrops and `line-dance_*` frames feed nothing measured (plain blits and
+  an `<img>` hero), so they took the full lossy pass: `background-western.png`
+  3.86 -> 1.07 MB, `slide.png` 2.00 -> 0.44 MB.
+
+Verified, not assumed:
+
+- Every alpha-derived constant re-measured against the new files. Worst area
+  drift is 0.0712% (`move-right_01`), which through the `sqrt(area)` handle is
+  **0.142 px at the largest size the rider is ever drawn**. Worst centroid drift
+  0.0001 of the sprite box. **Nothing in `index.html` needs re-deriving.**
+- All 53 decode, dimensions unchanged, all 63 referenced assets resolve.
+- Banding checked by eye on the two big lossy backdrops, not just by metric: the
+  difference map is fine-grained dither noise on texture and edges, no broad
+  banding. The art is detailed illustration rather than gradient, which is why
+  a 256-colour palette holds up.
+- Title and in-game screenshotted headless at 412x915. 53/53 images load, no
+  network failures, rider still seated correctly in the tube.
+
+**Originals backed up to `/Users/Adam.Hood/projects/stampede-png-backup/`** with
+a SHA-256 manifest. This matters beyond the usual: `letters_01`-`08` and
+`cabana-umbrella.png` were modified-but-uncommitted when the pass ran, so git
+alone would have restored a *stale* version of those, not the pre-compression
+one. Restore everything with:
+`rsync -a --exclude MANIFEST.sha256 /Users/Adam.Hood/projects/stampede-png-backup/ /Users/Adam.Hood/projects/stampede/`
+Delete the backup once the compression is accepted and committed.
+
+Still open on this item:
+
+- **The bar counts files, not bytes** — deliberately, since `<img>` gives no
+  progress events. On a slow line that makes it lie: most files finish fast and
+  it then sits near full through the one big backdrop. Weighting each file by
+  its known byte size fixes the feel without needing real progress events.
+- **Defer what the title screen does not need.** The loader still blocks on all
+  63 files; `game-over.mp3` is not needed until someone dies, nor the win art
+  until they win.
+- **Music is now the largest single category** at 2.9 MB of the 10.1.
+- Test throttled, not on Wi-Fi. Still not done.
+- The ~40 MB of unreferenced files in `assets/` were left alone by the user's
+  choice — they are source art, and they never reach a player.
+
+### 4. Implement a leaderboard
+
+Today there is no leaderboard and no backend. Bests are per-device: `BEST` in
+`localStorage` under `stampede.best.v1`, tracking `dist`, `coins`, `score`,
+`letters`, `runs` (`index.html:1621`), feeding the "NEW BEST" markers on the
+results panel. The score calculation already exists (commit `8cec61b`), so the
+value to submit is in hand.
+
+This is the one item that changes the shape of the project, so the decisions
+come before the code:
+
+- **A shared leaderboard needs a server.** That ends "static site on GitHub
+  Pages", or bolts a hosted service onto the side of it.
+- **Scope:** global all-time, daily/weekly reset, or per-park/kiosk?
+- **Identity:** arcade-cabinet initials, or something accounted? Initials dodge
+  every privacy question and suit the ride-queue setting.
+- **Abuse:** the score is computed in JavaScript in a file anyone can read. Any
+  public board will be forged without server-side validation. Decide how much
+  that matters up front — on controlled kiosk hardware, possibly not at all.
+
+### 5. Jump / duck windows are too tight
+
+Carried over, re-verified as open. The user's words: "feels too tight and
+unfair." Levers: the lift threshold at `index.html:2927` (`airborne = jumpT >= 0
+&& lift > 0.28`), the hazard z-band at `:2939` (`e.z > travelled + 0.5 || e.z <
+travelled - 1.2`), `JUMP_DUR = 0.62` at `:1837`, and `tuckT`. Candidates: lower
+the threshold, widen the durations, narrow the z-band, or add coyote time after
+the input. Measure before and after.
+
+### 6. Mobile render cost — still never profiled on a device
+
+Suspected cost centres unchanged: ~120 water streaks, 12 rail polygons
+rebuilding gradients every frame, the park aerial rescaled every frame, ribs
+drawn from dz 0.85. The cheapest suspected win is still untaken: `DPR` is
+`Math.min(2, devicePixelRatio)` at `index.html:1175`, and capping at 1.5 cuts
+fill-rate ~44% on a 2× phone. Profile first — that is a guess until measured.
+
+### 7. 80° plunge set-piece — blocked, and should stay blocked
+
+The fixed-pitch camera tops out near 31.7°; at 80° the vanishing point sits
+~4,764 px below the horizon. Needs new art (steep rib, crest lip, plunge pose,
+runout splash). A 45° version was built and reverted at the user's request.
+Agree camera pitch as a standalone change before reopening.
+
+### Housekeeping found while verifying the above
+
+- **~40 MB of unreferenced files in `assets/`** — not loaded by the game, cloned
+  by everyone. `country-music.wav` (17 MB), the master sprite sheets the frames
+  were cut from, `tunnel-ring copy.png`, superseded backdrops, and the four
+  `.wav` originals of sounds now shipped as mp3. Some is source art worth
+  keeping — **the user's call, not a cleanup to make unasked.** Worth a decision
+  given `.git` is already 242 MB.
+- **No `.gitignore`, and junk is tracked:** five `.DS_Store` files and
+  `__pycache__/server.cpython-314.pyc`.
+- **Three merged branches to delete:** `finger-slide-feature`,
+  `win-screen-rework`, `wipeout-rework` — all zero commits ahead of `main`,
+  locally and on `origin`.
+- **The test tooling keeps getting lost to session scratchpads** — `harness.js`,
+  `shot.js`, `serve_copy.py`, three times now. It earns its keep every time: it
+  caught a strobing lean pose and a loader that never reached 100%, proved the
+  steering worked when it was reported broken, and verified the compressed
+  sprites still rendered. `serve_copy.py` is obsolete (`server.py` already binds
+  `0.0.0.0` and sends no-store). **Put the rest in the repo under `tools/`.**
+  A working CDP screenshot script was written again on 2026-08-18 — it drives
+  `Emulation.setDeviceMetricsOverride` at 412x915, calls `start()` to reach the
+  in-game screen, and reports failed image loads. It went to the scratchpad
+  again, so it is gone again.
+
+**Closed since the last list:** the `line-dance_04-05.png` reference (current
+`index.html` points at the real `line-dance_04.png`); the dangling
+`Horse Whinny.mp3` (item 1); the stale opening, steering and "Running it"
+sections of this document (item 2). All 63 referenced assets resolve.
 
 **Declined / parked by the user:**
 - Narrowing `LANE_A` 0.55 → 0.495 (or shrinking the rider 0.48 → 0.378) so riders
@@ -327,14 +505,17 @@ from dz 0.85. Cheapest suspected win: cap `DPR` at 1.5 (currently `min(2, dpr)`)
 
 ## Git state
 
-Branch `finger-slide-feature`, last commit `a5ac618` ("tweaked speed"). Nothing
-from this session has been committed — **the user has not asked for a commit.
-Confirm before committing.**
+Branch `music-bug`, level with `main` (0 commits either way), last commit
+`c960856`. The `finger-slide-feature` work described earlier in this document
+has long since merged. **The user has not asked for a commit. Confirm before
+committing.**
 
-Working tree:
-- `index copy.html` — untracked, holds all of the work described above.
-- Line-dance PNGs modified, `line-dance_04-05.png` deleted, `line-dance.png`
-  (1.7 MB, the full sheet) untracked. These came from the user re-exporting
-  sprites, not from code changes.
-- `line-dance_10..12.png` are still on disk but no longer loaded by the game.
-  The user has not asked for them to be deleted.
+Working tree — all of it the in-flight sound swap, item 1:
+- `index.html` modified: `SFX.jump`, `SFX.hurt`, `SFX.dead` switched from `.wav`
+  to `.mp3`; the `SFX.hit` key removed and `Sound.hit()` made synth-only.
+- `Player Jumping.mp3`, `typhoon-hurt.mp3`, `typhoon-dead.mp3` untracked.
+- `Horse Whinny.mp3` and `Happy Game Notification.wav` deleted. Neither is
+  referenced any more — the `SFX.hit` key is gone, and the `.mp3` beside the
+  second is what loads.
+- The superseded `.wav` originals (`Player Jumping.wav`, `typhoon-hurt.wav`,
+  `typhoon-dead.wav`) were deleted during the same session.
