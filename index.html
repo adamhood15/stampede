@@ -155,11 +155,24 @@
     @keyframes overFade{from{opacity:0} to{opacity:1}}
   }
 
-  #speedbar{position:absolute;left:50%;transform:translateX(-50%);
-            bottom:calc(env(safe-area-inset-bottom,0px) + 14px);display:flex;gap:3px}
-  #speedbar i{width:10px;height:17px;background:rgba(30,48,72,.45);
-    clip-path:polygon(0 0,55% 0,100% 50%,55% 100%,0 100%,45% 50%);transition:background .12s}
-  #speedbar i.lit{background:var(--yellow)}
+  /* Sized to always clear #mute and #pause: each is 48px wide, 14px off its
+     edge, so 72px (margin + button + a 10px breather) is reserved per side
+     before the bar even starts, then it shrinks with the icons rather than
+     overlapping the buttons on a narrow phone. */
+  #speedbar{position:absolute;left:50%;
+            /* .hudbtn's vertical centre sits 14px + half its 48px height above
+               the safe-area line; translateY(50%) re-centres THIS box on that
+               same line using its own (shorter, width-dependent) height, so it
+               lines up with #mute/#pause regardless of how wide the bar is. */
+            bottom:calc(env(safe-area-inset-bottom,0px) + 14px + 24px);
+            transform:translate(-50%, 50%);
+            display:flex;align-items:center;gap:5px;
+            width:min(320px,calc(100% - (env(safe-area-inset-left,0px) +
+              env(safe-area-inset-right,0px) + 144px)))}
+  #speedbar i{flex:1 1 0;min-width:0;aspect-ratio:200/127;
+    background:no-repeat center/contain url("assets/sprites/hud/horse-grey.png")}
+  #speedbar i.lit{background-image:url("assets/sprites/hud/horse-white.png")}
+  #speedbar i.boosted{background-image:url("assets/sprites/hud/horse-yellow.png")}
 
   /* ---------- panels ---------- */
   /* Centred, but scroll-safe. `justify-content:center` alone CLIPS a column
@@ -330,9 +343,9 @@
            rgba(30,48,72,.93),rgba(16,26,40,.975))}
   /* Nothing in a scrolling column may shrink. A flex item's automatic minimum
      size normally stops it collapsing below its content — but that only applies
-     while overflow is visible, and #lbTabs sets overflow:hidden for its rounded
-     corners. Its min-height therefore resolved to 0 and the whole tab bar
-     squashed to its 6px of border with the buttons clipped inside it. */
+     while overflow is visible, and a rounded-corner child with overflow:hidden
+     loses that protection, resolving min-height to 0 and squashing to its
+     border with its content clipped inside. */
   #lbScroll > *{flex:none}
   #lbScroll{width:100%;max-height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;
             touch-action:pan-y;display:flex;flex-direction:column;align-items:center;
@@ -409,15 +422,6 @@
   #namePanel #reels{margin-bottom:38px}
   #namePanel .lbLead{margin:0}
 
-  /* tabs ----------------------------------------------------------------- */
-  #lbTabs{display:flex;gap:0;margin:6px 0 16px;border:3px solid var(--ink);
-          border-radius:5px;overflow:hidden;box-shadow:4px 4px 0 var(--ink)}
-  .lbTab{pointer-events:auto;cursor:pointer;font-family:var(--display);
-         text-transform:uppercase;font-size:15px;letter-spacing:.08em;
-         padding:9px 22px 10px;border:0;background:var(--navy);color:var(--pale)}
-  .lbTab + .lbTab{border-left:3px solid var(--ink)}
-  .lbTab.on{background:var(--yellow);color:var(--ink)}
-
   /* rows ------------------------------------------------------------------
      An explicit 3-column grid, NOT flex: the rank and score columns are sized
      to their widest plausible content and the NAME takes the slack, so a long
@@ -490,18 +494,6 @@
                color:var(--ink);background:var(--green-lt);
                border:2px solid var(--ink);border-radius:999px;
                padding:3px 6px 4px;margin-top:7px}
-  /* Two ranks, not one: the leaderboard has Daily and All-Time boards, and a
-     single number couldn't say which one it was answering for. */
-  #rankSplit{display:flex;justify-content:center;gap:clamp(20px,8vw,40px);margin-top:4px}
-  #rankSplit > div{display:flex;flex-direction:column;align-items:center}
-  /* Overrides #stats span's margin-bottom (for the label-above-value stats up
-     top) with a margin-top instead — here the caption sits BELOW its number.
-     Needs the #statRank prefix: "#stats span" is also one ID + one element,
-     defined later in the sheet, and a tied specificity is won by source
-     order — the exact trap #fRankNote2 hit above. */
-  #statRank #rankSplit span{display:block;font-size:9px;letter-spacing:.16em;
-               color:var(--sky-low);margin-top:3px;margin-bottom:0}
-
   /* HUD left column — a single board (Score) since item 5 dropped Descent. */
   #hudLeft{display:flex;flex-direction:column;gap:8px;min-width:0}
   /* Left and right columns share one max-width so neither board can ever run
@@ -1061,10 +1053,7 @@
       </div>
       <div class="statRow" id="statRank">
         <div><em id="fRankNote">Tap to Submit</em><span>Leaderboard Ranking</span>
-          <div id="rankSplit">
-            <div><strong id="fRankDaily">--</strong><span>Daily</span></div>
-            <div><strong id="fRankAll">--</strong><span>All-Time</span></div>
-          </div>
+          <strong id="fRank">--</strong>
           <em id="fRankNote2">Tap to See Leaderboard</em>
         </div>
       </div>
@@ -1123,13 +1112,9 @@
       <div class="eyebrow">Leaderboard</div>
       <h2 class="ride howHead" id="lbTitle">Top Riders</h2>
 
-      <div id="lbTabs">
-        <button class="lbTab on" id="lbTabDay" type="button">Today</button>
-        <button class="lbTab" id="lbTabAll" type="button">All Time</button>
-      </div>
       <div id="lbHead"><span>#</span><span>Rider</span><span>Score</span></div>
       <div id="lbList"></div>
-      <p id="lbEmpty">No rides logged yet today. Be the first.</p>
+      <p id="lbEmpty">No rides logged yet. Be the first.</p>
       <div id="lbYou"></div>
       <button class="btn" id="lbBack" type="button">Back</button>
     </div>
@@ -1215,6 +1200,8 @@ const CONFIG = {
 const ART = {
   sun:      "assets/sprites/backdrop/sun.png",
   cloud:    "assets/sprites/backdrop/cloud.png",
+  cloudBoot:      "assets/sprites/backdrop/cloud-boot.png",
+  cloudWagonWheel:"assets/sprites/backdrop/cloud-wagon-wheel.png",
   rider:    "assets/sprites/typhoon-sprites/typhoon-rider.png",
   cow:      "assets/sprites/obstacles/cow-tube.png",
   yeti:     "assets/sprites/obstacles/yeti-tube.png",
@@ -1222,6 +1209,12 @@ const ART = {
   yeti2:    "assets/sprites/obstacles/daytona-snowman-2.png",
   coinA:    "assets/sprites/coins/coin-a.png",
   coinB:    "assets/sprites/coins/coin-b.png",
+
+  /* Speedbar horses. Listed here only to get them preloaded — they are drawn
+     by CSS, so the URLs are repeated in the #speedbar rule. */
+  horseGrey:   "assets/sprites/hud/horse-grey.png",
+  horseWhite:  "assets/sprites/hud/horse-white.png",
+  horseYellow: "assets/sprites/hud/horse-yellow.png",
   wave1:    "assets/sprites/obstacles/waves_1.png",
   wave2:    "assets/sprites/obstacles/waves_2.png",
   wave3:    "assets/sprites/obstacles/waves_3.png",
@@ -2026,7 +2019,7 @@ function runScore(){
    course reads exactly as before; only the rider is free. */
 let lane = 0, laneA = 0;
 let jumpT = -1, tuckT = 0;
-let invuln = 0, boostT = 0, shake = 0;
+let invuln = 0, boostT = 0, boostSuper = false, shake = 0;
 let hurtT = 0;              // drives the damage blink; see drawRider
 let moveT = 0, moveDir = 0;  // lane-change lean
 let leanV = 0;               // smoothed crossing speed, in lane units/s; picks
@@ -2115,6 +2108,9 @@ let flyers = [];
 
 const JUMP_DUR = 0.62, JUMP_H = 0.55;
 const BOOST_DUR = 2.4;      // also roughly the length of the boost sample
+// Only a rider already at top speed gets carried past it — anyone still
+// accelerating just gets rushed up to the ordinary max, not beyond it.
+const BOOST_SUPER_MULT = 1.25;
 
 function reset(){
   travelled = 0; metres = 0; coins = 0;
@@ -2122,7 +2118,7 @@ function reset(){
   lane = 0; laneA = 0; jumpT = -1; tuckT = 0;
   touchId = null; steering = false;   // a thumb still down across a restart no
                                       // longer owns the wheel it anchored on
-  invuln = 0; boostT = 0; shake = 0; hurtT = 0; moveT = 0; moveDir = 0; leanV = 0; duckA = 0;
+  invuln = 0; boostT = 0; boostSuper = false; shake = 0; hurtT = 0; moveT = 0; moveDir = 0; leanV = 0; duckA = 0;
   tunnelIn = 0; lastTunZ = -1e9; dieT = 0;
   /* Give the canvas its rider back. The results card takes him OFF the canvas
      and replaces him with a DOM img (see handOverRider), and that flag lived
@@ -2485,9 +2481,10 @@ if (!("ontouchstart" in window)) $("hint").textContent = "hold \u2190 \u2192 ste
 /* ==================================================================
    HUD
    ================================================================== */
+const SPEED_HORSES = 7;
 const speedbar = $("speedbar");
-for (let i = 0; i < 14; i++) speedbar.appendChild(document.createElement("i"));
-const chevrons = speedbar.querySelectorAll("i");
+for (let i = 0; i < SPEED_HORSES; i++) speedbar.appendChild(document.createElement("i"));
+const speedHorseEls = speedbar.querySelectorAll("i");
 
 function drawTubes(){
   const box = $("tubes"); box.innerHTML = "";
@@ -2708,8 +2705,16 @@ function setFigure(el, value, maxPx){
 function syncHUD(){
   setFigure($("coins"), coins, 25);
   setFigure($("hudScore"), runScore(), 25);
-  const lit = Math.round((speed - CONFIG.startSpeed) / (CONFIG.maxSpeed - CONFIG.startSpeed) * 14);
-  for (let i = 0; i < 14; i++) chevrons[i].classList.toggle("lit", i < lit);
+  const lit = Math.round((speed - CONFIG.startSpeed) / (CONFIG.maxSpeed - CONFIG.startSpeed) * SPEED_HORSES);
+  // Only reachable mid-boost, once speed has been pushed past the ordinary
+  // max — see BOOST_SUPER_MULT. Fills from the first horse, same proportional
+  // scheme as `lit`, but across the boosted span above maxSpeed.
+  const boosted = Math.min(SPEED_HORSES, Math.round(Math.max(0, speed - CONFIG.maxSpeed) /
+    (CONFIG.maxSpeed * (BOOST_SUPER_MULT - 1)) * SPEED_HORSES));
+  for (let i = 0; i < SPEED_HORSES; i++){
+    speedHorseEls[i].classList.toggle("lit", i < lit);
+    speedHorseEls[i].classList.toggle("boosted", i < boosted);
+  }
 }
 function start(){
   Sound.unlock(); reset(); state = "play";
@@ -3107,7 +3112,7 @@ function hitRider(){
   // Proportional, so a hit at full tilt actually costs you something — the old
   // flat -1.2 barely registered at speed. A boost can't survive a crash either.
   speed = Math.max(CONFIG.startSpeed, speed * 0.62);
-  boostT = 0;
+  boostT = 0; boostSuper = false;
   shake = 1; flash(); puff(26); drawTubes();
   // gameOver plays the death cry, so the two never stack on the fatal hit
   if (lives <= 0) gameOver(); else Sound.hurt();
@@ -3193,7 +3198,7 @@ function update(dt){
      the wipeout animation all sit in other states and none of them charge you. */
   runT += dt;
 
-  const target = boostT > 0 ? CONFIG.maxSpeed + 1.8 : CONFIG.maxSpeed;
+  const target = boostT > 0 && boostSuper ? CONFIG.maxSpeed * BOOST_SUPER_MULT : CONFIG.maxSpeed;
   speed = Math.min(target, speed + CONFIG.accel * dt * (boostT > 0 ? 6 : 1));
   travelled += speed * dt;
   metres += speed * dt * CONFIG.metresPerUnit;
@@ -3289,12 +3294,13 @@ function update(dt){
         }
       }
     } else if (e.t === T.BOOST){
-      e.dead = true; boostT = BOOST_DUR; Sound.boost(); puff(16);
+      e.dead = true; boostSuper = speed >= CONFIG.maxSpeed; boostT = BOOST_DUR; Sound.boost(); puff(16);
     } else if (e.t === T.TUNNEL){
       // enclosed section: passing through it gives a speed boost, but the
       // tunnel itself stays visible so the rider actually flies through it
       if (!e.triggered){
         e.triggered = true;
+        boostSuper = speed >= CONFIG.maxSpeed;
         boostT = BOOST_DUR; Sound.boost(); puff(16);
       }
     } else if (e.t === T.WAVE){
@@ -3333,10 +3339,10 @@ function update(dt){
    they get more drift and more parallax. */
 const CLOUDS = [
   { u: 0.05, v: 0.20, s: 0.240, a: 0.95, sp: 0.016, par: 0.55 },
-  { u: 0.40, v: 0.52, s: 0.152, a: 0.80, sp: 0.011, par: 0.38 },
+  { u: 0.40, v: 0.52, s: 0.152, a: 0.80, sp: 0.011, par: 0.38, img: "cloudBoot" },
   { u: 0.61, v: 0.12, s: 0.192, a: 0.88, sp: 0.014, par: 0.46 },
   { u: 0.75, v: 0.63, s: 0.112, a: 0.66, sp: 0.008, par: 0.28 },
-  { u: 0.90, v: 0.34, s: 0.176, a: 0.85, sp: 0.013, par: 0.44 },
+  { u: 0.90, v: 0.34, s: 0.176, a: 0.85, sp: 0.013, par: 0.44, img: "cloudWagonWheel" },
 ];
 let skyT = 0;
 
@@ -3372,19 +3378,21 @@ function backdrop(){
 
   // ---- 3. clouds drifting across, wrapped so the field never runs out ----
   if (IMG.cloud){
-    const aspect = IMG.cloud.width / IMG.cloud.height;
     const margin = W * 0.35;
     const span   = W + margin * 2;
     ctx.save();
     for (const c of CLOUDS){
+      const img = IMG[c.img || "cloud"];
+      if (!img) continue;
+      const aspect = img.width / img.height;
       const cw = W * c.s, ch = cw / aspect;
       let u = (c.u - skyT * c.sp) % 1;
       if (u < 0) u += 1;
       const cx = u * span - margin + par * c.par;
       const cy = horizon * c.v - ch / 2;
       ctx.globalAlpha = c.a;
-      ctx.drawImage(IMG.cloud, cx, cy, cw, ch);
-      ctx.drawImage(IMG.cloud, cx + span, cy, cw, ch);   // wrap copy
+      ctx.drawImage(img, cx, cy, cw, ch);
+      ctx.drawImage(img, cx + span, cy, cw, ch);   // wrap copy
     }
     ctx.restore();
   }
@@ -4936,11 +4944,10 @@ const Board = (() => {
     rows = [];
     const now = Date.now();
     for (let i = 0; i < 137; i++){
-      const daily = Math.random() < 0.45;
       rows.push({
         name: pick(NAME_A) + " " + pick(NAME_B),
         score: Math.round(400 + Math.pow(Math.random(), 2.1) * 46000),
-        at: now - (daily ? Math.random() * 8.6e7 : 8.7e7 + Math.random() * 2.4e9),
+        at: now - Math.random() * 2.4e9,   // spread out; only ever used as a tiebreak
       });
     }
     // one row per name, exactly as the real table will be
@@ -4950,15 +4957,12 @@ const Board = (() => {
     return rows;
   }
 
-  const DAY = 8.64e7;
-  const scoped = (scope) => {
+  const scoped = () => {
     const rows = seed().concat(readJSON(ME, null) && readJSON(ME, {}).score
       ? [{ ...readJSON(ME, {}), me: true }] : []);
-    const cut = Date.now() - DAY;
-    return rows.filter(r => scope === "all" || r.at >= cut)
-               // score desc, then EARLIEST — without a stable tiebreak, tied
-               // players swap places on every read and the board looks broken
-               .sort((a, b) => b.score - a.score || a.at - b.at);
+    // score desc, then EARLIEST — without a stable tiebreak, tied players swap
+    // places on every read and the board looks broken
+    return rows.sort((a, b) => b.score - a.score || a.at - b.at);
   };
 
   return {
@@ -4983,11 +4987,11 @@ const Board = (() => {
       if (score > (r.score || 0)){ r.score = score; r.at = Date.now(); writeJSON(ME, r); }
       return r;
     },
-    top(scope, n){ return scoped(scope).slice(0, n || 50); },
-    total(scope){ return scoped(scope).length; },
+    top(n){ return scoped().slice(0, n || 50); },
+    total(){ return scoped().length; },
     /* Needs only the score, so a player can be shown where they WOULD land
        before deciding to submit. */
-    rankOf(score, scope){ return scoped(scope).filter(r => r.score > score).length + 1; },
+    rankOf(score){ return scoped().filter(r => r.score > score).length + 1; },
   };
 })();
 
@@ -5046,12 +5050,11 @@ function scrollToMe(){
 }
 
 /* ---------- panel ---------- */
-let lbScope = "daily";
 let pendingScore = 0;          // this run's score, for the "you'd rank" line
 
 function renderBoard(){
   const me = Board.me();
-  const rows = Board.top(lbScope, 50);
+  const rows = Board.top(50);
   const list = $("lbList");
   list.innerHTML = "";
   rows.forEach((r, i) => {
@@ -5070,7 +5073,7 @@ function renderBoard(){
      board so "#578 of 3,412" is answered without scrolling to nowhere. */
   const you = $("lbYou"); you.innerHTML = "";
   if (me && me.score > 0 && !rows.some(r => r.me)){
-    const pos = Board.rankOf(me.score, lbScope);
+    const pos = Board.rankOf(me.score);
     const d = document.createElement("div");
     d.className = "lbRow me";
     d.innerHTML = '<span class="lbPos"></span><span class="lbName"></span>' +
@@ -5081,14 +5084,6 @@ function renderBoard(){
     you.appendChild(d);
   }
 }
-function setScope(next){
-  lbScope = next;
-  $("lbTabDay").classList.toggle("on", next === "daily");
-  $("lbTabAll").classList.toggle("on", next === "all");
-  renderBoard();
-}
-$("lbTabDay").addEventListener("click", () => setScope("daily"));
-$("lbTabAll").addEventListener("click", () => setScope("all"));
 
 function openBoard(){
   $("titlePanel").classList.remove("on");
@@ -5112,12 +5107,8 @@ $("statRank").addEventListener("click", () => {
 /* ---------- the rank row on the results card ----------
    Rank is a STAT, not a destination: after a run the question is "how did I
    do", and a number answers it inline without a navigation step. */
-/* Both scopes, always — independent of whichever tab lbScope last left the
-   leaderboard panel on. The board has two rankings and the card should never
-   look like it forgot about one of them. */
 function setRankFigures(score){
-  setFigure($("fRankDaily"), "#" + Board.rankOf(score, "daily").toLocaleString(), 26);
-  setFigure($("fRankAll"),   "#" + Board.rankOf(score, "all").toLocaleString(),   26);
+  setFigure($("fRank"), "#" + Board.rankOf(score).toLocaleString(), 26);
 }
 function syncRankRow(){
   const me = Board.me();

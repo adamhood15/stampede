@@ -15,7 +15,7 @@ Use a dedicated custom WordPress database table rather than storing leaderboard 
 Recommended table name:
 
 ```text
-{wp_prefix}waterpark_scores
+{wp_prefix}stampede_scores
 ```
 
 Use WordPress's `$wpdb->prefix` rather than hardcoding `wp_` so the implementation works on sites with a custom table prefix.
@@ -23,7 +23,7 @@ Use WordPress's `$wpdb->prefix` rather than hardcoding `wp_` so the implementati
 Example:
 
 ```php
-$table_name = $wpdb->prefix . 'waterpark_scores';
+$table_name = $wpdb->prefix . 'stampede_scores';
 ```
 
 ---
@@ -37,8 +37,7 @@ The database must efficiently support:
 - Large numbers of score submissions over time
 - Sorting by score
 - Filtering by submission date
-- Retrieving daily leaderboard results
-- Retrieving all-time leaderboard results
+- Retrieving leaderboard results
 - Looking up an individual submission
 - Future filtering by game, contest, or event
 - Future data cleanup, exports, and archival
@@ -78,7 +77,7 @@ Claude should implement the table using WordPress conventions and `dbDelta()`.
 Conceptual schema:
 
 ```sql
-CREATE TABLE {prefix}waterpark_scores (
+CREATE TABLE {prefix}stampede_scores (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     player_name VARCHAR(50) NOT NULL,
     score BIGINT UNSIGNED NOT NULL,
@@ -91,7 +90,7 @@ CREATE TABLE {prefix}waterpark_scores (
 
     KEY idx_game_score (game_key, score),
     KEY idx_game_created (game_key, created_at),
-    KEY idx_game_created_score (game_key, created_at, score)
+    KEY idx_session (session_id)
 );
 ```
 
@@ -117,11 +116,11 @@ Provides a unique identifier for every submission.
 (game_key, score)
 ```
 
-Supports all-time leaderboard queries such as:
+Supports leaderboard queries such as:
 
 ```sql
 SELECT *
-FROM wp_waterpark_scores
+FROM wp_stampede_scores
 WHERE game_key = 'waterpark'
 ORDER BY score DESC
 LIMIT 10;
@@ -133,15 +132,15 @@ LIMIT 10;
 (game_key, created_at)
 ```
 
-Supports date-range filtering, cleanup jobs, exports, and daily leaderboard queries.
+Supports date-range filtering, cleanup jobs, and exports.
 
-### Game + Created Date + Score Index
+### Session Index
 
 ```text
-(game_key, created_at, score)
+(session_id)
 ```
 
-Supports queries that first constrain submissions to a date range and then rank the scores.
+Supports the session lookup pattern below (`WHERE session_id = ?`) without a full table scan.
 
 Claude should inspect the actual query plans once leaderboard queries are implemented and adjust indexes if needed rather than adding excessive indexes preemptively.
 
@@ -153,28 +152,7 @@ Store timestamps in UTC.
 
 Use WordPress-compatible UTC timestamps when inserting rows.
 
-Do not base "today" directly on the database server's local timezone.
-
-The future leaderboard layer should:
-
-1. Determine the site's configured WordPress timezone.
-2. Calculate the start and end of the requested calendar day in that timezone.
-3. Convert that range to UTC.
-4. Query `created_at` using the resulting UTC boundaries.
-
-This prevents daylight-saving and server-timezone inconsistencies.
-
-Example conceptual daily query:
-
-```sql
-SELECT player_name, score, created_at
-FROM wp_waterpark_scores
-WHERE game_key = 'waterpark'
-  AND created_at >= :day_start_utc
-  AND created_at < :next_day_start_utc
-ORDER BY score DESC
-LIMIT 10;
-```
+Do not base any future date-range filtering (exports, cleanup jobs) directly on the database server's local timezone — convert the requested range to UTC before querying `created_at`, to avoid daylight-saving and server-timezone inconsistencies.
 
 ---
 
@@ -350,13 +328,10 @@ This ensures names containing accents and other international characters are sto
 
 For the initial version, keep all valid leaderboard submissions indefinitely.
 
-Do not automatically delete scores at the end of each day.
-
-The daily leaderboard should be created by filtering the same historical score table by date.
+Do not automatically delete scores over time.
 
 This allows:
 
-- Daily leaderboard history
 - All-time rankings
 - Analytics
 - Contest audits
@@ -382,20 +357,10 @@ Prefer preserving data by default.
 
 The schema should be optimized around these eventual operations.
 
-### All-Time Top Scores
+### Top Scores
 
 ```sql
 WHERE game_key = ?
-ORDER BY score DESC
-LIMIT ?
-```
-
-### Daily Top Scores
-
-```sql
-WHERE game_key = ?
-AND created_at >= ?
-AND created_at < ?
 ORDER BY score DESC
 LIMIT ?
 ```
@@ -488,8 +453,7 @@ Responsibilities would eventually include:
 ```text
 insert_score()
 get_score()
-get_daily_leaderboard()
-get_all_time_leaderboard()
+get_leaderboard()
 get_player_rank()
 delete_score()
 ```
@@ -546,7 +510,7 @@ The repository methods may initially be minimal if score submission logic is int
 Claude should complete only the following:
 
 - Create the custom WordPress plugin skeleton.
-- Implement the `{prefix}waterpark_scores` table.
+- Implement the `{prefix}stampede_scores` table.
 - Use `$wpdb->prefix`.
 - Use `$wpdb->get_charset_collate()`.
 - Implement table creation with `dbDelta()`.
@@ -569,8 +533,7 @@ Do **not** implement these items yet:
 - JavaScript integration
 - Score submission forms
 - Leaderboard HTML/CSS
-- Daily leaderboard rendering
-- All-time leaderboard rendering
+- Leaderboard rendering
 - Player ranking calculations
 - Anti-cheat mechanisms
 - Score validation rules

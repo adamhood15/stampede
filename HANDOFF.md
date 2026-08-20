@@ -508,14 +508,14 @@ not any more. Not changed — the user has not been asked.
 #### What is built
 
 - **`Board`** — an IIFE whose methods are shaped like the REST routes that will
-  replace them: `me()`, `claim(name)`, `submit(score)`, `top(scope, n)`,
-  `total(scope)`, `rankOf(score, scope)`. It seeds 137 fake riders into
+  replace them: `me()`, `claim(name)`, `submit(score)`, `top(n)`,
+  `total()`, `rankOf(score)`. It seeds 137 fake riders into
   `localStorage` once so the board looks like a real afternoon rather than
   reshuffling every open. **Swapping the stub for `fetch()` should touch nothing
   outside this object.**
 - **`#lbPanel`** — the board, built on `#howPanel`'s shape (inner scroller,
-  darker wash, swallows the keyboard while open). Today/All-Time tabs, top 50,
-  and the player's own row pinned below the list when they fall outside it.
+  darker wash, swallows the keyboard while open). Single all-time ranking, top
+  50, and the player's own row pinned below the list when they fall outside it.
 - **Name reels** — `NAME_A` (40 adjectives) x `NAME_B` (40 nouns) = 1,600
   combinations. Tap either reel to reroll just that half, or Spin for both.
   `BAD_NUM` blocks the loaded 3-digit suffixes.
@@ -766,9 +766,10 @@ worst moment, with an opt-out in the panel) or to ask on every run.
 
 **Both answered 2026-08-18.**
 
-1. **Two boards: Daily and All-Time.** Daily is the default — on a season-long
-   promo an all-time-only board lets the first week's riders camp the top and
-   everyone after stops trying.
+1. ~~**Two boards: Daily and All-Time.**~~ Reversed 2026-08-20 — a single
+   all-time board only. `Board`, `#lbPanel`, and the results-card rank row were
+   all simplified back down to one ranking; there is no more `scope` argument
+   anywhere in `Board`'s API.
 2. **Rank on `score`, unchanged**, and **surface Score in the HUD** so players
    can see the thing they are being ranked on while they play. It is currently
    invisible during a run — the HUD shows Descent and Buckaroos only, so players
