@@ -2,7 +2,7 @@
 
 Operating rules for agents working on **Stampede** (Typhoon Texas — Buckaroo
 Run): a single-file HTML5 canvas water-slide runner. Everything — markup, CSS,
-game logic, rendering, input, audio, HUD — is in `index.html` (~4,535 lines).
+game logic, rendering, input, audio, HUD — is in `index.html` (~5,105 lines).
 No build step, no framework, plain Canvas 2D and vanilla JS. Assets are real
 files under `assets/`.
 
@@ -31,6 +31,29 @@ session; reach for HANDOFF when you need the detail behind a rule.
 - **Confirm before committing.** The user asks for commits; do not commit
   unprompted. Branch first if on `main`.
 - **Report faithfully.** Say what you actually verified, and what you skipped.
+- Prefer existing patterns over introducing abstractions.
+
+- Run the narrowest relevant test first.
+
+- Do not inspect generated files unless necessary.
+
+- Avoid reading large logs or directories when targeted search works.
+
+## Compaction
+
+When compacting, preserve:
+
+- current objective
+
+- modified file paths
+
+- architectural decisions
+
+- unresolved errors
+
+- test results
+
+- next intended action
 
 ### The user's setup
 
@@ -119,8 +142,12 @@ Drive the real page headless over the DevTools protocol:
   `deviceScaleFactor` and touch emulation.
 - **Force screens from window globals** rather than synthesising clicks —
   `state` (`"title"`, `"play"`, `"paused"`, `"dying"`, `"over"`), `start()`,
-  `reset()`, `gameOver()`, `showOver()`. Synthetic `pointerdown` on `#playBtn`
-  does not reliably satisfy the real listener; calling `start()` does.
+  `reset()`, `gameOver()`, `showOver()`, `showReveal()`, `openBoard()`.
+  Synthetic `pointerdown` on `#playBtn` does not reliably satisfy the real
+  listener; calling `start()` does.
+- **Audio unlock bugs need REAL input events.** `Input.dispatchTouchEvent` over
+  CDP carries the user-activation bit; a JS-dispatched `PointerEvent` does not,
+  so it cannot reproduce them at all.
 - 412×915 at `deviceScaleFactor: 2` with `mobile: true` is a known-good phone
   viewport for this page — it renders the touch copy and reaches the title and
   in-game screens cleanly.

@@ -43,12 +43,24 @@
        justify-content:space-between;align-items:flex-start;
        font-size:12px;letter-spacing:.12em}
   #hud.on{display:flex}
-  .board{background:rgba(30,48,72,.8);border:3px solid var(--ink);border-radius:6px;
+  /* Without these the boards size to their content and simply walk off the
+     screen edge as the figures grow — there is nothing to detect and nothing to
+     shrink against. See setFigure(). */
+  #hud > *{min-width:0}
+  .board{background:rgba(30,48,72,.8);border:3px solid var(--ink);border-radius:6px;max-width:100%;height:61px;
          padding:7px 12px 9px;box-shadow:4px 4px 0 var(--ink)}
   .board .lbl{display:block;font-size:9px;letter-spacing:.2em;color:var(--sky-low);margin-bottom:3px}
-  .board .val{display:block;font-size:25px;line-height:1;font-variant-numeric:tabular-nums}
+  /* 25px is the starting point setFigure()/applyFit() shrinks from, same as
+     the results-card figures — an outrageous score (coins are the one
+     uncapped term in runScore()) shrinks the digits to fit the board rather
+     than truncating them. Never ellipsise a figure: a cut-off number reads as
+     a WRONG number. */
+  .board .val{display:block;font-size:25px;font-weight:400;line-height:1;
+              white-space:nowrap;font-variant-numeric:tabular-nums}
   #hudRight{text-align:right}
-  #coinRow{display:flex;align-items:center;gap:7px;justify-content:flex-end}
+  #coinRow{display:flex;align-items:center;gap:7px;justify-content:flex-end;min-width:0}
+  #coinRow .val{min-width:0}
+  #coinRow img{flex:none}
   #coinRow img{width:26px;height:26px;display:block}
   #tubes{margin-top:10px;display:flex;gap:6px;justify-content:flex-end}
   .tube{width:17px;height:17px;border-radius:50%;background:var(--orange);
@@ -63,7 +75,14 @@
   #letters.gone{display:none}
   /* Below the boards on narrow screens: at full size the word plus both boards
      overrun a phone's width and the letters end up underneath them. */
-  @media (max-width:560px){ #letters{top:calc(env(safe-area-inset-top,0px) + 78px)} }
+  /* 78px clears a single row of boards. The left column went to two boards
+     (Descent over Score) during the leaderboard work, which pushed this to
+     150px; item 5 dropped Descent from the HUD (distance still lives on the
+     results card), so the left column is one board again and this reverts —
+     re-measured, not assumed, since the collision before only showed up once
+     the score had enough digits to widen the board. */
+  @media (max-width:560px){ #letters{top:calc(env(safe-area-inset-top,0px) + 90px)} 
+.board .val {font-size:20px} }
   .word{display:flex;justify-content:center}
   /* Each letter is a window onto its own artwork file rather than type: the
      word is a slab serif with a gold gradient, a bevel and baked-in sparkles,
@@ -303,6 +322,193 @@
   /* Darker than the other panels on purpose: this is the one screen that is
      mostly READING, and the shared wash leaves the park backdrop showing
      through behind body copy. */
+  /* ---------- leaderboard ----------
+     Built on #howPanel's shape rather than .panel's: it is a reading screen
+     that has to scroll, so it needs the same inner scroller and darker wash.
+     One panel serves all three entry points (title, results, win). */
+  #lbPanel{padding:0;background:radial-gradient(130% 90% at 50% 0%,
+           rgba(30,48,72,.93),rgba(16,26,40,.975))}
+  /* Nothing in a scrolling column may shrink. A flex item's automatic minimum
+     size normally stops it collapsing below its content — but that only applies
+     while overflow is visible, and #lbTabs sets overflow:hidden for its rounded
+     corners. Its min-height therefore resolved to 0 and the whole tab bar
+     squashed to its 6px of border with the buttons clipped inside it. */
+  #lbScroll > *{flex:none}
+  #lbScroll{width:100%;max-height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;
+            touch-action:pan-y;display:flex;flex-direction:column;align-items:center;
+            text-align:center;
+            padding:calc(env(safe-area-inset-top,0px) + 28px) 22px
+                    calc(env(safe-area-inset-bottom,0px) + 34px)}
+  /* Side padding gives way on a phone so the board runs nearly edge to edge —
+     22px a side was costing the name column most of what it needed. */
+  @media (max-width:560px){
+    #lbScroll{padding-left:9px;padding-right:9px}
+  }
+  .lbLead{max-width:min(92vw,420px);font-size:13px;line-height:1.6;
+          color:var(--pale);opacity:.85;margin:2px 0 16px}
+
+  /* Two ghost buttons side by side. Keeps the title screen at one primary plus
+     one secondary ROW instead of a stack of three competing buttons. */
+  .ghostRow{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;
+            align-items:center;max-width:100%}
+  /* .btn and .btn.ghost carry different margin-tops (20 vs 12) for the stacked
+     layout they were built for; side by side that reads as a misalignment. */
+  .ghostRow .btn{margin-top:14px}
+
+  /* reels ---------------------------------------------------------------- */
+  #reels{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;
+         max-width:min(94vw,460px);width:100%}
+  .reel{pointer-events:auto;cursor:pointer;flex:1 1 0;min-width:0;position:relative;
+        font-family:var(--display);text-transform:uppercase;letter-spacing:.02em;
+        font-size:clamp(15px,4.9vw,27px);color:var(--ink);background:var(--white);
+        border:3px solid var(--ink);border-radius:5px;padding:11px 8px 24px;
+        /* bottom pad clears the badge, which hangs at translateY(62%) and so
+           still reaches ~16px up into the button face */
+        box-shadow:4px 4px 0 var(--ink);transition:transform .08s,box-shadow .08s}
+  /* The word clips, NOT the button. overflow:hidden on .reel would cut the
+     badge and rays off at the bottom edge, which is exactly where they live. */
+  .reelWord{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .reel:active{transform:translate(3px,3px);box-shadow:1px 1px 0 var(--ink)}
+  /* The flick is on the WORD, not the button: the badge and its rays are
+     anchored to the bottom edge, and animating the whole button would throw
+     them around with it. */
+  .reel.rolling .reelWord{animation:reelRoll .38s ease}
+  @keyframes reelRoll{
+    0%{transform:translateY(0)}   30%{transform:translateY(-7px)}
+    60%{transform:translateY(4px)} 100%{transform:translateY(0)}}
+
+  /* A swap badge straddling the bottom edge, with a burst of rays behind it.
+     Without a cue the reels read as two labels rather than two controls, and
+     the line of copy that says otherwise is the thing people skip.
+     Both are pseudo-elements: paintReels writes into .reelWord, so nothing here
+     can be wiped by a reroll. bottom:0 plus a shared translateY(62%) hangs both
+     mostly BELOW the button edge — concentric with each other, and clear of the
+     word rather than sitting across it. */
+  .reel::after{content:"";position:absolute;left:50%;bottom:0;z-index:2;
+        width:42px;height:42px;margin-left:-21px;transform:translateY(62%);
+        background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 44'%3E%3Ccircle cx='22' cy='22' r='18.4' fill='%23fcf6f0' stroke='%230a0a0a' stroke-width='3.4'/%3E%3Cg fill='none' stroke='%23fc901e' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 18.5V17.5A2.5 2.5 0 0 1 16.5 15H27'/%3E%3Cpath d='M24 11.8L27.4 15L24 18.2'/%3E%3Cpath d='M30 25.5v1a2.5 2.5 0 0 1-2.5 2.5H17'/%3E%3Cpath d='M20 25.8L16.6 29L20 32.2'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat}
+  .reel::before{content:"";position:absolute;left:50%;bottom:0;z-index:1;
+        width:82px;height:82px;margin-left:-41px;
+        transform:translateY(62%) scale(.92);
+        background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 80 80'%3E%3Cg stroke='%23fc901e' stroke-width='4.4' stroke-linecap='round'%3E%3Cpath d='M20.0 55.0L13.2 60.2M28.8 62.4L25.1 70.0M40.0 65.0L40.0 73.5M51.2 62.4L54.9 70.0M60.0 55.0L66.8 60.2'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat;
+        animation:rayPulse 1.7s ease-in-out infinite}
+  /* translateY has to be repeated in every keyframe or the animation drops it
+     and the burst jumps up to sit inside the button. */
+  @keyframes rayPulse{
+    0%,100%{transform:translateY(62%) scale(.9);opacity:.5}
+    50%    {transform:translateY(62%) scale(1.06);opacity:1}}
+  @media (prefers-reduced-motion:reduce){
+    .reel::before{animation:none;opacity:.85;transform:translateY(62%) scale(1)}}
+
+  /* Naming is its own screen now, between the loader and the title card, so the
+     leaderboard panel no longer carries a claim step at all. */
+  #namePanel .nameHead{font-size:clamp(28px,8.4vw,58px);line-height:.92;
+                       max-width:min(94vw,520px);margin:0 0 26px}
+  /* #reels clears the badge overhang (half of a 38px badge) before the caption,
+     which now sits under the generator rather than above it. */
+  #namePanel #reels{margin-bottom:38px}
+  #namePanel .lbLead{margin:0}
+
+  /* tabs ----------------------------------------------------------------- */
+  #lbTabs{display:flex;gap:0;margin:6px 0 16px;border:3px solid var(--ink);
+          border-radius:5px;overflow:hidden;box-shadow:4px 4px 0 var(--ink)}
+  .lbTab{pointer-events:auto;cursor:pointer;font-family:var(--display);
+         text-transform:uppercase;font-size:15px;letter-spacing:.08em;
+         padding:9px 22px 10px;border:0;background:var(--navy);color:var(--pale)}
+  .lbTab + .lbTab{border-left:3px solid var(--ink)}
+  .lbTab.on{background:var(--yellow);color:var(--ink)}
+
+  /* rows ------------------------------------------------------------------
+     An explicit 3-column grid, NOT flex: the rank and score columns are sized
+     to their widest plausible content and the NAME takes the slack, so a long
+     name ellipsises and the number never does. A wrong-looking score reads as
+     a bug, and with a ranked board the exact figure is the point. */
+  /* #lbList had no width of its own. As a flex item under align-items:center it
+     shrank to fit its content, so the rows inside it resolved NARROWER than
+     #lbYou, which sized itself — hence the pinned yellow row sticking out wider
+     than the board above it. Size the containers, and let the rows (block-level
+     grids) simply fill them. */
+  #lbHead,#lbList,#lbYou{width:100%;max-width:min(90vw,470px)}
+  #lbHead,.lbRow{display:grid;grid-template-columns:2.6em 1fr auto;gap:10px;
+                 align-items:center;text-align:left}
+  #lbHead{font-size:9px;letter-spacing:.2em;text-transform:uppercase;
+          color:var(--sky-low);opacity:.8;padding:0 12px 6px}
+  #lbHead span:last-child,.lbRow .lbScore{text-align:right}
+  .lbRow{background:rgba(30,48,72,.9);border:3px solid var(--ink);border-radius:5px;
+         padding:9px 12px 10px;margin-bottom:7px;box-shadow:3px 3px 0 var(--ink)}
+  .lbRow .lbPos{font-family:var(--display);font-size:17px;color:var(--sky-low)}
+  .lbRow .lbName{font-size:14px;letter-spacing:.04em;color:var(--white);
+                 white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .lbRow .lbScore{font-size:17px;color:var(--white);white-space:nowrap;
+                  font-variant-numeric:tabular-nums}
+  .lbRow.me{background:var(--yellow)}
+  .lbRow.me .lbPos,.lbRow.me .lbName,.lbRow.me .lbScore{color:var(--ink)}
+  /* At 320px the default sizing spent so much of the row on the rank and score
+     columns that most names ellipsised — technically correct (the number is
+     never the thing that gets cut) but useless to read. Give the name back its
+     space on small screens rather than letting the row "work" while telling the
+     player nothing. */
+  /* Two rows per entry on a phone: rank + name, then the score beneath. Three
+     columns on a 320px screen spent so much on the rank and score that the name
+     ellipsised; stacking gives the name the full width and lets the score sit
+     at a size worth reading. The header is dropped with it — its columns no
+     longer line up with anything, and a labelled "SCORE" is not needed once the
+     figure has a line of its own. */
+  @media (max-width:560px){
+    #lbHead{display:none}
+    #lbHead,.lbRow{grid-template-columns:2.4em 1fr;
+                   grid-template-areas:"pos name" "pos score";
+                   row-gap:1px;gap:8px}
+    .lbRow{padding:8px 12px 9px}
+    .lbRow .lbPos{grid-area:pos;align-self:center;font-size:19px;text-align:center}
+    .lbRow .lbName{grid-area:name;font-size:14px}
+    .lbRow .lbScore{grid-area:score;text-align:left;font-size:20px;
+                    color:var(--sky-low)}
+    .lbRow.me .lbScore{color:var(--ink)}
+  }
+  @media (max-width:380px){
+    .lbRow{padding-left:9px;padding-right:9px}
+    .lbRow .lbName{font-size:13px;letter-spacing:.01em}
+    .lbRow .lbScore{font-size:18px}
+  }
+  #lbYou{margin-top:4px}
+  #lbYou:not(:empty){padding-top:12px;border-top:3px dashed rgba(126,222,252,.35)}
+  #lbEmpty{display:none;font-size:13px;color:var(--pale);opacity:.75;margin:18px 0}
+  #lbEmpty.on{display:block}
+
+  /* the rank row on the results card ------------------------------------- */
+  #statRank > div{cursor:pointer;pointer-events:auto}
+  #statRank em{display:block;font-style:normal;font-size:9px;letter-spacing:.18em;line-height:1.5;
+               text-transform:uppercase;color:var(--yellow);margin-top:5px}
+  /* Styled to match #stats .rec::after's "New best" pill (below), so the
+     leaderboard nudge reads as the same kind of chip rather than a plain
+     label. Needs the #statRank prefix to out-specify "#statRank em" above —
+     a bare "#fRankNote2" ties on ID count but loses on the element selector,
+     which is why an earlier color-only attempt here had no visible effect. */
+  #statRank #fRankNote2{display:inline-block;font-style:normal;font-size:8px;
+               letter-spacing:.12em;line-height:1;text-transform:uppercase;
+               color:var(--ink);background:var(--green-lt);
+               border:2px solid var(--ink);border-radius:999px;
+               padding:3px 6px 4px;margin-top:7px}
+  /* Two ranks, not one: the leaderboard has Daily and All-Time boards, and a
+     single number couldn't say which one it was answering for. */
+  #rankSplit{display:flex;justify-content:center;gap:clamp(20px,8vw,40px);margin-top:4px}
+  #rankSplit > div{display:flex;flex-direction:column;align-items:center}
+  /* Overrides #stats span's margin-bottom (for the label-above-value stats up
+     top) with a margin-top instead — here the caption sits BELOW its number.
+     Needs the #statRank prefix: "#stats span" is also one ID + one element,
+     defined later in the sheet, and a tied specificity is won by source
+     order — the exact trap #fRankNote2 hit above. */
+  #statRank #rankSplit span{display:block;font-size:9px;letter-spacing:.16em;
+               color:var(--sky-low);margin-top:3px;margin-bottom:0}
+
+  /* HUD left column — a single board (Score) since item 5 dropped Descent. */
+  #hudLeft{display:flex;flex-direction:column;gap:8px;min-width:0}
+  /* Left and right columns share one max-width so neither board can ever run
+     wider than the other on the same screen — see .board .val's ellipsis for
+     what happens to a figure that would have needed more room than this. */
+  #hudLeft, #hudRight{max-width:46%}
+
   #howPanel{padding:0;background:radial-gradient(130% 90% at 50% 0%,
             rgba(30,48,72,.93),rgba(16,26,40,.975))}
   #howScroll{width:100%;max-height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;
@@ -356,7 +562,12 @@
      left only 60px of content — less than "Buckaroos" needs at 9px/.2em, let
      alone the New best pill. It relaxes back to the roomier 20px by tablet. */
   .statRow > div{padding:12px clamp(10px,3.4vw,20px) 13px;
-                 background:rgba(30,48,72,.9);flex:1 1 0}
+                 background:rgba(30,48,72,.9);flex:1 1 0;min-width:0}
+  /* min-width:0 is load-bearing. A flex item defaults to min-width:auto, which
+     refuses to shrink below its content, so a long figure does not compress the
+     cell — it bursts the whole row out past both screen edges. Measured before
+     the fix: 12,940 already overflowed at 320px, 1,284,930 overflowed at 412px.
+     .ctl hit the same trap and was fixed the same way. */
   .statRow > div + div{border-left:3px solid var(--ink)}
   .statRow + .statRow{border-top:3px solid var(--ink)}
   #stats span{display:block;font-size:9px;letter-spacing:.2em;color:var(--sky-low);margin-bottom:4px}
@@ -365,7 +576,13 @@
      line whenever both fit — which depends on how many digits the figure has.
      "270" and "440" pushed the pill onto its own line while "19" left room and
      sat next to it, so the same board disagreed with itself cell by cell. */
-  #stats strong{display:block;font-weight:400;font-size:26px;font-variant-numeric:tabular-nums}
+  /* NOT white-space:nowrap. The New best pill is an inline-block ::after on
+     this element, and nowrap would drag it up alongside the figure — the
+     exact thing display:block above is here to prevent. Digits do not need
+     it anyway: a comma between digits carries no line-break opportunity, so
+     1,284,930 cannot wrap. setFigure() handles the width. */
+  #stats strong{display:block;font-weight:400;font-size:26px;
+                font-variant-numeric:tabular-nums}
   /* The letters row keeps the same label style as the figures above it, so it
      reads as a fourth stat rather than as decoration that wandered in.
      Bigger than the old standalone copy. That one was sized for a block of its
@@ -525,7 +742,7 @@
      the yellow primary. */
   /* Both Start Overs, on the win card and on pause, so the same words are the
      same colour wherever they appear. */
-  #revealAgain,#pauseAgainBtn{background:var(--blue-dp);color:var(--white)}
+  #pauseAgainBtn{background:var(--blue-dp);color:var(--white)}
   /* A landscape phone is only ~360px tall and the poster wants far more, so the
      card would push its own buttons off screen — and they are the only way out
      of a modal. The art already shrinks on its own (its width cap is written in
@@ -687,9 +904,11 @@
   <canvas id="game" aria-label="Typhoon Buckaroo Run"></canvas>
 
   <div id="hud">
-    <div class="board">
-      <span class="lbl">Descent</span>
-      <span class="val" id="dist">0</span>
+    <div id="hudLeft">
+      <div class="board">
+        <span class="lbl">Score</span>
+        <span class="val" id="hudScore">0</span>
+      </div>
     </div>
     <div id="hudRight">
       <div class="board">
@@ -711,7 +930,10 @@
       <img id="heroDance" alt="">
     </div>
     <button class="btn" id="playBtn" type="button">Drop In</button>
-    <button class="btn ghost" id="howBtn" type="button">How to Play</button>
+    <div class="ghostRow">
+      <button class="btn ghost" id="howBtn" type="button">How to Play</button>
+      <button class="btn ghost" id="lbBtn" type="button">Leaderboard</button>
+    </div>
     <div class="controls">
       <div class="ctl">
         <div class="cap">&larr;&nbsp;&rarr;</div>
@@ -736,10 +958,23 @@
 
   <!-- How to play. Opened from the title and closed back to it; the run's state
        is never touched, so the title keeps rendering behind it. -->
+  <!-- Naming happens once, before the title card, so the game never has to stop
+       and ask mid-flow. Shown only when there is no stored rider. -->
+  <div class="panel" id="namePanel">
+    <div class="eyebrow">Howdy Partner,</div>
+    <h1 class="ride nameHead">What Do They Call Ya?</h1>
+    <div id="reels">
+      <button class="reel" id="reelA" type="button"><span class="reelWord"></span></button>
+      <button class="reel" id="reelB" type="button"><span class="reelWord"></span></button>
+    </div>
+    <p class="lbLead">Tap to change yer name</p>
+    <button class="btn" id="nameGo" type="button">That'll Do</button>
+  </div>
+
   <div class="panel" id="howPanel">
     <div id="howScroll">
       <div class="eyebrow">How to Play</div>
-      <h2 class="ride howHead">Ride It</h2>
+      <h2 class="ride howHead">Stampede</h2>
 
       <section class="howSec">
         <h3>Complete the word</h3>
@@ -824,6 +1059,15 @@
       <div class="statRow" id="statWord">
         <div><span id="fWordLbl">Stampede letters</span><div id="fWord" class="word"></div></div>
       </div>
+      <div class="statRow" id="statRank">
+        <div><em id="fRankNote">Tap to Submit</em><span>Leaderboard Ranking</span>
+          <div id="rankSplit">
+            <div><strong id="fRankDaily">--</strong><span>Daily</span></div>
+            <div><strong id="fRankAll">--</strong><span>All-Time</span></div>
+          </div>
+          <em id="fRankNote2">Tap to See Leaderboard</em>
+        </div>
+      </div>
     </div>
     <button class="btn" id="againBtn" type="button">Ride Again</button>
     <button class="btn ghost" id="ctaBtn" type="button">Get Season Passes</button>
@@ -870,8 +1114,24 @@
       </div>
     </div>
     <div id="revealBtns">
-      <button class="btn" id="revealGo" type="button">Keep Riding</button>
-      <button class="btn ghost" id="revealAgain" type="button">Start Over</button>
+      <button class="btn" id="revealScore" type="button">See Your Score</button>
+    </div>
+  </div>
+
+  <div class="panel" id="lbPanel">
+    <div id="lbScroll">
+      <div class="eyebrow">Leaderboard</div>
+      <h2 class="ride howHead" id="lbTitle">Top Riders</h2>
+
+      <div id="lbTabs">
+        <button class="lbTab on" id="lbTabDay" type="button">Today</button>
+        <button class="lbTab" id="lbTabAll" type="button">All Time</button>
+      </div>
+      <div id="lbHead"><span>#</span><span>Rider</span><span>Score</span></div>
+      <div id="lbList"></div>
+      <p id="lbEmpty">No rides logged yet today. Be the first.</p>
+      <div id="lbYou"></div>
+      <button class="btn" id="lbBack" type="button">Back</button>
     </div>
   </div>
 
@@ -1101,6 +1361,16 @@ function ready(){
   if (IMG.slide) $("revealSlide").src = ART.slide;
   else $("revealSlide").style.display = "none";
 }
+/* First visit goes to the naming screen; every visit after goes straight to the
+   title, because the rider is already on file. Handled here rather than in the
+   markup so the title card's default state stays the common case. */
+function afterLoader(){
+  if (Board.me()) return;
+  $("titlePanel").classList.remove("on");
+  $("namePanel").classList.add("on");
+  paintReels();
+}
+
 function dismissLoader(){
   $("load").classList.add("off");                          // fade
   setTimeout(() => $("load").classList.add("gone"), 500);   // then out of the layout
@@ -1127,12 +1397,17 @@ function finishLoading(){
   if (a && a.state === "running"){        // audio is already free to play
     dismissLoader();
     startTitleMusic(false);
+    afterLoader();
     return;
   }
   $("loadMsg").textContent = "Tap to start";
   $("load").classList.add("gate");
   loaderGateArmed = true;
-  const go = () => { loaderGateArmed = false; dismissLoader(); startTitleMusic(true); };
+  /* The tap that dismisses the loader is also the one that unlocks audio, so the
+     title tune is already running by the time the naming screen appears — the
+     player is never handed a silent screen and asked to name themselves. */
+  const go = () => { loaderGateArmed = false; dismissLoader(); startTitleMusic(true);
+                     afterLoader(); };
   window.addEventListener("pointerdown", go, { once:true });
   window.addEventListener("keydown",     go, { once:true });
 }
@@ -2041,8 +2316,20 @@ window.addEventListener("keydown", (e) => {
   /* The how-to card swallows the keyboard while it is up. Without this, Space
      would start a run behind a panel the player is still reading — the title
      is only hidden, not torn down, so every title shortcut is still live. */
+  /* Naming swallows the keyboard: the title card is only hidden behind it, so
+     Space would otherwise start a run before the player has a name. */
+  if ($("namePanel").classList.contains("on")){
+    if (k === "enter" || k === " ") $("nameGo").click();
+    return;
+  }
   if ($("howPanel").classList.contains("on")){
     if (k === "escape" || k === "enter" || k === " ") closeHow();
+    return;
+  }
+  /* Same reasoning as the how-to card: the screen underneath is only hidden,
+     not torn down, so Space would start a run behind a board being read. */
+  if ($("lbPanel").classList.contains("on")){
+    if (k === "escape" || k === "enter" || k === " ") closeBoard();
     return;
   }
   if ((state === "title" || state === "over") && (k === " " || k === "enter")) { start(); return; }
@@ -2169,8 +2456,7 @@ $("ctaBtn").addEventListener("click", () => {
 $("pause").addEventListener("click", togglePause);
 $("resumeBtn").addEventListener("click", resumeGame);
 $("pauseAgainBtn").addEventListener("click", pauseRestart);
-$("revealGo").addEventListener("click", revealContinue);
-$("revealAgain").addEventListener("click", revealRestart);
+$("revealScore").addEventListener("click", revealToScore);
 $("mute").addEventListener("click", () => {
   const on = Sound.toggle();
   $("mute").classList.toggle("off", !on);
@@ -2314,31 +2600,29 @@ function runStampede(){
 
 /* The ride-name card. Earned by spelling the word rather than by a coin count —
    the letters ARE the ride name, so finishing it is what should announce it.
-   Fired after the run-off and its clip have played, not on the last pickup:
-   the card flashes the screen and slams a slab over the middle of it, which
-   put two big moments on the same frame and buried the letters mid-charge. */
+   It now plays at the END of the run rather than on the last letter: the player
+   rides on until the final life is gone, and the card is what greets them.
+   That removes the old awkwardness of a modal interrupting a live run, and it
+   means the reveal is the last thing before the score rather than a detour in
+   the middle of one. */
+function endRun(){
+  if (gotLetters >= WORD.length && !revealed) showReveal();
+  else showOver();
+}
+
 function showReveal(){
   if (revealed) return;
-  revealed = true; comboFree = 2; invuln = Math.max(invuln, 3.4);
-  // Clears the road ahead so the card lands on open water, and so whichever
-  // button they pick drops them onto clean track rather than into an obstacle
-  // that arrived while they were reading. Coins are spared to give the
-  // comboFree payout something to arrive with. No letter can be in flight —
-  // the word is finished, so spawnLetter has stopped.
-  ents = ents.filter(e => e.z < travelled + 4 || e.t === T.COIN || e.w === 0);
-  nextZ = travelled + 10;
-
-  revealOpen = true; hatT = 0; hatI = -1;
-  state = "paused";                  // the run freezes behind the card
-  /* Deliberately NOT Sound.hold() — that suspends the whole context, which
-     would take the win music down with the run. The card is the one paused
-     screen that is supposed to be playing something. */
-  $("pause").classList.remove("on"); // no pause button while a modal is up
-  /* And the HUD with it. The metre readout and the buckaroo count sat ghosting
-     through the wash in the corners the poster now reaches into, which is the
-     one thing on this screen that is neither the slide, the sign, nor the way
-     out. revealContinue puts it back; start() does its own. */
+  revealed = true;
+  /* state stays "over" — the wipeout pose has to keep drawing behind the card,
+     and render() only places the settled rider in the dying/over states. The
+     results panel is simply held back until they ask for it. */
+  state = "over";
+  $("pause").classList.remove("on");
+  /* The HUD goes with it: the metre readout and buckaroo count sat ghosting
+     through the wash in the corners the poster reaches into. */
   $("hud").classList.remove("on");
+  $("overPanel").classList.remove("on");
+  revealOpen = true; hatT = 0; hatI = -1;
   $("reveal").classList.add("on"); Sound.reveal();
 
   /* Same hand-off as the wipeout: the outgoing track is left ramping on its own
@@ -2346,6 +2630,15 @@ function showReveal(){
      one rises over it instead of cutting it. */
   Sound.musicStop(MUSIC_FADE);
   Sound.music("start", 0.34, 1.3);
+}
+
+/* The only way off the card now. There is no Keep Riding — the run is over by
+   the time it appears — so this hands to the score, which is where the rank and
+   the Ride Again button live. */
+function revealToScore(){
+  if (!revealOpen) return;
+  closeReveal();
+  showOver();
 }
 
 /* Runs off the raw frame clock rather than update(), because update() is exactly
@@ -2367,27 +2660,54 @@ function closeReveal(){
 }
 /* Back into the same run, which is what makes it an endless mode rather than a
    level: nothing is reset, so the distance and the buckaroos carry on. */
-function revealContinue(){
-  if (!revealOpen) return;
-  closeReveal();
-  state = "play"; Sound.unhold();
-  $("pause").classList.add("on");
-  $("hud").classList.add("on");      // taken down by showReveal for the poster
-  Sound.musicStop(1.1);              // and back the same way it came
-  Sound.music("ride", null, 1.2);
-  last = performance.now();          // or the frozen span arrives as one huge dt
+/* Score has no ceiling — coins are the only uncapped term in runScore() — so no
+   fixed size can be guaranteed to hold it. Shrink the figure to fit instead of
+   letting it clip: a truncated number reads as a WRONG number, and once scores
+   are ranked the exact value is the whole point. Never ellipsise a figure.
+   Measured 2026-08-18 so the ceiling is not guesswork: an unsteered bot banks 67
+   coins in 118s, so even a skilled player at 5x that reaches ~7 characters after
+   two hours and ~9 after a full day. Everything up to 9 fits unshrunk at 320px.
+   The shrink is for the tail beyond that, not the normal case. */
+function applyFit(el){
+  /* No layout yet — the panel it lives in is still display:none. Measuring here
+     returns 0 for both widths, "fits" trivially, and would cache a size that was
+     never actually tested; that is how the results Score shipped clipped. Bail
+     and let the observer call back once the box is real. */
+  if (!el.clientWidth) return;
+  const len = el.textContent.length;
+  if (el._fitLen === len) return;          // re-measure on DIGIT COUNT only, so
+  el._fitLen = len;                        // the HUD is not laying out every tick
+  let size = el._fitMax || 26;
+  el.style.fontSize = size + "px";
+  while (size > 8 && el.scrollWidth > el.clientWidth + 1){
+    size -= 1;
+    el.style.fontSize = size + "px";
+  }
 }
-function revealRestart(){
-  if (!revealOpen) return;
-  closeReveal();
-  // Faded first: start() plays the ride track through musicPlay, which stops
-  // whatever is current outright, and the win tune would be cut mid-note.
-  Sound.musicStop(0.9);
-  start();                           // resets, re-shows the HUD, restarts music
+
+/* Observes the CELL, not the figure. Watching the figure would see its own
+   font-size changes and re-enter; the cell only changes when the panel appears,
+   the phone rotates, or a desktop window is dragged — which is exactly the set
+   of moments a cached fit stops being true. */
+const figureFit = window.ResizeObserver ? new ResizeObserver((entries) => {
+  for (const e of entries){
+    const el = e.target._fitChild;
+    if (el){ el._fitLen = -1; applyFit(el); }
+  }
+}) : null;
+
+function setFigure(el, value, maxPx){
+  const text = typeof value === "number" ? value.toLocaleString() : String(value);
+  if (el.textContent !== text) el.textContent = text;
+  if (el._fitMax !== maxPx){ el._fitMax = maxPx; el._fitLen = -1; }
+  const box = el.parentElement;
+  if (figureFit && box && box._fitChild !== el){ box._fitChild = el; figureFit.observe(box); }
+  applyFit(el);
 }
+
 function syncHUD(){
-  $("dist").textContent = Math.floor(metres) + " m";
-  $("coins").textContent = coins;
+  setFigure($("coins"), coins, 25);
+  setFigure($("hudScore"), runScore(), 25);
   const lit = Math.round((speed - CONFIG.startSpeed) / (CONFIG.maxSpeed - CONFIG.startSpeed) * 14);
   for (let i = 0; i < 14; i++) chevrons[i].classList.toggle("lit", i < lit);
 }
@@ -2402,6 +2722,7 @@ function start(){
   $("overPanel").classList.remove("on");
   $("pausePanel").classList.remove("on");
   $("howPanel").classList.remove("on");   // a run can be started from the how-to
+  $("lbPanel").classList.remove("on");
   $("pause").classList.add("on");
   $("pause").classList.remove("paused");
   $("pause").setAttribute("aria-label", "Pause");
@@ -2657,9 +2978,11 @@ function showOver(){
   $("overPanel").classList.remove("textIn", "riderIn");
 
   const dist = Math.floor(metres), score = runScore();
-  $("fDist").textContent  = dist;
-  $("fCoins").textContent = coins;
-  $("fScore").textContent = score.toLocaleString();
+  setFigure($("fDist"),  dist,  26);
+  setFigure($("fCoins"), coins, 26);
+  setFigure($("fScore"), score, 26);
+  pendingScore = score;
+  syncRankRow();
   buildWord($("fWord"), gotLetters);
   $("fWordLbl").textContent = gotLetters >= WORD.length
     ? "You spelled it"
@@ -2691,7 +3014,7 @@ function showOver(){
     bestStored ? "(records persist)" : "(SESSION ONLY — storage blocked, likely file://)");
   // Same bar as the reveal: a run "won" if it spelled the word.
   const won = gotLetters >= WORD.length;
-  $("overTitle").textContent  = won ? "You Survived It" : "Wipeout";
+  $("overTitle").textContent  = won ? "Nice Ride, Partner" : "Wipeout";
   $("overKicker").textContent = won ? CONFIG.rideName : "Typhoon wiped out";
   $("overPanel").classList.add("on");
   settleOverRider();          // only measurable once the panel is displayed
@@ -2841,7 +3164,7 @@ function update(dt){
   }
 
   if (state === "dying"){
-    if ((dieT -= dt) <= 0) showOver();
+    if ((dieT -= dt) <= 0) endRun();
     speed = Math.max(0, speed - DIE_BRAKE * dt);
     travelled += speed * dt;
     camX = curveX(travelled); camY = curveY(travelled) - CAM_UP;
@@ -2888,7 +3211,10 @@ function update(dt){
   // or the word would vanish before it got anywhere. The card follows it.
   if (stampedeT > 0){
     stampedeT -= dt;
-    if (stampedeT <= 0){ $("letters").classList.add("gone"); showReveal(); }
+    /* The card used to fire here, the instant the word finished. It is a
+       curtain call now, not an interruption: the player keeps riding until the
+       last life is gone and the reveal waits for them at the end. */
+    if (stampedeT <= 0){ $("letters").classList.add("gone"); }
   }
 
   /* Held-arrow steering, the keyboard's answer to a held thumb. Skipped while a
@@ -4557,6 +4883,256 @@ window.addEventListener("pointerdown", musicGesture);
 window.addEventListener("touchstart",  musicGesture, { passive:true });
 window.addEventListener("click",       musicGesture);
 window.addEventListener("keydown",     () => startTitleMusic(true));
+
+/* ==================================================================
+   LEADERBOARD — FRONT END ONLY, STUBBED DATA
+   Every read and write goes through Board, whose methods are shaped like the
+   REST routes that will replace them (HANDOFF item 3). Swapping the stub for
+   fetch() should touch nothing outside this object.
+   ================================================================== */
+
+/* A CLOSED SET, never a text field. Two curated lists make profanity
+   structurally impossible instead of policed — no blocklist to maintain and
+   nothing for leetspeak or homoglyphs to slip through. 40x40 is also small
+   enough to read in full once, which is the only way to catch pairs that are
+   fine apart and bad together. */
+const NAME_A = ["Dusty","Rowdy","Soggy","Rusty","Lucky","Wild","Trusty","Sandy",
+  "Muddy","Sunbaked","Splashy","Gritty","Speedy","Bouncy","Rugged","Breezy",
+  "Sizzlin'","Drippy","Twisty","Wobbly","Hasty","Jumpy","Zippy","Peppy","Sunny",
+  "Stormy","Boomin'","Rollin'","Tumblin'","Whistlin'","Hollerin'","Ramblin'",
+  "Roamin'","Frosty","Dizzy","Scrappy","Plucky","Nimble","Sturdy","Cheerful"];
+const NAME_B = ["Longhorn","Armadillo","Bronco","Rattler","Buckaroo","Coyote",
+  "Tumbleweed","Mustang","Wrangler","Stallion","Roadrunner","Jackrabbit","Cactus",
+  "Sheriff","Ranger","Drifter","Maverick","Cowpoke","Prairiedog","Bluebonnet",
+  "Cannonball","Riptide","Bellyflop","Flume","Geyser","Gator","Catfish","Otter",
+  "Pelican","Dolphin","Splashdown","Whirlpool","Ripcurl","Sunfish","Seahorse",
+  "Bullfrog","Turtle","Minnow","Anchor","Torpedo"];
+
+/* Digits spell things too. Engineering profanity out of the words and then
+   letting it back in through the collision suffix would be an own goal — a
+   board reading "Soggy Buckaroo 666" is exactly the screenshot to avoid.
+   Only 1,000 values, so the whole space is auditable. */
+/* THREE-DIGIT ONLY. The generator draws 100-999, so the 2-digit entries this
+   list started with (13, 69, 86, 88) could never be produced and were dead
+   weight pretending to be protection. Anything genuinely loaded that CAN come
+   out of the generator belongs here instead. */
+const BAD_NUM = new Set([187, 322, 420, 451, 666, 911]);
+
+const pick = (a) => a[Math.floor(Math.random() * a.length)];
+
+const Board = (() => {
+  const KEY = "stampede.board.v1";                 // stub store; the real one is server-side
+  const ME  = "stampede.rider.v1";
+  const readJSON = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) || d; }
+                               catch (e) { return d; } };
+  const writeJSON = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); }
+                                catch (e) {} };   // storage throws outright in some contexts
+
+  /* Seeded once so the board looks like a real afternoon at the park rather
+     than reshuffling on every open. Replaced wholesale by the server. */
+  function seed(){
+    let rows = readJSON(KEY, null);
+    if (rows) return rows;
+    rows = [];
+    const now = Date.now();
+    for (let i = 0; i < 137; i++){
+      const daily = Math.random() < 0.45;
+      rows.push({
+        name: pick(NAME_A) + " " + pick(NAME_B),
+        score: Math.round(400 + Math.pow(Math.random(), 2.1) * 46000),
+        at: now - (daily ? Math.random() * 8.6e7 : 8.7e7 + Math.random() * 2.4e9),
+      });
+    }
+    // one row per name, exactly as the real table will be
+    const seen = new Set();
+    rows = rows.filter(r => !seen.has(r.name) && seen.add(r.name));
+    writeJSON(KEY, rows);
+    return rows;
+  }
+
+  const DAY = 8.64e7;
+  const scoped = (scope) => {
+    const rows = seed().concat(readJSON(ME, null) && readJSON(ME, {}).score
+      ? [{ ...readJSON(ME, {}), me: true }] : []);
+    const cut = Date.now() - DAY;
+    return rows.filter(r => scope === "all" || r.at >= cut)
+               // score desc, then EARLIEST — without a stable tiebreak, tied
+               // players swap places on every read and the board looks broken
+               .sort((a, b) => b.score - a.score || a.at - b.at);
+  };
+
+  return {
+    me: () => readJSON(ME, null),
+    /* Reserved at CREATION, not at submission: resolving collisions at submit
+       time would let a name change under a player who already had it. */
+    claim(name){
+      const taken = new Set(seed().map(r => r.name));
+      let final = name;
+      while (taken.has(final)){
+        let n; do { n = 100 + Math.floor(Math.random() * 900); } while (BAD_NUM.has(n));
+        final = name + " " + n;
+      }
+      const rider = { name: final, token: "stub-" + Math.random().toString(36).slice(2, 12),
+                      score: 0, at: Date.now() };
+      writeJSON(ME, rider);
+      return rider;
+    },
+    /* Best-only: one row per player, so nobody fills the top 50 by grinding. */
+    submit(score){
+      const r = readJSON(ME, null); if (!r) return null;
+      if (score > (r.score || 0)){ r.score = score; r.at = Date.now(); writeJSON(ME, r); }
+      return r;
+    },
+    top(scope, n){ return scoped(scope).slice(0, n || 50); },
+    total(scope){ return scoped(scope).length; },
+    /* Needs only the score, so a player can be shown where they WOULD land
+       before deciding to submit. */
+    rankOf(score, scope){ return scoped(scope).filter(r => r.score > score).length + 1; },
+  };
+})();
+
+/* ---------- reels ---------- */
+let reelA = pick(NAME_A), reelB = pick(NAME_B);
+function paintReels(){
+  /* Writes to the inner span, not the button. The button owns the badge and the
+     ray burst, and setting textContent on it would delete the span along with
+     them on the first repaint. */
+  $("reelA").querySelector(".reelWord").textContent = reelA;
+  $("reelB").querySelector(".reelWord").textContent = reelB;
+}
+function rollReel(el, set, assign){
+  el.classList.remove("rolling"); void el.offsetWidth;   // restart the animation
+  el.classList.add("rolling");
+  assign(pick(set)); paintReels();
+}
+$("reelA").addEventListener("click", () => rollReel($("reelA"), NAME_A, v => reelA = v));
+$("reelB").addEventListener("click", () => rollReel($("reelB"), NAME_B, v => reelB = v));
+/* Naming happens once, before the title card. Confirming hands straight to the
+   home screen — the run is never interrupted to ask, and every later submission
+   is automatic because a name always exists by then. */
+$("nameGo").addEventListener("click", () => {
+  Board.claim(reelA + " " + reelB);
+  $("namePanel").classList.remove("on");
+  $("titlePanel").classList.add("on");
+});
+
+/* Ride down to the player's own row rather than dumping them at the top of a
+   list of strangers. Hand-eased rather than scroll-behavior:smooth — the native
+   curve is brisk and this is the payoff beat, the moment their name lands on
+   the board. Honours prefers-reduced-motion by jumping instead. */
+const SCROLL_DUR = 1200;
+function scrollToMe(){
+  const box = $("lbScroll");
+  const row = box.querySelector(".lbRow.me");
+  if (!row) return;
+  /* Rect maths, not offsetTop: offsetTop is relative to the nearest positioned
+     ancestor, which #lbScroll is not, so it would measure against the page. */
+  const bRect = box.getBoundingClientRect(), rRect = row.getBoundingClientRect();
+  const centred = box.scrollTop + (rRect.top - bRect.top)
+                - (box.clientHeight - rRect.height) / 2;
+  const target = Math.max(0, Math.min(box.scrollHeight - box.clientHeight, centred));
+  const from = box.scrollTop, delta = target - from;
+  if (Math.abs(delta) < 2) return;
+  if (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches){
+    box.scrollTop = target; return;
+  }
+  const t0 = performance.now();
+  const ease = (t) => t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3) / 2;
+  (function step(now){
+    const t = Math.min(1, (now - t0) / SCROLL_DUR);
+    box.scrollTop = from + delta * ease(t);
+    if (t < 1) requestAnimationFrame(step);
+  })(performance.now());
+}
+
+/* ---------- panel ---------- */
+let lbScope = "daily";
+let pendingScore = 0;          // this run's score, for the "you'd rank" line
+
+function renderBoard(){
+  const me = Board.me();
+  const rows = Board.top(lbScope, 50);
+  const list = $("lbList");
+  list.innerHTML = "";
+  rows.forEach((r, i) => {
+    const d = document.createElement("div");
+    d.className = "lbRow" + (r.me ? " me" : "");
+    d.innerHTML = '<span class="lbPos"></span><span class="lbName"></span>' +
+                  '<span class="lbScore"></span>';
+    d.children[0].textContent = i + 1;
+    d.children[1].textContent = r.name;
+    d.children[2].textContent = r.score.toLocaleString();
+    list.appendChild(d);
+  });
+  $("lbEmpty").classList.toggle("on", rows.length === 0);
+
+  /* Outside the top 50, the player still gets their own row — pinned below the
+     board so "#578 of 3,412" is answered without scrolling to nowhere. */
+  const you = $("lbYou"); you.innerHTML = "";
+  if (me && me.score > 0 && !rows.some(r => r.me)){
+    const pos = Board.rankOf(me.score, lbScope);
+    const d = document.createElement("div");
+    d.className = "lbRow me";
+    d.innerHTML = '<span class="lbPos"></span><span class="lbName"></span>' +
+                  '<span class="lbScore"></span>';
+    d.children[0].textContent = pos;
+    d.children[1].textContent = me.name;
+    d.children[2].textContent = me.score.toLocaleString();
+    you.appendChild(d);
+  }
+}
+function setScope(next){
+  lbScope = next;
+  $("lbTabDay").classList.toggle("on", next === "daily");
+  $("lbTabAll").classList.toggle("on", next === "all");
+  renderBoard();
+}
+$("lbTabDay").addEventListener("click", () => setScope("daily"));
+$("lbTabAll").addEventListener("click", () => setScope("all"));
+
+function openBoard(){
+  $("titlePanel").classList.remove("on");
+  $("overPanel").classList.remove("on");
+  $("lbPanel").classList.add("on");
+  $("lbScroll").scrollTop = 0;
+  paintReels(); renderBoard();
+}
+function closeBoard(){
+  $("lbPanel").classList.remove("on");
+  if (state === "title")     $("titlePanel").classList.add("on");
+  else if (state === "over") $("overPanel").classList.add("on");
+}
+$("lbBtn").addEventListener("click", openBoard);
+$("lbBack").addEventListener("click", closeBoard);
+$("statRank").addEventListener("click", () => {
+  openBoard();
+  if (Board.me()) requestAnimationFrame(() => requestAnimationFrame(scrollToMe));
+});
+
+/* ---------- the rank row on the results card ----------
+   Rank is a STAT, not a destination: after a run the question is "how did I
+   do", and a number answers it inline without a navigation step. */
+/* Both scopes, always — independent of whichever tab lbScope last left the
+   leaderboard panel on. The board has two rankings and the card should never
+   look like it forgot about one of them. */
+function setRankFigures(score){
+  setFigure($("fRankDaily"), "#" + Board.rankOf(score, "daily").toLocaleString(), 26);
+  setFigure($("fRankAll"),   "#" + Board.rankOf(score, "all").toLocaleString(),   26);
+}
+function syncRankRow(){
+  const me = Board.me();
+  /* Named at boot, so this is only reachable without a rider if storage was
+     blocked outright. Show the standing rank rather than a dead row. */
+  if (!me){
+    setRankFigures(pendingScore);
+    $("fRankNote").textContent = "score not saved";
+    return;
+  }
+  /* Named before the first run, so submission never needs asking for. */
+  Board.submit(pendingScore);
+  setRankFigures(Board.me().score);
+  $("fRankNote").textContent = me.name;
+}
 
 buildWord($("howWord"), WORD.length);   // shown lit on the how-to card: the goal
 reset();

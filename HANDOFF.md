@@ -1,7 +1,7 @@
 # Handoff — `index.html`
 
 "Typhoon Texas — Buckaroo Run": a single-file HTML5 canvas water-slide runner.
-Everything (markup, CSS, game) is in one file, ~4,535 lines. Assets load from
+Everything (markup, CSS, game) is in one file, ~5,105 lines. Assets load from
 `assets/` as real files.
 
 **Start with [`AGENTS.md`](AGENTS.md)** — the short operating brief, read every
@@ -131,9 +131,9 @@ When the rider PNG was swapped, its area changed 114,178 → 229,297 px, so
 
 The line-dance frames were re-exported 2026-08-14: `line-dance_04-05.png` (a
 workaround for an empty `_04` export) was deleted and `_04.png` is now the real
-frame. `index copy.html` points at the new file; **`index.html` still points at
-the deleted one and 404s frame 4.** Frames 10–12 were dropped from the loop at
-the user's request, so `DANCE_KEYS` is nine frames (3s a lap at `DANCE_FPS = 3`).
+frame. `index.html` points at the real frame — the 404 earlier versions of this
+file warned about was fixed. Frames 10–12 were dropped from the loop at the
+user's request, so `DANCE_KEYS` is nine frames (3s a lap at `DANCE_FPS = 3`).
 
 ### Rider animation priority (`drawRider`)
 `die > hurt > jump(flip) > duck > move(lean)`
@@ -233,28 +233,50 @@ Death sequence timing (verified):
 
 ## Tooling — IMPORTANT
 
-Rebuilt 2026-08-14 in the session scratchpad
-(`/private/tmp/claude-501/.../scratchpad/`). **Session-scoped: it will not be
-available to you.** The previous handoff recorded the same loss. Recreating it is
-high-value before any nontrivial change — this session it caught a strobing lean
-pose, a loader that never reached 100%, and proved the steering worked when it was
-reported broken.
+**Every one of these lives in the session scratchpad and will be gone before you
+read this.** That has now happened four times. Rebuilding is cheap and pays for
+itself immediately — the 2026-08-18 set caught a collapsed tab bar, a clipped
+score, a HUD collision and a dead audio latch, none of which review would have
+found. **Put them in `tools/` and commit them.**
 
-- **`harness.js`** — boots the whole game headless in a `vm` context with stubbed
-  DOM/canvas/Image/Audio/AudioContext, then drives it: synthetic touch events
-  through the real listeners, frame stepping, timer pumping. Two traps, both hit
-  again this session: top-level `let`/`const` do **not** land on the sandbox
-  object, so probes must be appended *inside* the script to close over them; and
-  a stub whose properties are a `Proxy` answers `x ||= []` with a truthy stub, so
-  arrays used for recording must be real arrays.
-- **`shot.js`** — screenshots at real phone viewports over the DevTools protocol,
-  with touch emulation on (so the touch copy renders) and an overflow report per
-  device. **Do not use `--window-size` for this** — see Lessons.
-- **`serve_copy.py`** — binds `0.0.0.0`, serves `index copy.html` at `/`, sends
-  no-store, and injects a measuring probe on `?probe=1`.
-- **`audiotest.js` / `gatetest.js` / `bgtest.js`** — drive Chrome under both
-  autoplay policies to prove what the browser will and won't allow, and exercise
-  visibility changes against the real audio context.
+All of them drive real Chrome over the DevTools protocol. The shared skeleton is
+about 25 lines: spawn `--headless=new` with `--remote-debugging-port`, GET
+`/json/version`, open the returned WebSocket, `Target.createTarget` +
+`Target.attachToTarget {flatten:true}`, then `Runtime.evaluate` and
+`Page.captureScreenshot` against that session id. `ws` is the only dependency.
+
+- **`shot.js`** — screenshot any screen at a real phone viewport. Reports failed
+  image loads and broken `<img>`s.
+- **`newflow.js` / `flow.js`** — walk the whole game: first visit, naming,
+  title, a run, word completion, wipeout, reveal, results, return visit. Asserts
+  panel visibility at each step and collects `Runtime.exceptionThrown`. This is
+  the one to rebuild first.
+- **`overflow.js`** — pushes typical/big/extreme figures through the HUD and the
+  results stats at 320/360/412 and reports any element whose
+  `getBoundingClientRect().right` exceeds the viewport or whose `scrollWidth`
+  exceeds its `clientWidth`. Built for item 4; **it is the sweep item 7 needs.**
+- **`audiorepro.js`** — reproduces the mobile audio path:
+  `--autoplay-policy=document-user-activation-required`, mobile emulation, and
+  **real `Input.dispatchTouchEvent` taps**. Synthetic JS events do not carry the
+  user-activation bit, so they cannot reproduce audio unlock bugs at all.
+- **`coinrate.js`** — runs the game with death disabled and samples
+  `coins`/`runScore()` over time. This is how the score ceiling was measured
+  rather than guessed.
+- **`probe.js`** — one-off computed-style and geometry dumps. The cheapest way
+  to answer "why is this element the wrong size".
+
+Two habits worth copying from them:
+
+- **Force screens from globals** (`start()`, `gameOver()`, `showOver()`,
+  `openBoard()`), not synthetic clicks on buttons — a dispatched `pointerdown`
+  does not reliably satisfy the real listener.
+- **Exercise the real code path.** An early overflow run wrote `textContent`
+  directly and so never called `setFigure()`; it reported failures that were
+  purely the harness's fault. A later run claimed a name *after* submitting a
+  score, which re-claimed and reset it to zero. Both cost a round of confusion.
+
+`serve_copy.py`, described in earlier versions of this file, is **obsolete** —
+`server.py` already binds `0.0.0.0` and sends no-store.
 
 ## Lessons paid for the hard way
 
@@ -291,6 +313,38 @@ reported broken.
 - **A phone will serve a cached page for hours.** "The change isn't working" was
   twice a stale cache, not a bug. Send no-store from the dev server and confirm
   the bytes the device receives before debugging the code.
+
+- **A flex item's automatic minimum size is switched off by `overflow`.**
+  `min-height:auto` / `min-width:auto` normally stop an item shrinking below its
+  content — but only while `overflow` is `visible`. `#lbTabs` set
+  `overflow:hidden` for its rounded corners, so its min-height became 0 and a
+  scrolling column squashed the whole tab bar to its 6px of border with the
+  buttons clipped inside. Rule of thumb: **nothing in a scrolling column should
+  shrink** — `#lbScroll > *{flex:none}`.
+- **`flex:1 1 0` does not include `min-width:0`.** Same family, different axis:
+  the results stats row burst past both screen edges because its cells refused
+  to shrink below their content. `.ctl` had been fixed years earlier and the
+  lesson did not travel.
+- **Never cache a measurement taken on a `display:none` element.** Both widths
+  read 0, everything "fits", and the wrong answer sticks. `showOver()` writes
+  the figures before the panel is shown, which is how the results Score shipped
+  visibly clipped. Bail when `clientWidth` is 0 and let a `ResizeObserver` on
+  the *container* re-fit; observing the element itself sees its own font-size
+  changes and re-enters.
+- **A layout collision can be data-dependent.** The Score board only overlapped
+  the STAMPEDE letters once the figure was wide enough. A probe with a small
+  score passed; the screenshot with 85,460 overlapped. Fill fields with
+  worst-case content before believing a layout works.
+- **Sizing a container's children with `width:100%` when the container is
+  shrink-to-fit is circular.** `#lbList` had no width of its own, so under
+  `align-items:center` it hugged its content and its rows came out narrower than
+  the sibling that sized itself. Size containers; let block-level children fill.
+- **Check small artwork at its real size, not just enlarged.** The first swap
+  glyph looked fine at 200px and read as an orange smudge at 44px — the arrows
+  were 20 units wide but 6 tall, so the heads collided with their own shafts.
+  Render candidates at both sizes side by side before choosing.
+- **`translateY` must be repeated in every keyframe** of an animation that also
+  positions an element, or the animation drops the offset and the element jumps.
 
 ## Open work
 
@@ -368,7 +422,513 @@ steering section still claimed to describe that file, and "Running it" claimed
 
 Every symbol AGENTS.md names was checked against `index.html` before it shipped.
 
-### 3. Optimise mobile loading on slower networks
+### 3. Implement a leaderboard
+
+**FRONT END BUILT 2026-08-18, against a stubbed data layer. No backend yet —
+that is deliberate: the user wanted to see and adjust the UI before committing
+to the storage.** Everything below the "Design" heading is the agreed spec; what
+follows first is what actually exists in `index.html` now.
+
+#### Game flow reworked 2026-08-18
+
+The user restructured the run around the leaderboard. Both halves are **built
+and verified**.
+
+**Naming moved to the front.** Loader tap -> `#namePanel` -> title. The tap that
+dismisses the loader is the same one that unlocks audio, so the title tune is
+already playing when the naming screen appears — nobody is handed a silent
+screen and asked to name themselves. Shown **only when there is no stored
+rider**; every later visit goes loader -> title untouched (`afterLoader()`).
+Copy, revised with the user 2026-08-18: eyebrow **"Howdy Partner,"**, headline
+**"What Do They Call Ya?"** — moving "Partner" up to the eyebrow lets the
+headline fit on one line at 412px instead of wrapping. Confirm button
+**"That'll Do"**.
+
+Layout order, as directed by the user: eyebrow, headline, reels, then the
+caption **"Tap to change yer name"** beneath them, then the confirm button.
+**There is no Spin button** — each reel is tapped individually.
+
+Each reel carries a **swap badge with a pulsing ray burst**, chosen by the user
+from a set of options. It exists because the reels otherwise read as two labels
+rather than two controls, and the line of copy saying otherwise is the thing
+people skip.
+
+Built as two pseudo-elements on the button — `::before` is the rays, `::after`
+the badge — with the word moved into a `.reelWord` span. Details that matter if
+this is touched again:
+
+- **`paintReels()` writes into `.reelWord`, never the button.** Setting
+  `textContent` on the button would delete the span and take the badge with it.
+- **`overflow:hidden` lives on `.reelWord`, not `.reel`.** On the button it
+  would clip the badge off at the bottom edge, which is exactly where it sits.
+- **Both share `translateY(62%)`**, so they stay concentric and hang mostly
+  below the button. At the original 50% the badge sat across the word.
+  `.reel` carries 24px of bottom padding for the ~16px it still reaches up.
+- **The keyframes repeat the `translateY`.** Omit it and the animation drops the
+  offset, and the burst jumps up inside the button.
+- **The roll flick is on `.reelWord`, not `.reel`** — animating the button would
+  throw the badge and rays around with it.
+- Honours `prefers-reduced-motion` by holding the rays static.
+
+Glyph geometry was rendered in isolation and compared at both 200px and true
+44px before being chosen; the first attempt read as a smudge at real size
+because the arrows were 20 wide but only 6 tall, so the heads collided with
+their own shafts.
+
+The consequence worth knowing: with a name guaranteed before the first run,
+**submission needs no opt-in and is never prompted** — `syncRankRow()` just
+submits. The old `#lbClaim` step inside the leaderboard panel is gone entirely.
+
+**The user chose: the name is set once, with no way to change it later.** Fine
+on a personal phone. Worth revisiting if this is ever put on a shared park
+kiosk, where the first visitor's name would stick for everyone after.
+
+**The reveal moved to the end of the run.** It used to fire the instant the word
+was spelled, freeze the run, and offer Keep Riding. Now the word finishing is
+just an animation, the player rides on until the last life is gone, and the
+ride-name card is the curtain call:
+
+```
+lives 0 -> wipeout -> endRun()
+             |-- spelled the word -> showReveal() -> [See Your Score] -> showOver()
+             `-- otherwise --------------------------------------------> showOver()
+```
+
+`showReveal()` leaves `state` at `"over"` on purpose — `render()` only places
+the settled wipeout rider in the dying/over states, so the pose has to keep
+drawing behind the card. The results panel is simply held back until asked for.
+`revealContinue()` and `revealRestart()` were deleted with their buttons; there
+is one way off the card now.
+
+**Open wording question:** the results card still reads "You Survived It" for a
+winning run. Every run now ends in a wipeout, so that line is served to someone
+who just crashed. It was accurate when the card could be reached mid-run; it is
+not any more. Not changed — the user has not been asked.
+
+#### What is built
+
+- **`Board`** — an IIFE whose methods are shaped like the REST routes that will
+  replace them: `me()`, `claim(name)`, `submit(score)`, `top(scope, n)`,
+  `total(scope)`, `rankOf(score, scope)`. It seeds 137 fake riders into
+  `localStorage` once so the board looks like a real afternoon rather than
+  reshuffling every open. **Swapping the stub for `fetch()` should touch nothing
+  outside this object.**
+- **`#lbPanel`** — the board, built on `#howPanel`'s shape (inner scroller,
+  darker wash, swallows the keyboard while open). Today/All-Time tabs, top 50,
+  and the player's own row pinned below the list when they fall outside it.
+- **Name reels** — `NAME_A` (40 adjectives) x `NAME_B` (40 nouns) = 1,600
+  combinations. Tap either reel to reroll just that half, or Spin for both.
+  `BAD_NUM` blocks the loaded 3-digit suffixes.
+- **Rank as a stat** — `#statRank`, a row inside the existing `#stats` block on
+  the results card. Shows the real rank once claimed, or "you'd rank #N — tap to
+  join" before, since `rankOf()` needs only a score.
+- **Score in the HUD** — `#hudScore`, in a new `#hudLeft` column under Descent.
+- **Leaderboard button** — a second ghost beside How to Play in a `.ghostRow`,
+  keeping the title at one primary plus one secondary row.
+
+#### Bugs found and fixed while building it
+
+- **The pinned "you" row was wider than the board above it.** `#lbList` had no
+  width rule of its own, so as a flex item under `align-items:center` it shrank
+  to fit its content — and its rows, sized `width:100%` against a shrink-to-fit
+  parent, resolved narrower than `#lbYou`, which sized itself. Fixed by sizing
+  the CONTAINERS (`#lbHead`, `#lbList`, `#lbYou` share one width rule) and
+  letting the rows, which are block-level grids, simply fill them. Side padding
+  on `#lbScroll` also drops from 22px to 9px below 560px so the board runs
+  nearly edge to edge on a phone. Verified: rows and the pinned row now match to
+  the pixel at both 412px (394px wide, 96% of screen) and 320px (302px, 94%).
+
+- **`#lbTabs` collapsed to 6px**, its buttons clipped inside. A flex item's
+  automatic minimum size stops it shrinking below its content **only while
+  `overflow` is `visible`** — and the tab bar sets `overflow:hidden` for its
+  rounded corners, so `min-height` resolved to 0 and the scrolling column
+  squashed it. Fixed with `#lbScroll > *{flex:none}`: nothing in a scrolling
+  column should ever shrink.
+- **`setFigure()` cached a fit it never made.** Figures are written in
+  `showOver()` while `#overPanel` is still `display:none`, so both widths
+  measured 0, the text "fitted" trivially, and the cached result shipped the
+  results Score visibly clipped. Now `applyFit()` bails when `clientWidth` is 0
+  and a **`ResizeObserver` on the CELL** (not the figure — watching the figure
+  would see its own font-size changes and re-enter) re-fits when the box becomes
+  real. This also covers rotation and desktop resize.
+- **The Score board collided with the STAMPEDE letters strip.** `#letters` sat
+  at `top:78px`, sized to clear a single row of boards; the left column is two
+  tall (128px measured). Moved to 150px. Note the collision only appeared once
+  the score had enough digits to widen the board — a probe with a small score
+  passed while the screenshot with 85,460 overlapped.
+- **Names ellipsised at 320px** ("Speedy Catfi..."). Technically correct — the
+  rule is that the *name* gives way and the number never does — but useless to
+  read. A `max-width:380px` block gives the name column its space back. Every
+  name now fits unellipsised at 320px.
+
+#### Verified
+
+412px and 320px, `Emulation.setDeviceMetricsOverride` at dsf 2, walking title ->
+board -> claim -> run -> results. No JS exceptions. The overflow sweep still
+passes 18/18.
+
+#### Word list audit — 2026-08-18, RULED ON
+
+All 40 adjectives and 40 nouns read through. The lists are safe from *typed*
+profanity by construction; the audit was about tone, association and trademark,
+which are judgement calls rather than safety ones.
+
+**RULED ON by the user 2026-08-18: cut `Blazin'` only, keep everything else.**
+It was replaced with **`Trusty`** to hold the lists at 40x40 — "trusty steed",
+western and wholesome. That replacement is the one word in either list the user
+has not personally reviewed.
+
+Everything below is the original audit, kept as the record of what was
+considered and consciously accepted — so it is not re-litigated every time
+someone new reads the lists.
+
+**Recommended dropping, DECLINED by the user (all kept):**
+
+- **`Bellyflop`** — the clearest one. It is a *body* word bolted onto a person's
+  identity, at a venue where everyone is in a swimsuit. "Wobbly Bellyflop",
+  "Soggy Bellyflop", "Bouncy Bellyflop" all read as a comment on the player.
+- **`Stallion`** — carries a virility read when applied to a person, and
+  "Sizzlin' Stallion" is the pairing that makes it obvious.
+- **`Sizzlin'`** — the "hot person" sense is the problem, not the word. It is
+  what turns several otherwise-fine nouns suggestive.
+
+**Water-hazard names at a water park — considered, kept**
+
+`Riptide`, `Whirlpool`, `Ripcurl`. Rip currents and whirlpools are things that
+actually drown people, and parks are normally careful with that imagery. They
+are great *words* and completely on-theme; this is a brand-tone call.
+
+**Trademark / strong brand association — considered, kept**
+
+`Longhorn` (UT Athletics — and this is a Texas park, so it reads as
+affiliation), `Mustang` and `Bronco` (Ford; Broncos), `Wrangler` (Jeep, jeans),
+`Ripcurl` (Rip Curl), `Whirlpool` (appliances), `Gator` (Florida Athletics),
+`Frosty` (Wendy's), `Maverick`. None are infringing as a first name on a
+leaderboard, but `Longhorn` is the one a Texas park might want to think about.
+
+**Slang the lists may not intend — considered, kept**
+
+- `Blazin'`, `Sunbaked` — cannabis adjacency. `Blazin'` is widely used in family
+  food branding, so this is mild.
+- `Drippy` — "drip" is a compliment in current slang, but "a drip" is also a
+  feeble person, and there is a bodily read.
+- `Catfish` — online deception. Mildly ironic on a board of generated names.
+- `Stormy` — the Stormy Daniels association.
+- `Cowpoke` — legitimate western term, but "cow" is an insult in some English
+  dialects and "poke" has its own slang.
+
+**Fine as they are:** every remaining adjective, and `Longhorn`'s neighbours
+`Armadillo`, `Rattler`, `Buckaroo`, `Coyote`, `Tumbleweed`, `Roadrunner`,
+`Jackrabbit`, `Cactus`, `Sheriff`, `Ranger`, `Drifter`, `Cowpoke`,
+`Prairiedog`, `Bluebonnet`, `Cannonball`, `Flume`, `Geyser`, `Gator`,
+`Catfish`, `Otter`, `Pelican`, `Dolphin`, `Splashdown`, `Sunfish`, `Seahorse`,
+`Bullfrog`, `Turtle`, `Minnow`, `Anchor`, `Torpedo`.
+
+**Bug found during the audit:** `BAD_NUM` listed 13, 69, 86 and 88 — but the
+generator draws 100-999, so those could never be produced. They were dead
+entries that looked like protection. Now 3-digit only: 187, 322, 420, 451, 666,
+911.
+
+#### Open for the user
+
+1. **The claim step shows above a full board.** Reads slightly busy — the reels
+   and "Use This Name" sit over the top 50. Alternative is a dedicated claim
+   view that swaps to the board after.
+2. **Stats cells size independently**, so a long Score renders smaller than a
+   short Descent beside it (carried over from item 4).
+3. Whether to auto-submit after the first opt-in, or prompt every run.
+4. Word lists need a **full read-through before launch** — all 1,600 pairs. That
+   audit is the entire safety argument for the closed set, and it has not been
+   done.
+
+---
+
+#### Design (agreed 2026-08-18, unchanged)
+
+**Today** there is no leaderboard and no backend. Bests are per-device: `BEST` in
+`localStorage` under `stampede.best.v1` (`dist`, `coins`, `score`, `letters`,
+`runs`, `index.html:1621`), feeding the "NEW BEST" badges on the results panel.
+
+#### Identity — a closed set, never free text
+
+**No typed names, ever.** The player composes a name from two curated word lists
+(slot-machine reels they can spin and lock): `[Adjective] [Noun]`, western and
+water-park flavoured — *Soggy Buckaroo*, *Rowdy Riptide*, *Dusty Cannonball*.
+
+The reasoning, so nobody reopens it: free text means owning a moderation problem
+forever, and blocklists lose to leetspeak, spacing, homoglyphs and every language
+that is not English. The real risk is not a rude row in a database, it is a
+screenshot of Typhoon Texas branding beside a slur. A closed set makes the
+problem structurally impossible instead of policed — and ~50x50 combinations is
+small enough to **audit in full, once**, which also catches pairs that are fine
+apart and bad together.
+
+- **Collisions** get a random 3-digit suffix, **rolled server-side and re-rolled
+  on clash** — a client-side random can collide with itself and solves nothing.
+- **The digits need a blocklist too.** `666`, `420`, `069`, `187`, `13`, `88`.
+  Engineering profanity out of the words and letting it back in through the
+  number would be an own goal. Only 1,000 values, so audit them all.
+- **Names are reserved at CREATION, not at submission**, and returned with a
+  **player token** stored beside `BEST`. Resolving collisions at submit time
+  would let a name change under a player who already had it for three runs.
+  The token is a login-less account: no email, no PII — a feature for a family
+  park, not a compromise.
+- `localStorage` **throws outright in some contexts** (see `BEST`'s try/catch).
+  The name needs the same wrapping, and the fallback is a playable game with an
+  unsaved identity, never a crash.
+
+#### Storage — one row per player
+
+**One row per player, updated only when they beat their own best.** Not one row
+per run: that lets a single good player fill the whole top 50, and turns rank
+into "#578 of 40,000 runs" instead of "#578 of 3,412 riders".
+
+**Build it as a small WordPress plugin — a custom table plus REST routes.** The
+game is going on the user's WordPress site (which uses ACF and WS Form). Both
+were considered and rejected for the store:
+
+- **ACF repeater** on an options page serialises the list into ONE `postmeta`
+  row, so two simultaneous finishes read-modify-write over each other and lose
+  scores. At park volume that is routine, not rare. **Do not use it.**
+- **ACF + a post per player** avoids that but ranks via `ORDER BY
+  meta_value_num` over the key-value `postmeta` table — slow, and it buries
+  wp-admin under thousands of junk posts.
+- **WS Form** captures submissions well, but it is append-only and this needs an
+  upsert plus cheap ranked reads. Its one real edge is an admin moderation UI —
+  and the closed-set naming means **there is nothing to moderate**.
+
+A custom table keeps everything inside the existing WP install: no new service,
+no new bill, same-origin so no CORS.
+
+```sql
+CREATE TABLE wp_stampede_scores (
+  id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  token       CHAR(32)     NOT NULL UNIQUE,
+  name        VARCHAR(64)  NOT NULL UNIQUE,
+  score       INT UNSIGNED NOT NULL,
+  achieved_at DATETIME     NOT NULL,
+  KEY score_rank (score DESC, achieved_at ASC)
+);
+```
+
+- upsert: `INSERT … ON DUPLICATE KEY UPDATE score = GREATEST(score, VALUES(score))`
+- rank: `SELECT COUNT(*)+1 WHERE score > ?`
+- board: `ORDER BY score DESC, achieved_at ASC LIMIT 50`
+
+**Ties must break deterministically** — score desc, then *earliest* achieved.
+Score is coarse (letters cap at 2,000, spare tubes 1,500, speed bonus 3,000;
+everything above that is coins at 10 each), so exact ties will happen, and
+without a tiebreak tied players swap places on every load and the board looks
+broken.
+
+#### Placement — one panel, three entry points
+
+Every existing screen uses the same **one primary + one ghost button** pattern
+(Drop In / How to Play, Ride Again / Get Season Passes). A third peer button
+breaks that everywhere at once, and on the results screen it would compete with
+the Season Passes CTA. The reveal is now the exception — it carries a single
+button, See Your Score, because the run is already over when it appears.
+
+- **Results screen is the real home, and rank is a STAT, not a destination.**
+  Add a row to the existing `#stats` block; tapping it opens the board. After a
+  run the question is "how did I do", which a rank answers inline without
+  navigation.
+- **Title screen:** Leaderboard as a second ghost button *beside* How to Play, so
+  the weight stays "one primary, one secondary row" rather than three stacked.
+- **Win screen:** rank inline only, appearing *after* the reveal animation. That
+  screen was reworked to focus on the slide reveal; a button undercuts it.
+- **HUD: no.** Ruled out. Nobody browses a leaderboard mid-run, touch during play
+  is a joystick so a tap target there is a mis-input hazard, and panel padding
+  already fights the floating mute button on short screens.
+- **Reuse the `#howPanel` pattern** for the board itself — it already scrolls,
+  has its own darker wash, swallows the keyboard while open, and is hidden
+  rather than torn down. One panel, three entry points.
+
+#### Submit flow
+
+Rank can be computed **without** submitting, since it needs only the score. So
+show the player where they would land, then let them opt in — a far better
+prompt than an abstract yes/no:
+
+```
+Score          12,940   ★ BEST
+You'd rank       #578      [ Add me to the leaderboard ]
+```
+
+First tap opens the reels and submits. After that the name persists and the
+results screen shows `Riding as SOGGY BUCKAROO 447  [change]`.
+
+**Open with the user:** whether to auto-submit after the first opt-in (my
+recommendation — a prompt between the player and *Ride Again* is friction at the
+worst moment, with an opt-out in the panel) or to ask on every run.
+
+#### Blocking questions
+
+**Both answered 2026-08-18.**
+
+1. **Two boards: Daily and All-Time.** Daily is the default — on a season-long
+   promo an all-time-only board lets the first week's riders camp the top and
+   everyone after stops trying.
+2. **Rank on `score`, unchanged**, and **surface Score in the HUD** so players
+   can see the thing they are being ranked on while they play. It is currently
+   invisible during a run — the HUD shows Descent and Buckaroos only, so players
+   would grind metres and then be ranked on something they never saw.
+
+   `runScore()` (`index.html:1733`) = `coins x 10 + letters x 250 + spare tubes
+   x 500 + speed bonus (<=3000)`. The fixed part caps at 6,500; **everything
+   above that is coins, which are unbounded**, so the number can grow without
+   limit. See the next item — that is a real constraint, not a hypothetical.
+
+#### Not addressed, and accepted
+
+Anyone can claim any name, and the score is computed in client-side JS in a file
+anyone can read, so it is forgeable. Both are probably fine for a park promo, and
+neither should shape the naming or storage decisions. Revisit only if the board
+starts getting gamed.
+
+### 4. Long numbers overflow their boxes — FIXED 2026-08-18
+
+**Was already broken before any leaderboard work**, not caused by it.
+
+**Root cause.** `.statRow > div` was `flex:1 1 0` with no `min-width:0`. A flex
+item defaults to `min-width:auto` and refuses to shrink below its content, so a
+long figure did not compress the cell — it burst the whole row past both screen
+edges, taking its own border and shadow with it. `#coinRow`'s `.val` had the
+same problem in the HUD. `.ctl` (`index.html:275`) had been fixed this way
+already; these two were missed.
+
+Before the fix (`getBoundingClientRect().right` vs viewport, dsf 2):
+
+| width | 12,940 *(typical today)* | 1,284,930 | 984,210,300 |
+|---|---|---|---|
+| 320px | **overflowed** 325>320 | 363 | 402 |
+| 360px | ok | **overflowed** 387>360 | 426 |
+| 412px | ok | **overflowed** 418>412 | 458 |
+
+After: **all 18 combinations pass** (3 widths x 3 magnitudes x HUD + stats).
+
+**What changed**
+
+- `min-width:0` on `.statRow > div`, `#coinRow`, `#coinRow .val`, `#hud > *`;
+  `max-width:100%` on `.board`, `62%` on `#hudRight`, `flex:none` on the coin
+  icon so it is never the thing that shrinks.
+- **`setFigure(el, value, maxPx)`** (`index.html`, above `syncHUD`) formats with
+  `toLocaleString()` and steps the font size down until the text fits, floor
+  8px. It caches on **digit count**, so it only re-measures when the number
+  changes length — the HUD is not forcing a layout every frame.
+- All six figures now route through it: `dist`, `coins` in the HUD; `fDist`,
+  `fCoins`, `fScore` on the results screen. **Formatting is now consistent** —
+  the HUD used to render raw while the results screen localised.
+
+**Deliberately NOT done: `white-space:nowrap` on `#stats strong`.** The "New
+best" pill is an `inline-block` `::after` on that element, and nowrap drags it up
+beside the figure — the exact bug the existing `display:block` is there to
+prevent. Digits do not need it: a comma between digits is UAX-14 class IS and
+carries no line-break opportunity, so `1,284,930` cannot wrap. `.board .val`
+does get nowrap, because `"18,432 m"` contains a real space and has no pill.
+
+**The ceiling was measured, not guessed.** An unsteered bot banks 67 coins in
+118s. Even granting a skilled player 5x that rate: ~15,000 after 5 minutes,
+~57,500 after 30, ~210,500 after two hours, ~2,450,000 after a full day — 6 to 9
+characters. Everything to 9 characters fits **unshrunk** at 320px. The 11-digit
+case the harness proves is beyond reach: 984,210,300 needs ~98 million coins,
+about 9,600 hours. The shrink exists for the tail, not the normal case.
+
+**Open, minor:** cells now size independently, so a long Score renders smaller
+than a short Descent beside it. It degrades correctly but reads slightly uneven.
+Fitting the whole row to its narrowest cell would look tidier at the cost of
+shrinking figures that had room. Not done — ask the user.
+
+**Still to do here, once the leaderboard lands:** Score is not in the HUD yet
+(item 3 decided it should be), and leaderboard rows pair a name up to ~22
+characters with a long score — size those columns explicitly and ellipsise the
+**name** if anything, never the number. The harness in the scratchpad
+(`overflow.js`) reports per-element overflow and belongs in `tools/`.
+
+### 5. Replace Descent with Score in the HUD
+
+Requested by the user 2026-08-18. **Remove the Descent board from the HUD
+entirely and move Score into the slot it vacates**, rather than keeping both.
+
+Score currently sits in `#hudLeft` *below* Descent, which is what pushed the
+STAMPEDE letters strip from `top:78px` down to `150px` (item 4). Dropping Descent
+returns the left column to a single board, so that 150px should very likely go
+back to 78px — **re-measure rather than assume**, since the strip only collided
+once the figure was wide enough to notice.
+
+Distance stays on the results card (`fDist`), so nothing is lost from the run
+summary; it just stops competing for the top of the screen with the number the
+leaderboard actually ranks.
+
+### 6. Sky disappearing bug
+
+**Symptom, from the user 2026-08-18:** the **sun, the clouds, and the sky
+gradient above the western backdrop disappear when the canvas rotates at extreme
+angles.** The park aerial itself stays. Parked deliberately — not being worked
+on yet.
+
+Two things already checked, so nobody repeats them:
+
+- **It is NOT the obvious missing-`OVER` bug.** The sky gradient fill already
+  overdraws correctly — `ctx.fillRect(-OVER, -OVER, W + OVER*2, horizon + OVER +
+  2)` at `index.html:3029` — and `backdrop()` is drawn *inside* the rolled frame
+  (`render()`, `index.html:4397`), which is the right place. The first
+  hypothesis is dead.
+- **The sun and clouds have no vertical overdraw allowance.** Both are placed in
+  unrotated screen coordinates inside the `0..horizon` band: the sun at
+  `cy = max(d*0.6, horizon*0.32)` (`index.html:3043`), the clouds at
+  `cy = horizon * c.v - ch/2` (`index.html:3058`). Clouds get a **horizontal**
+  margin of `W*0.35` and a wrap copy, but nothing vertical. Roll pivots about
+  the vanishing point at `(W/2, horizon)`, so at `ROLL_MAX = 0.27` rad (~15.5°)
+  content near the top of that band swings furthest. **This is the strongest
+  lead — start here.**
+
+Worth confirming early whether the gradient genuinely vanishes or is merely
+being *covered*, since it and the sun/clouds may be two separate faults that
+happen to show together.
+
+### 7. Audit every screen at every viewport
+
+Requested by the user 2026-08-18: **view all screens at a range of widths and
+heights and confirm nothing is cut off or pushed out of its box.** Item 4 came
+out of doing a slice of this and found a live bug, so the sweep is likely to
+find more.
+
+Screens: loading, title, How to Play, in-run HUD, paused, wipeout/results, win
+reveal, and the leaderboard panel once it exists.
+
+Widths worth covering: 320 (small Android / SE), 360 (most common Android), 390
+and 412 (the user's phone class), 768 (tablet), plus desktop. Heights matter
+independently — a short landscape phone is what clipped the title screen top and
+bottom once before, which is why "check mobile viewports on every UI change" is
+a standing instruction.
+
+Do it with `Emulation.setDeviceMetricsOverride` over CDP, **never
+`--window-size`** (headless clamps to a 500px minimum and invents overflow that
+is not real — an hour went into that once). The overflow probe written for item
+4 already reports `getBoundingClientRect().right > clientWidth` and
+`scrollWidth > clientWidth` per element; it belongs in `tools/` rather than a
+scratchpad. Fill every field with worst-case content first — longest name,
+biggest number, all eight letters lit — since empty states always fit.
+
+### 8. Jump / duck windows are too tight
+
+Carried over, re-verified as open. The user's words: "feels too tight and
+unfair." Levers: the lift threshold at `index.html:2927` (`airborne = jumpT >= 0
+&& lift > 0.28`), the hazard z-band at `:2939` (`e.z > travelled + 0.5 || e.z <
+travelled - 1.2`), `JUMP_DUR = 0.62` at `:1837`, and `tuckT`. Candidates: lower
+the threshold, widen the durations, narrow the z-band, or add coyote time after
+the input. Measure before and after.
+
+### 9. Mobile render cost — still never profiled on a device
+
+Suspected cost centres unchanged: ~120 water streaks, 12 rail polygons
+rebuilding gradients every frame, the park aerial rescaled every frame, ribs
+drawn from dz 0.85. The cheapest suspected win is still untaken: `DPR` is
+`Math.min(2, devicePixelRatio)` at `index.html:1175`, and capping at 1.5 cuts
+fill-rate ~44% on a 2× phone. Profile first — that is a guess until measured.
+
+### 10. Optimise mobile loading on slower networks
 
 **PNG compression done 2026-08-18. Referenced sprites: 26.25 MB -> 6.93 MB, a
 73.6% cut.** With the user's own music re-encode the same day, the first load is
@@ -403,13 +963,9 @@ Verified, not assumed:
 - Title and in-game screenshotted headless at 412x915. 53/53 images load, no
   network failures, rider still seated correctly in the tube.
 
-**Originals backed up to `/Users/Adam.Hood/projects/stampede-png-backup/`** with
-a SHA-256 manifest. This matters beyond the usual: `letters_01`-`08` and
-`cabana-umbrella.png` were modified-but-uncommitted when the pass ran, so git
-alone would have restored a *stale* version of those, not the pre-compression
-one. Restore everything with:
-`rsync -a --exclude MANIFEST.sha256 /Users/Adam.Hood/projects/stampede-png-backup/ /Users/Adam.Hood/projects/stampede/`
-Delete the backup once the compression is accepted and committed.
+Originals were backed up outside the repo with a SHA-256 manifest for the
+duration of the work and **deleted on 2026-08-18** once it was committed, pushed
+and eyeballed. To undo the compression now, revert `c398d6b`.
 
 Still open on this item:
 
@@ -425,44 +981,7 @@ Still open on this item:
 - The ~40 MB of unreferenced files in `assets/` were left alone by the user's
   choice — they are source art, and they never reach a player.
 
-### 4. Implement a leaderboard
-
-Today there is no leaderboard and no backend. Bests are per-device: `BEST` in
-`localStorage` under `stampede.best.v1`, tracking `dist`, `coins`, `score`,
-`letters`, `runs` (`index.html:1621`), feeding the "NEW BEST" markers on the
-results panel. The score calculation already exists (commit `8cec61b`), so the
-value to submit is in hand.
-
-This is the one item that changes the shape of the project, so the decisions
-come before the code:
-
-- **A shared leaderboard needs a server.** That ends "static site on GitHub
-  Pages", or bolts a hosted service onto the side of it.
-- **Scope:** global all-time, daily/weekly reset, or per-park/kiosk?
-- **Identity:** arcade-cabinet initials, or something accounted? Initials dodge
-  every privacy question and suit the ride-queue setting.
-- **Abuse:** the score is computed in JavaScript in a file anyone can read. Any
-  public board will be forged without server-side validation. Decide how much
-  that matters up front — on controlled kiosk hardware, possibly not at all.
-
-### 5. Jump / duck windows are too tight
-
-Carried over, re-verified as open. The user's words: "feels too tight and
-unfair." Levers: the lift threshold at `index.html:2927` (`airborne = jumpT >= 0
-&& lift > 0.28`), the hazard z-band at `:2939` (`e.z > travelled + 0.5 || e.z <
-travelled - 1.2`), `JUMP_DUR = 0.62` at `:1837`, and `tuckT`. Candidates: lower
-the threshold, widen the durations, narrow the z-band, or add coyote time after
-the input. Measure before and after.
-
-### 6. Mobile render cost — still never profiled on a device
-
-Suspected cost centres unchanged: ~120 water streaks, 12 rail polygons
-rebuilding gradients every frame, the park aerial rescaled every frame, ribs
-drawn from dz 0.85. The cheapest suspected win is still untaken: `DPR` is
-`Math.min(2, devicePixelRatio)` at `index.html:1175`, and capping at 1.5 cuts
-fill-rate ~44% on a 2× phone. Profile first — that is a guess until measured.
-
-### 7. 80° plunge set-piece — blocked, and should stay blocked
+### 11. 80° plunge set-piece — blocked, and should stay blocked
 
 The fixed-pitch camera tops out near 31.7°; at 80° the vanishing point sits
 ~4,764 px below the horizon. Needs new art (steep rib, crest lip, plunge pose,
@@ -505,17 +1024,58 @@ sections of this document (item 2). All 63 referenced assets resolve.
 
 ## Git state
 
-Branch `music-bug`, level with `main` (0 commits either way), last commit
-`c960856`. The `finger-slide-feature` work described earlier in this document
-has long since merged. **The user has not asked for a commit. Confirm before
-committing.**
+**The `origin` remote is temporarily pointed at SSH-over-443.** Set 2026-08-18
+because the hospital wifi the user was on blocks outbound port 22, so the normal
+`git@github.com:` remote times out. It is the same SSH key and the same
+permissions — only the transport differs.
 
-Working tree — all of it the in-flight sound swap, item 1:
-- `index.html` modified: `SFX.jump`, `SFX.hurt`, `SFX.dead` switched from `.wav`
-  to `.mp3`; the `SFX.hit` key removed and `Sound.hit()` made synth-only.
-- `Player Jumping.mp3`, `typhoon-hurt.mp3`, `typhoon-dead.mp3` untracked.
-- `Horse Whinny.mp3` and `Happy Game Notification.wav` deleted. Neither is
-  referenced any more — the `SFX.hit` key is gone, and the `.mp3` beside the
-  second is what loads.
-- The superseded `.wav` originals (`Player Jumping.wav`, `typhoon-hurt.wav`,
-  `typhoon-dead.wav`) were deleted during the same session.
+```
+# current (temporary)
+ssh://git@ssh.github.com:443/adamhood15/stampede.git
+
+# revert to this once off that network
+git remote set-url origin git@github.com:adamhood15/stampede.git
+```
+
+If a push ever hangs and then fails with `ssh: connect to host github.com port
+22: Operation timed out`, that is the network, not the repo — check port 22
+with `nc -z github.com 22` before debugging anything else.
+
+
+**Working tree is NOT clean.** `main` and `music-bug` both sit at `c398d6b`,
+pushed to `origin/main` on 2026-08-18 — linear history, fast-forwarded rather
+than merged. Everything since is **uncommitted**:
+
+| path | state | what it is |
+|---|---|---|
+| `index.html` | modified | the whole leaderboard front end, the reworked game flow, the naming screen, and the long-number fix. ~570 lines added since `c398d6b`. |
+| `HANDOFF.md` | modified | this file |
+| `database-plan.md` | untracked | a leaderboard storage plan the user added 2026-08-19. Set aside for now at the user's direction — **do not act on it without asking.** |
+| `assets/sprites/chute/tunnel-ring-inner.png` | untracked | new chute art, 731 KB, **not referenced by `index.html` yet** |
+
+Two things worth knowing before the next commit:
+
+- **`tunnel-ring-inner.png` has not been through the compression pass.** At
+  714 KB it would be the **second-heaviest sprite** in the payload (behind
+  `background-western.png` at 1,091 KB) and the fifth-heaviest file overall.
+  Run it through `pngquant --quality=70-98 --speed 1` then
+  `oxipng -o max --strip safe` before it lands, or it quietly gives back a
+  chunk of item 10's saving. If it feeds a chute ring it is probably a
+  registration-relevant sprite — check before going lossy (item 10 has the
+  method).
+- The commit that lands all this is large and spans several unrelated concerns
+  (flow rework, leaderboard, layout fixes). Worth splitting if the user wants a
+  readable history; worth one commit if they do not.
+
+**The user asks for commits — confirm before committing.**
+
+Loose ends, none of them blocking:
+
+- The PNG and audio backups taken during the compression pass were **deleted
+  2026-08-18**, after the work was committed, pushed and confirmed by eye. Git
+  is the only copy of the pre-compression art now, which is fine — but note that
+  reverting the compression means reverting `c398d6b`, not restoring a folder.
+- `music-bug` is now redundant — it points at the same commit as `main`. It can
+  be deleted along with the three other merged branches (see Housekeeping).
+- **No `.gitignore`.** Five `.DS_Store` files and `__pycache__/server.cpython-
+  314.pyc` are tracked, and `assets/.DS_Store` rode along in `c398d6b`.
