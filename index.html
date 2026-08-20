@@ -422,6 +422,36 @@
   #namePanel #reels{margin-bottom:38px}
   #namePanel .lbLead{margin:0}
 
+  /* Reels stay blank rather than painting a name that could jump the instant
+     the taken-names fetch resolves — no flicker, just a brief empty beat. */
+  #reels.loading .reelWord{opacity:0}
+  #reels.disabled{pointer-events:none;opacity:.6}
+
+  /* Button swaps its label for a spinner rather than changing size, so the
+     panel doesn't jump while a claim is in flight. */
+  #nameGo{position:relative}
+  #nameGo.busy .btnLabel{visibility:hidden}
+  #nameGo .spinner{display:none}
+  #nameGo.busy .spinner{display:block;position:absolute;left:50%;top:50%;
+    width:22px;height:22px;margin:-11px 0 0 -11px;
+    border:3px solid var(--ink);border-top-color:transparent;border-radius:50%;
+    animation:btnSpin .7s linear infinite}
+  @keyframes btnSpin{to{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion:reduce){
+    #nameGo.busy .spinner{animation:none;border-top-color:var(--ink)}}
+
+  #namePanel .nameError{display:none;color:var(--orange);margin-top:10px}
+  #namePanel .nameError.on{display:block}
+
+  /* Only ever shown alongside a failed claim — see #nameGo's click handler.
+     A broken/unreachable backend must never be a hard wall between the
+     player and the game. */
+  #namePanel .skipLink{display:none;background:none;border:none;padding:0;
+    margin-top:12px;font-family:inherit;font-size:12px;color:var(--pale);
+    opacity:.7;text-decoration:underline;cursor:pointer}
+  #namePanel .skipLink.on{display:inline-block}
+  #namePanel .skipLink:active{opacity:1}
+
   /* rows ------------------------------------------------------------------
      An explicit 3-column grid, NOT flex: the rank and score columns are sized
      to their widest plausible content and the NAME takes the slack, so a long
@@ -960,7 +990,12 @@
       <button class="reel" id="reelB" type="button"><span class="reelWord"></span></button>
     </div>
     <p class="lbLead">Tap to change yer name</p>
-    <button class="btn" id="nameGo" type="button">That'll Do</button>
+    <button class="btn" id="nameGo" type="button">
+      <span class="btnLabel">That'll Do</span>
+      <span class="spinner" aria-hidden="true"></span>
+    </button>
+    <p class="lbLead nameError" id="nameError"></p>
+    <button class="skipLink" id="nameSkip" type="button">Play without saving your name</button>
   </div>
 
   <div class="panel" id="howPanel">
@@ -1361,7 +1396,8 @@ function afterLoader(){
   if (Board.me()) return;
   $("titlePanel").classList.remove("on");
   $("namePanel").classList.add("on");
-  paintReels();
+  $("reels").classList.add("loading");
+  loadTakenNames();
 }
 
 function dismissLoader(){
@@ -4901,102 +4937,167 @@ window.addEventListener("keydown",     () => startTitleMusic(true));
 
 /* A CLOSED SET, never a text field. Two curated lists make profanity
    structurally impossible instead of policed — no blocklist to maintain and
-   nothing for leetspeak or homoglyphs to slip through. 40x40 is also small
-   enough to read in full once, which is the only way to catch pairs that are
-   fine apart and bad together. */
+   nothing for leetspeak or homoglyphs to slip through. Grown to 100x100
+   2026-08-20 (was 40x40) — every individual word is still readable in one
+   sitting, but the 10,000-pair cross product no longer is; see HANDOFF.md
+   "Word lists expanded" for the resulting audit gap. Mirrored in the plugin
+   at waterpark-leaderboard/includes/class-name-pool.php — keep both in sync. */
 const NAME_A = ["Dusty","Rowdy","Soggy","Rusty","Lucky","Wild","Trusty","Sandy",
   "Muddy","Sunbaked","Splashy","Gritty","Speedy","Bouncy","Rugged","Breezy",
   "Sizzlin'","Drippy","Twisty","Wobbly","Hasty","Jumpy","Zippy","Peppy","Sunny",
   "Stormy","Boomin'","Rollin'","Tumblin'","Whistlin'","Hollerin'","Ramblin'",
-  "Roamin'","Frosty","Dizzy","Scrappy","Plucky","Nimble","Sturdy","Cheerful"];
+  "Roamin'","Frosty","Dizzy","Scrappy","Plucky","Nimble","Sturdy","Cheerful",
+  "Scorchin'","Blazing","Weathered","Leathery","Windswept","Sunburnt","Rangy",
+  "Wiry","Feisty","Hardy","Hitchin'","Stampedin'","Canyon-bred","Corral-tough",
+  "Untamed","Free-roamin'","Yippin'","Whoopin'","Hootin'","Rodeo-ready",
+  "Rip-roarin'","Wranglin'","Saddlesore","Rootin'-tootin'","Barnstormin'",
+  "Spurred","Ranch-raised","Dune-hoppin'","Sagebrush","Prairie-bred",
+  "Trailworn","Splashin'","Drenched","Soaked","Waterlogged","Bubbly","Foamy",
+  "Fizzy","Slippery","Slick","Sloshy","Wavy","Rippling","Gushing","Misty",
+  "Dewy","Damp","Drizzly","Poolside","Tubular","Slidin'","Divin'",
+  "Cannonballin'","Floatin'","Bobbin'","Sudsy","Frothy","Sparkling","Chilly",
+  "Dripping"];
 const NAME_B = ["Longhorn","Armadillo","Bronco","Rattler","Buckaroo","Coyote",
   "Tumbleweed","Mustang","Wrangler","Stallion","Roadrunner","Jackrabbit","Cactus",
   "Sheriff","Ranger","Drifter","Maverick","Cowpoke","Prairiedog","Bluebonnet",
   "Cannonball","Riptide","Bellyflop","Flume","Geyser","Gator","Catfish","Otter",
   "Pelican","Dolphin","Splashdown","Whirlpool","Ripcurl","Sunfish","Seahorse",
-  "Bullfrog","Turtle","Minnow","Anchor","Torpedo"];
-
-/* Digits spell things too. Engineering profanity out of the words and then
-   letting it back in through the collision suffix would be an own goal — a
-   board reading "Soggy Buckaroo 666" is exactly the screenshot to avoid.
-   Only 1,000 values, so the whole space is auditable. */
-/* THREE-DIGIT ONLY. The generator draws 100-999, so the 2-digit entries this
-   list started with (13, 69, 86, 88) could never be produced and were dead
-   weight pretending to be protection. Anything genuinely loaded that CAN come
-   out of the generator belongs here instead. */
-const BAD_NUM = new Set([187, 322, 420, 451, 666, 911]);
+  "Bullfrog","Turtle","Minnow","Anchor","Torpedo",
+  "Deputy","Outlaw","Bandit","Gunslinger","Pioneer","Trailblazer","Rustler",
+  "Vaquero","Rancher","Buffalo","Bison","Mule","Burro","Bobcat","Sidewinder",
+  "Scorpion","Vulture","Buzzard","Falcon","Wildcat","Lariat","Corral","Canyon",
+  "Mesa","Butte","Frontier","Homestead","Chuckwagon","Stagecoach","Wagonwheel",
+  "Campfire","Lantern","Saloon","Cantina","Tidalwave","Wavepool","Lazyriver",
+  "Waterslide","Slipnslide","Splashpad","Kayak","Jetski","Lifeguard","Snorkel",
+  "Flipper","Mermaid","Narwhal","Stingray","Barracuda","Piranha","Manatee",
+  "Walrus","Pufferfish","Jellyfish","Starfish","Hermitcrab","Sandcastle",
+  "Beachball","Innertube","Rapids"];
 
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
 
+/* LIVE — backed by waterpark-leaderboard's REST routes, not localStorage.
+   Digit-suffix collision handling (BAD_NUM etc.) now lives entirely
+   server-side; see waterpark-leaderboard/includes/class-name-pool.php. */
 const Board = (() => {
-  const KEY = "stampede.board.v1";                 // stub store; the real one is server-side
+  const API = "/wp-json/waterpark-leaderboard/v1";
   const ME  = "stampede.rider.v1";
   const readJSON = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) || d; }
                                catch (e) { return d; } };
   const writeJSON = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); }
                                 catch (e) {} };   // storage throws outright in some contexts
 
-  /* Seeded once so the board looks like a real afternoon at the park rather
-     than reshuffling on every open. Replaced wholesale by the server. */
-  function seed(){
-    let rows = readJSON(KEY, null);
-    if (rows) return rows;
-    rows = [];
-    const now = Date.now();
-    for (let i = 0; i < 137; i++){
-      rows.push({
-        name: pick(NAME_A) + " " + pick(NAME_B),
-        score: Math.round(400 + Math.pow(Math.random(), 2.1) * 46000),
-        at: now - Math.random() * 2.4e9,   // spread out; only ever used as a tiebreak
-      });
-    }
-    // one row per name, exactly as the real table will be
-    const seen = new Set();
-    rows = rows.filter(r => !seen.has(r.name) && seen.add(r.name));
-    writeJSON(KEY, rows);
-    return rows;
+  function timeoutFetch(url, opts, ms){
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), ms);
+    return fetch(url, Object.assign({}, opts, { signal: ctrl.signal }))
+      .finally(() => clearTimeout(timer));
   }
-
-  const scoped = () => {
-    const rows = seed().concat(readJSON(ME, null) && readJSON(ME, {}).score
-      ? [{ ...readJSON(ME, {}), me: true }] : []);
-    // score desc, then EARLIEST — without a stable tiebreak, tied players swap
-    // places on every read and the board looks broken
-    return rows.sort((a, b) => b.score - a.score || a.at - b.at);
-  };
 
   return {
     me: () => readJSON(ME, null),
-    /* Reserved at CREATION, not at submission: resolving collisions at submit
-       time would let a name change under a player who already had it. */
-    claim(name){
-      const taken = new Set(seed().map(r => r.name));
-      let final = name;
-      while (taken.has(final)){
-        let n; do { n = 100 + Math.floor(Math.random() * 900); } while (BAD_NUM.has(n));
-        final = name + " " + n;
-      }
-      const rider = { name: final, token: "stub-" + Math.random().toString(36).slice(2, 12),
-                      score: 0, at: Date.now() };
+
+    /* Reserved server-side at CREATION, not at submission: resolving
+       collisions at submit time would let a name change under a player who
+       already had it. Throws on any failure/timeout — the naming screen owns
+       deciding how to show that, not Board. */
+    async claim(adjective, noun){
+      const res = await timeoutFetch(API + "/claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ adjective, noun }),
+      }, 8000);
+      if (!res.ok) throw new Error("claim failed: " + res.status);
+      const data = await res.json();
+      const rider = { name: data.player_name, token: data.token, score: data.score, at: Date.now() };
       writeJSON(ME, rider);
       return rider;
     },
-    /* Best-only: one row per player, so nobody fills the top 50 by grinding. */
+
+    /* Best-only, and fire-and-forget: a run's score is banked locally first so
+       the results card never waits on the network, and a dropped connection
+       just means the server catches up on the next successful submit. */
     submit(score){
       const r = readJSON(ME, null); if (!r) return null;
-      if (score > (r.score || 0)){ r.score = score; r.at = Date.now(); writeJSON(ME, r); }
+      if (score > (r.score || 0)){
+        r.score = score; r.at = Date.now(); writeJSON(ME, r);
+        timeoutFetch(API + "/submit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: r.token, score }),
+        }, 8000).catch(() => {});
+      }
       return r;
     },
-    top(n){ return scoped().slice(0, n || 50); },
-    total(){ return scoped().length; },
+
+    async top(n){
+      try {
+        const res = await timeoutFetch(API + "/leaderboard?limit=" + (n || 50), {}, 8000);
+        if (!res.ok) return [];
+        const rows = await res.json();
+        const me = readJSON(ME, null);
+        return rows.map(r => ({
+          name: r.player_name,
+          score: r.score,
+          me: !!(me && r.player_name === me.name),
+        }));
+      } catch (e) { return []; }
+    },
+
     /* Needs only the score, so a player can be shown where they WOULD land
-       before deciding to submit. */
-    rankOf(score){ return scoped().filter(r => r.score > score).length + 1; },
+       before deciding to submit. Null on failure — callers show a dash
+       rather than a wrong number. */
+    async rankOf(score){
+      try {
+        const res = await timeoutFetch(API + "/rank?score=" + Math.max(0, Math.floor(score)), {}, 8000);
+        if (!res.ok) return null;
+        const data = await res.json();
+        return data.rank;
+      } catch (e) { return null; }
+    },
+
+    /* Every currently claimed name, so the reels can steer clear of a pair
+       that is already taken. Empty on any failure — the naming screen fails
+       open rather than blocking on the network; a residual collision is still
+       caught server-side by claim()'s own suffix retry. */
+    async takenNames(){
+      try {
+        const res = await timeoutFetch(API + "/names", {}, 5000);
+        if (!res.ok) return [];
+        return await res.json();
+      } catch (e) { return []; }
+    },
   };
 })();
 
 /* ---------- reels ---------- */
 let reelA = pick(NAME_A), reelB = pick(NAME_B);
+let takenSet = new Set();   // filled by loadTakenNames() below; empty means "unknown, allow anything"
+
+/* Bounded local retry against the currently-known taken set. Never blocks —
+   a nearly-exhausted pair just falls through to claim()'s own server-side
+   suffix retry, exactly like a stale/failed takenSet would anyway. */
+function pickAdjective(){
+  for (let i = 0; i < 25; i++){
+    const a = pick(NAME_A);
+    if (!takenSet.has(a + " " + reelB)) return a;
+  }
+  return pick(NAME_A);
+}
+function pickNoun(){
+  for (let i = 0; i < 25; i++){
+    const b = pick(NAME_B);
+    if (!takenSet.has(reelA + " " + b)) return b;
+  }
+  return pick(NAME_B);
+}
+function pickPair(){
+  for (let i = 0; i < 25; i++){
+    const a = pick(NAME_A), b = pick(NAME_B);
+    if (!takenSet.has(a + " " + b)) return [a, b];
+  }
+  return [pick(NAME_A), pick(NAME_B)];
+}
+
 function paintReels(){
   /* Writes to the inner span, not the button. The button owns the badge and the
      ray burst, and setting textContent on it would delete the span along with
@@ -5004,18 +5105,57 @@ function paintReels(){
   $("reelA").querySelector(".reelWord").textContent = reelA;
   $("reelB").querySelector(".reelWord").textContent = reelB;
 }
-function rollReel(el, set, assign){
+function rollReel(el, pickFn, assign){
   el.classList.remove("rolling"); void el.offsetWidth;   // restart the animation
   el.classList.add("rolling");
-  assign(pick(set)); paintReels();
+  assign(pickFn()); paintReels();
 }
-$("reelA").addEventListener("click", () => rollReel($("reelA"), NAME_A, v => reelA = v));
-$("reelB").addEventListener("click", () => rollReel($("reelB"), NAME_B, v => reelB = v));
+let claiming = false;
+$("reelA").addEventListener("click", () => { if (!claiming) rollReel($("reelA"), pickAdjective, v => reelA = v); });
+$("reelB").addEventListener("click", () => { if (!claiming) rollReel($("reelB"), pickNoun, v => reelB = v); });
+
+/* Fetched once, right as the naming screen opens (it only ever shows once per
+   device). Reels stay hidden behind #reels.loading for the brief window this
+   takes, rather than painting a name that could jump the instant data lands. */
+async function loadTakenNames(){
+  takenSet = new Set(await Board.takenNames());
+  [reelA, reelB] = pickPair();
+  paintReels();
+  $("reels").classList.remove("loading");
+}
+
 /* Naming happens once, before the title card. Confirming hands straight to the
    home screen — the run is never interrupted to ask, and every later submission
    is automatic because a name always exists by then. */
-$("nameGo").addEventListener("click", () => {
-  Board.claim(reelA + " " + reelB);
+$("nameGo").addEventListener("click", async () => {
+  if (claiming) return;
+  claiming = true;
+  $("nameGo").classList.add("busy");
+  $("nameGo").disabled = true;
+  $("reels").classList.add("disabled");
+  $("nameError").classList.remove("on");
+  $("nameSkip").classList.remove("on");
+
+  try {
+    await Board.claim(reelA, reelB);
+    $("namePanel").classList.remove("on");
+    $("titlePanel").classList.add("on");
+  } catch (e) {
+    $("nameError").textContent = "Couldn't save your name — try again in a bit.";
+    $("nameError").classList.add("on");
+    $("nameSkip").classList.add("on");
+  } finally {
+    claiming = false;
+    $("nameGo").classList.remove("busy");
+    $("nameGo").disabled = false;
+    $("reels").classList.remove("disabled");
+  }
+});
+/* Only reachable after a failed claim (see above) — a broken backend must
+   never be a hard wall between the player and the game. Board.me() stays
+   null, which every downstream read already treats as "storage blocked" and
+   handles gracefully (see syncRankRow()). */
+$("nameSkip").addEventListener("click", () => {
   $("namePanel").classList.remove("on");
   $("titlePanel").classList.add("on");
 });
@@ -5052,9 +5192,9 @@ function scrollToMe(){
 /* ---------- panel ---------- */
 let pendingScore = 0;          // this run's score, for the "you'd rank" line
 
-function renderBoard(){
+async function renderBoard(){
   const me = Board.me();
-  const rows = Board.top(50);
+  const rows = await Board.top(50);
   const list = $("lbList");
   list.innerHTML = "";
   rows.forEach((r, i) => {
@@ -5073,15 +5213,17 @@ function renderBoard(){
      board so "#578 of 3,412" is answered without scrolling to nowhere. */
   const you = $("lbYou"); you.innerHTML = "";
   if (me && me.score > 0 && !rows.some(r => r.me)){
-    const pos = Board.rankOf(me.score);
-    const d = document.createElement("div");
-    d.className = "lbRow me";
-    d.innerHTML = '<span class="lbPos"></span><span class="lbName"></span>' +
-                  '<span class="lbScore"></span>';
-    d.children[0].textContent = pos;
-    d.children[1].textContent = me.name;
-    d.children[2].textContent = me.score.toLocaleString();
-    you.appendChild(d);
+    const pos = await Board.rankOf(me.score);
+    if (pos != null){
+      const d = document.createElement("div");
+      d.className = "lbRow me";
+      d.innerHTML = '<span class="lbPos"></span><span class="lbName"></span>' +
+                    '<span class="lbScore"></span>';
+      d.children[0].textContent = pos;
+      d.children[1].textContent = me.name;
+      d.children[2].textContent = me.score.toLocaleString();
+      you.appendChild(d);
+    }
   }
 }
 
@@ -5090,7 +5232,8 @@ function openBoard(){
   $("overPanel").classList.remove("on");
   $("lbPanel").classList.add("on");
   $("lbScroll").scrollTop = 0;
-  paintReels(); renderBoard();
+  paintReels();
+  return renderBoard();
 }
 function closeBoard(){
   $("lbPanel").classList.remove("on");
@@ -5100,15 +5243,18 @@ function closeBoard(){
 $("lbBtn").addEventListener("click", openBoard);
 $("lbBack").addEventListener("click", closeBoard);
 $("statRank").addEventListener("click", () => {
-  openBoard();
-  if (Board.me()) requestAnimationFrame(() => requestAnimationFrame(scrollToMe));
+  const shown = openBoard();
+  // Waits on the fetch itself now, not a fixed rAF count — the row it is
+  // scrolling to does not exist in the DOM until renderBoard() resolves.
+  if (Board.me()) shown.then(() => requestAnimationFrame(() => requestAnimationFrame(scrollToMe)));
 });
 
 /* ---------- the rank row on the results card ----------
    Rank is a STAT, not a destination: after a run the question is "how did I
    do", and a number answers it inline without a navigation step. */
-function setRankFigures(score){
-  setFigure($("fRank"), "#" + Board.rankOf(score).toLocaleString(), 26);
+async function setRankFigures(score){
+  const rank = await Board.rankOf(score);
+  setFigure($("fRank"), rank != null ? ("#" + rank.toLocaleString()) : "—", 26);
 }
 function syncRankRow(){
   const me = Board.me();
@@ -5119,7 +5265,8 @@ function syncRankRow(){
     $("fRankNote").textContent = "score not saved";
     return;
   }
-  /* Named before the first run, so submission never needs asking for. */
+  /* Named before the first run, so submission never needs asking for. Fire-
+     and-forget: the results card doesn't wait on either network call. */
   Board.submit(pendingScore);
   setRankFigures(Board.me().score);
   $("fRankNote").textContent = me.name;

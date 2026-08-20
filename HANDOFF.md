@@ -424,10 +424,74 @@ Every symbol AGENTS.md names was checked against `index.html` before it shipped.
 
 ### 3. Implement a leaderboard
 
-**FRONT END BUILT 2026-08-18, against a stubbed data layer. No backend yet —
-that is deliberate: the user wanted to see and adjust the UI before committing
-to the storage.** Everything below the "Design" heading is the agreed spec; what
-follows first is what actually exists in `index.html` now.
+**FRONT END BUILT 2026-08-18 against a stubbed data layer, LIVE 2026-08-20.**
+`Board` now calls the `waterpark-leaderboard` plugin's REST routes instead of
+`localStorage` — see "Board is live" below. Everything below the "Design"
+heading is the agreed spec; what follows first is what actually exists in
+`index.html` now.
+
+#### Status — 2026-08-20
+
+**Done and verified (headless, no live WordPress involved):**
+- `database-plan.md` — schema reconciled to one row per player, token-based
+  identity, a session index. No daily/all-time leftovers.
+- `waterpark-leaderboard/` plugin scaffolded in its own folder: DB layer
+  (`class-database.php`), repository (`class-score-repository.php`),
+  name-claim service (`class-name-pool.php`), REST controller
+  (`class-rest-controller.php`) exposing `/claim`, `/submit`, `/leaderboard`,
+  `/rank`, `/names`. All `php -l` clean.
+- Word pool grown 40x40 -> 100x100, mirrored byte-identically between
+  `index.html` and the plugin — see "Word lists expanded" below.
+- `Board` rewired from the `localStorage` stub to real `fetch()` calls
+  against those routes — see "Board is live" below.
+- Naming screen: taken-name avoidance on the reels, a busy/spinner state
+  while claiming, and an error message with a "play without saving your
+  name" skip link so an unreachable backend can never hard-block a new
+  player. Verified headless at 412px — busy state, error + retry, and the
+  skip path unblocking `start()` were all confirmed working.
+
+**Verified against a real WordPress install — 2026-08-20.** Deployed to the
+Kinsta dev environment `env-typhoontexasnew-dev` (WP 7.1, PHP 8.3.25, table
+prefix `wp_`, Wordfence active) over SSH/WP-CLI:
+
+- `wp plugin activate` ran cleanly; `SHOW CREATE TABLE wp_stampede_scores`
+  matches the plan byte-for-byte, including both unique keys, the three
+  secondary indexes, and `utf8mb4_unicode_520_ci` picked up live from
+  `$wpdb->get_charset_collate()` rather than hardcoded.
+- All five routes exercised with real HTTP requests: `/claim` (fresh name,
+  and a repeat claim that correctly landed a `237` suffix — `idx_game_name`
+  enforcing uniqueness, not just the app-level pre-check), `/submit` (a
+  higher score updates; a *lower* score afterward correctly does **not**
+  regress it — the `IF(VALUES(score) > score, ...)` upsert guard holds),
+  `/leaderboard`, `/rank`, `/names`. Error paths also confirmed live: an
+  off-word-list claim 400s, an unknown token on `/submit` 404s.
+- Deactivate → reactivate cycle leaves row count and table structure
+  unchanged (dbDelta re-run is idempotent, activation hook does not drop
+  data).
+- `/var/log/sitelogs/error.log` stayed empty through all of the above — no
+  PHP warnings, notices, or deprecations on the site's real PHP 8.3.25,
+  which local `php -l` linting could never have caught.
+
+Two test rows (`Dusty Buckaroo`, `Dusty Buckaroo 237`) are still sitting in
+that dev environment's table — left in place rather than cleaned up, since
+this is the dev, not production, environment. Worth clearing before this
+plugin is treated as production-ready. Not yet tried: `wp plugin uninstall`
+(would also remove the plugin directory, not worth doing against a real
+site casually) — `uninstall.php`'s no-op body was verified by reading it, not
+by executing it.
+
+**Not started:**
+- Getting `index.html` into an Oxygen Builder code block — asset-path
+  rewriting (73 relative `assets/...` references assume same-path hosting),
+  and code block vs. plugin-enqueued script, discussed before this plugin
+  existed but not acted on.
+- The full pairwise audit of the 10,000 name combinations — flagged, then
+  explicitly deferred by the user ("not concerned with reading over the names
+  right now"). Still open below.
+
+**Not committed.** `HANDOFF.md`, `database-plan.md`, and `index.html` are
+modified and `waterpark-leaderboard/` is untracked — none of it committed
+yet, per AGENTS.md: commits need explicit go-ahead.
 
 #### Game flow reworked 2026-08-18
 
@@ -507,24 +571,69 @@ not any more. Not changed — the user has not been asked.
 
 #### What is built
 
-- **`Board`** — an IIFE whose methods are shaped like the REST routes that will
-  replace them: `me()`, `claim(name)`, `submit(score)`, `top(n)`,
-  `total()`, `rankOf(score)`. It seeds 137 fake riders into
-  `localStorage` once so the board looks like a real afternoon rather than
-  reshuffling every open. **Swapping the stub for `fetch()` should touch nothing
-  outside this object.**
+- **`Board`** — LIVE as of 2026-08-20 (see "Board is live" below). Methods:
+  `me()` (local, synchronous — reads the device's own cached rider),
+  `claim(adjective, noun)`, `submit(score)`, `top(n)`, `rankOf(score)`,
+  `takenNames()` — all five async, all calling `waterpark-leaderboard`'s REST
+  routes. `total()` was dropped: nothing ever called it.
 - **`#lbPanel`** — the board, built on `#howPanel`'s shape (inner scroller,
   darker wash, swallows the keyboard while open). Single all-time ranking, top
   50, and the player's own row pinned below the list when they fall outside it.
-- **Name reels** — `NAME_A` (40 adjectives) x `NAME_B` (40 nouns) = 1,600
-  combinations. Tap either reel to reroll just that half, or Spin for both.
-  `BAD_NUM` blocks the loaded 3-digit suffixes.
+- **Name reels** — `NAME_A` (100 adjectives) x `NAME_B` (100 nouns) = 10,000
+  combinations (grown from 40x40 on 2026-08-20 — see "Word lists expanded"
+  below). Tap either reel to reroll just that half, or Spin for both. As of
+  2026-08-20 rerolls also avoid any pair already claimed (see "Board is live"
+  below) — `BAD_NUM`'s digit-suffix blocking moved entirely server-side to
+  `class-name-pool.php`, since the client no longer generates suffixes itself.
 - **Rank as a stat** — `#statRank`, a row inside the existing `#stats` block on
   the results card. Shows the real rank once claimed, or "you'd rank #N — tap to
   join" before, since `rankOf()` needs only a score.
 - **Score in the HUD** — `#hudScore`, in a new `#hudLeft` column under Descent.
 - **Leaderboard button** — a second ghost beside How to Play in a `.ghostRow`,
   keeping the title at one primary plus one secondary row.
+
+#### Board is live — 2026-08-20
+
+`Board` now calls `waterpark-leaderboard`'s REST routes (`/claim`, `/submit`,
+`/leaderboard`, `/rank`, `/names`) same-origin, instead of `localStorage`.
+`me()` stays local and synchronous — it only ever reads the device's own
+cached rider, never the network — everything else is async.
+
+**Naming screen, end to end:**
+- On open, fetches `/names` (5s timeout) and paints the reels only once that
+  resolves, so no name flashes in before being replaced. **Fails open**: if
+  the fetch errors or times out, reels paint from an empty taken-set rather
+  than blocking the screen — the game must stay playable if the network is
+  bad. `#reels.loading` hides the reel text during this brief window.
+- Every reroll (single reel or Spin) draws locally against the fetched
+  taken-set, bounded at 25 attempts, so the reels should never *offer* an
+  already-claimed pair. A genuine race (two players landing on the same
+  still-open pair at once) isn't addressed by this — it falls through to
+  `claim()`'s own server-side suffix retry, same as it always has.
+- Tapping **That'll Do** disables both reels and the button and swaps the
+  button label for a CSS spinner (`#nameGo.busy`), then `POST /claim` with an
+  8s timeout. Success stores `{token, player_name, score}` (mapped to the
+  existing `{name, token, score, at}` shape) and proceeds straight to title,
+  unchanged. Failure or timeout re-enables everything and shows *"Couldn't
+  save your name — try again in a bit."* (`#nameError`) — the chosen words are
+  kept, so retapping retries the same claim rather than rerolling.
+- Verified headless: reels populate from an empty taken-set when `/names`
+  404s (no backend in local dev), the busy state disables reels + shows the
+  spinner immediately on tap, the error path fires and is retryable, and (with
+  `fetch` artificially delayed) the spinner renders correctly at 412px.
+
+**Everywhere else**, `submit()` is fire-and-forget — the results card banks
+the score locally first and never waits on the network, matching "submission
+never needs asking for." `top()`/`rankOf()` are real awaited calls now;
+`renderBoard()` and `setRankFigures()` became `async` to match, and
+`statRank`'s scroll-to-me now waits on `renderBoard()`'s promise instead of a
+fixed two-`requestAnimationFrame` guess, since the row it scrolls to no
+longer exists synchronously.
+
+**Known gap:** local `python3 server.py` testing has no `/wp-json` to talk to,
+so the naming/leaderboard network calls always fail there — verified via the
+fail-open/error paths above, not a successful claim. Exercising the success
+path needs a real WordPress install with the plugin active.
 
 #### Bugs found and fixed while building it
 
@@ -629,6 +738,20 @@ generator draws 100-999, so those could never be produced. They were dead
 entries that looked like protection. Now 3-digit only: 187, 322, 420, 451, 666,
 911.
 
+#### Word lists expanded — 2026-08-20
+
+Grown from 40x40 to 100x100 (10,000 pairs) at the user's request, to raise the
+name-pool ceiling. 60 new adjectives and 60 new nouns were added — western and
+water-park themed, matching the existing tone — and mirrored byte-for-byte
+into the plugin (`waterpark-leaderboard/includes/class-name-pool.php`), since
+the claim endpoint validates against its own copy rather than trusting client
+text.
+
+**Not reviewed the way the original 80 words were.** The 2026-08-18 audit above
+was the user's own word-by-word read for tone, association, and trademark.
+Claude screened the 120 new words for the same categories while writing them,
+but that is not the bar the original list was held to. Flagged below.
+
 #### Open for the user
 
 1. **The claim step shows above a full board.** Reads slightly busy — the reels
@@ -637,9 +760,12 @@ entries that looked like protection. Now 3-digit only: 187, 322, 420, 451, 666,
 2. **Stats cells size independently**, so a long Score renders smaller than a
    short Descent beside it (carried over from item 4).
 3. Whether to auto-submit after the first opt-in, or prompt every run.
-4. Word lists need a **full read-through before launch** — all 1,600 pairs. That
-   audit is the entire safety argument for the closed set, and it has not been
-   done.
+4. Word lists need a **full read-through before launch** — now 10,000 pairs
+   after the 2026-08-20 expansion to 100x100 (was 1,600 at 40x40). That audit
+   is the entire safety argument for the closed set, and it has not been done.
+   The 60 new adjectives and 60 new nouns added 2026-08-20 additionally have
+   not had the word-by-word user review the original 80 got — see "Word lists
+   expanded" above.
 
 ---
 
@@ -662,6 +788,12 @@ screenshot of Typhoon Texas branding beside a slur. A closed set makes the
 problem structurally impossible instead of policed — and ~50x50 combinations is
 small enough to **audit in full, once**, which also catches pairs that are fine
 apart and bad together.
+
+**Update 2026-08-20:** the lists grew to 100x100 (10,000 pairs) — see "Word
+lists expanded" further down. The closed-set argument above still holds
+word-by-word, but "audit in full, once" no longer describes the pairwise
+cross-product at this size; that audit is tracked as still-outstanding in
+"Open for the user."
 
 - **Collisions** get a random 3-digit suffix, **rolled server-side and re-rolled
   on clash** — a client-side random can collide with itself and solves nothing.

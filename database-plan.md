@@ -39,10 +39,35 @@ The database must efficiently support:
 - Filtering by submission date
 - Retrieving leaderboard results
 - Looking up an individual submission
+- Upserting a player's row when they beat their own best score
 - Future filtering by game, contest, or event
 - Future data cleanup, exports, and archival
 
 A dedicated table makes these operations significantly simpler and more scalable than an ACF repeater or WordPress post meta.
+
+---
+
+## Storage Model: One Row Per Player
+
+Store **one row per player, upserted only when they beat their own best score** — not one row per run.
+
+Appending a row per run lets a single dedicated player accumulate dozens of entries and fill the entire top 50, and it turns "your rank" into "#N of every run ever played" instead of the more meaningful "#N of players." Upserting on personal best avoids both.
+
+A consequence worth stating plainly: **this schema does not retain full run history.** A run that does not beat the player's existing best is not persisted anywhere. If per-run analytics or a complete submission audit trail is wanted later, that requires a second, append-only table — out of scope for this phase.
+
+The upsert is keyed by `token` (see the Player Token section below), scoped per `game_key`:
+
+```sql
+INSERT INTO {prefix}stampede_scores
+    (game_key, token, player_name, score, created_at)
+VALUES
+    (%s, %s, %s, %s, %s)
+ON DUPLICATE KEY UPDATE
+    score      = IF(VALUES(score) > score, VALUES(score), score),
+    created_at = IF(VALUES(score) > score, VALUES(created_at), created_at);
+```
+
+The `IF(...)` guards matter: without them, `ON DUPLICATE KEY UPDATE` would overwrite `score`/`created_at` on *every* submission, including ones that did not actually improve the player's best, silently losing the true achievement time used for tie-breaking.
 
 ---
 
@@ -53,11 +78,12 @@ Create a table with the following columns:
 | Column | Type | Required | Purpose |
 |---|---|---:|---|
 | `id` | `BIGINT UNSIGNED` | Yes | Primary key |
-| `player_name` | `VARCHAR(50)` | Yes | Public display name submitted by the player |
-| `score` | `BIGINT UNSIGNED` | Yes | Player's submitted score |
-| `created_at` | `DATETIME` | Yes | Timestamp when the score was stored |
+| `token` | `CHAR(32)` | Yes | Login-less player identity; the upsert key, unique per `game_key` |
+| `player_name` | `VARCHAR(64)` | Yes | Public display name, reserved from a closed word pool; unique per `game_key` |
+| `score` | `BIGINT UNSIGNED` | Yes | Player's current best score |
+| `created_at` | `DATETIME` | Yes | Timestamp of the player's current best score; also the tie-break field |
 | `game_key` | `VARCHAR(50)` | Yes | Identifies the game that generated the score |
-| `session_id` | `VARCHAR(100)` | No | Optional identifier for a game/session submission |
+| `session_id` | `VARCHAR(100)` | No | Optional per-run diagnostic identifier — distinct from `token` |
 | `metadata` | `LONGTEXT` | No | Optional JSON-encoded data reserved for future use |
 
 Recommended initial `game_key`:
@@ -79,7 +105,8 @@ Conceptual schema:
 ```sql
 CREATE TABLE {prefix}stampede_scores (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-    player_name VARCHAR(50) NOT NULL,
+    token CHAR(32) NOT NULL,
+    player_name VARCHAR(64) NOT NULL,
     score BIGINT UNSIGNED NOT NULL,
     created_at DATETIME NOT NULL,
     game_key VARCHAR(50) NOT NULL,
@@ -88,7 +115,9 @@ CREATE TABLE {prefix}stampede_scores (
 
     PRIMARY KEY (id),
 
-    KEY idx_game_score (game_key, score),
+    UNIQUE KEY idx_game_token (game_key, token),
+    UNIQUE KEY idx_game_name (game_key, player_name),
+    KEY idx_game_score (game_key, score, created_at),
     KEY idx_game_created (game_key, created_at),
     KEY idx_session (session_id)
 );
@@ -110,10 +139,26 @@ id
 
 Provides a unique identifier for every submission.
 
+### Game + Token Index
+
+```text
+UNIQUE (game_key, token)
+```
+
+Enforces one row per player per game, and is the lookup the upsert in the Storage Model section above runs against.
+
+### Game + Name Index
+
+```text
+UNIQUE (game_key, player_name)
+```
+
+Enforces one reserved name per game. A collision on insert (two players landing on the same adjective+noun pair) is expected and is resolved by the application layer appending a random suffix and retrying — not by allowing a duplicate row.
+
 ### Game + Score Index
 
 ```text
-(game_key, score)
+(game_key, score, created_at)
 ```
 
 Supports leaderboard queries such as:
@@ -122,9 +167,11 @@ Supports leaderboard queries such as:
 SELECT *
 FROM wp_stampede_scores
 WHERE game_key = 'waterpark'
-ORDER BY score DESC
+ORDER BY score DESC, created_at ASC
 LIMIT 10;
 ```
+
+Including `created_at` lets the index satisfy the tie-break ordering directly, without a separate filesort pass.
 
 ### Game + Created Date Index
 
@@ -177,18 +224,34 @@ Do not store scores as strings or floating-point values.
 Use:
 
 ```text
-VARCHAR(50)
+VARCHAR(64)
 ```
 
-for `player_name`.
+for `player_name` — 64 rather than 50, to comfortably fit an adjective + noun pair plus an appended 3-digit collision suffix.
 
-The database should store the submitted display name after application-level validation and sanitization.
+Names are drawn from a closed, pre-audited word pool (adjective x noun combinations) at claim time, not typed freely by the player. That selection, sanitization, and the profanity/blocklist audit happen entirely in the submission/application layer — the database layer should not attempt to determine whether a name is appropriate, offensive, or allowed.
 
-The database layer itself should not attempt to determine whether a name is appropriate, offensive, duplicated, or allowed. Those rules belong in the submission/application layer.
+**Make `player_name` unique per `game_key`** (`UNIQUE KEY idx_game_name (game_key, player_name)`).
 
-Do not make `player_name` unique.
+This is a deliberate reversal from treating names as free text: because names are reserved from a closed pool at creation, two players landing on the same adjective+noun pair is expected and common, and must be resolved by the application layer appending a random 3-digit suffix and retrying the insert — never by allowing a duplicate row. The suffix roll (and its own digit blocklist, e.g. `666`, `420`, `069`, `187`, `13`, `88`) is submission-layer logic; the database only needs to enforce the uniqueness that logic depends on.
 
-Multiple players may use the same display name, and the same player may legitimately submit multiple scores.
+---
+
+## Player Token
+
+Include:
+
+```text
+token CHAR(32) NOT NULL
+```
+
+from the beginning, unique per `game_key` (`UNIQUE KEY idx_game_token (game_key, token)`).
+
+This is a login-less account identifier: generated server-side at name-claim time (e.g. `bin2hex(random_bytes(16))`), returned to the client once, and stored client-side alongside the player's best score. No email or other PII is collected.
+
+The token — not `session_id` — is the identity key the leaderboard upserts against: a submission always includes the caller's token, and the repository looks up the existing row by `(game_key, token)` to decide whether this is a new player or an update to an existing one.
+
+Never treat a client-supplied token as proof of an identity beyond looking it up — it is a lookup key against an existing row, generated only by the server, never chosen or guessed by the client.
 
 ---
 
@@ -201,6 +264,8 @@ session_id VARCHAR(100) NULL
 ```
 
 from the beginning.
+
+Distinct from `token`: `session_id` is a per-run diagnostic value, not a player identity, and it does not participate in the upsert lookup.
 
 Its exact generation and validation are outside the scope of this database phase.
 
@@ -326,9 +391,9 @@ This ensures names containing accents and other international characters are sto
 
 ## Data Retention
 
-For the initial version, keep all valid leaderboard submissions indefinitely.
+For the initial version, keep every player's row indefinitely, even if they never play again.
 
-Do not automatically delete scores over time.
+Do not automatically delete a player's row over time.
 
 This allows:
 
@@ -336,6 +401,8 @@ This allows:
 - Analytics
 - Contest audits
 - Future reporting
+
+Because storage is one row per player rather than one row per run, table size is naturally bounded by player count, not by how many times the game has been played — retention pressure here is much lower than an append-per-run design would create.
 
 If database size becomes significant later, an archival or retention policy can be introduced without changing the basic leaderboard architecture.
 
@@ -361,14 +428,39 @@ The schema should be optimized around these eventual operations.
 
 ```sql
 WHERE game_key = ?
-ORDER BY score DESC
+ORDER BY score DESC, created_at ASC
 LIMIT ?
+```
+
+### Player Rank
+
+```sql
+SELECT COUNT(*) + 1
+WHERE game_key = ?
+AND score > ?
+```
+
+### Upsert Best Score
+
+```sql
+INSERT INTO {prefix}stampede_scores (game_key, token, player_name, score, created_at)
+VALUES (?, ?, ?, ?, ?)
+ON DUPLICATE KEY UPDATE
+    score      = IF(VALUES(score) > score, VALUES(score), score),
+    created_at = IF(VALUES(score) > score, VALUES(created_at), created_at)
 ```
 
 ### Find Submission
 
 ```sql
 WHERE id = ?
+```
+
+### Token Lookup
+
+```sql
+WHERE game_key = ?
+AND token = ?
 ```
 
 ### Session Lookup
@@ -389,27 +481,15 @@ AND created_at < ?
 
 ## Tie Handling
 
-Do not encode tie-breaking logic into the schema.
+The schema does not encode tie-breaking as a constraint, but it does fix the columns needed for one: `score`, `created_at`, `id`.
 
-The database should preserve:
-
-```text
-score
-created_at
-id
-```
-
-This provides enough information for the application layer to define deterministic ordering later.
-
-A likely future ordering rule would be:
+The canonical ordering, used by the Top Scores query above, is:
 
 ```sql
 ORDER BY score DESC, created_at ASC, id ASC
 ```
 
-meaning the first player to achieve a tied score ranks ahead.
-
-The exact tie policy should be confirmed during the leaderboard logic phase.
+meaning the first player to achieve a tied score ranks ahead. This matters more than it might first appear: scoring is coarse enough (fixed point values plus per-coin increments) that exact ties across many players are expected, not rare — without a stable tiebreak, tied players would swap places on every leaderboard read.
 
 ---
 
@@ -451,8 +531,9 @@ Waterpark_Score_Repository
 Responsibilities would eventually include:
 
 ```text
-insert_score()
+upsert_score()
 get_score()
+get_by_token()
 get_leaderboard()
 get_player_rank()
 delete_score()
@@ -566,3 +647,4 @@ The database phase is complete when activating the plugin on a WordPress install
 8. Preserves leaderboard records on plugin deactivation.
 9. Contains no dependency on ACF for storing player scores.
 10. Does not yet expose any public score-submission functionality.
+11. Enforces one row per player per game via a unique `(game_key, token)` key, and one reserved name per game via a unique `(game_key, player_name)` key.
