@@ -1,8 +1,9 @@
 # Handoff — `index.html`
 
 "Typhoon Texas — Buckaroo Run": a single-file HTML5 canvas water-slide runner.
-Everything (markup, CSS, game) is in one file, ~5,105 lines. Assets load from
-`assets/` as real files.
+Everything (markup, CSS, game) is in one file, ~5,340 lines. Assets load from
+`assets/` as real files. A companion WordPress plugin,
+[`waterpark-leaderboard/`](waterpark-leaderboard/), backs its leaderboard.
 
 **Start with [`AGENTS.md`](AGENTS.md)** — the short operating brief, read every
 session. This file is the long form behind it: architecture in depth, the full
@@ -176,6 +177,12 @@ Progress counts **files, not bytes** (an `<img>` gives no progress events), and 
 *failed* file still counts, or one 404 strands the bar short of full forever.
 `LOAD_FLOOR = 700ms` keeps a fast load from reading as a flash.
 
+For a first-time player, the loader also gates on `namesPromise` (the naming
+screen's taken-names fetch, started as early as possible in parallel with the
+sprites) before it ever dismisses — added 2026-08-20 so the naming reels are
+never shown blank while that fetch catches up. See item 3's "after going
+live" bugfix section for the story.
+
 ### Audio
 Two independent load paths, both always set up:
 1. `fetch` + `decodeAudioData` → Web Audio buffers (the good path)
@@ -348,150 +355,98 @@ Two habits worth copying from them:
 
 ## Open work
 
-Rewritten 2026-08-18. The user set the four priorities in items 1–4; everything
-below them was verified against the working tree that day rather than carried
-over from the previous list, so line numbers and file states are current.
+Last rewritten 2026-08-20. Items 1–2 and 4 are done and their long
+investigation logs have been compressed to what's still worth knowing — the
+durable lessons already live in AGENTS.md. Item 3 (the leaderboard) is where
+active work is happening and keeps its full detail below.
 
-**Nothing here has been started.**
+### 1. Audio bug on mobile — DONE 2026-08-18
 
-### 1. Fix the audio bug on mobile — DONE 2026-08-18
+Title tune never played on Android/iPhone. Root cause: `titleTune` latched on
+gesture *intent* (`pointerdown`/`touchstart`) rather than confirmed playback —
+those fire before mobile grants user activation, so the source started into a
+suspended context, played to nobody, and the latch then blocked every later
+gesture that *would* have worked. Fixed by latching only once
+`ac.state === "running"`, waiting on `resume()`'s promise otherwise. Same
+latch-on-assumption bug existed on the `<audio>` fallback path (a swallowed
+`play()` rejection); fixed the same way. Full repro/verification method is the
+durable lesson now in AGENTS.md ("Never latch 'music started' on intent").
 
-**Symptom.** On Android and iPhone the title tune never played. Past the loader
-the title screen sat silent; the tune only surfaced as a fraction of a second on
-the Drop In press, immediately replaced by the ride track. Desktop was fine.
-Last known-good build was `a5ac618` (Aug 13).
-
-**It was not the autoplay policy.** An earlier session concluded phones simply
-block autoplay. The user pushed back — it had worked before — and was right.
-
-**Root cause: `titleTune` latched on intent instead of on confirmed playback.**
-`4d00c90` moved the unlock from `click`/`touchend` to
-`pointerdown`/`touchstart` to cut perceived latency. On mobile those fire
-*before* the browser grants user activation, so `resume()` was a no-op, the
-BufferSource started into a **suspended** context and played to nobody — and
-`titleTune = true` latched regardless, so `startTitleMusic`'s opening guard
-turned every later gesture, including the `click` that WOULD have carried the
-activation, into a no-op. The blip on Drop In was that same dead source becoming
-audible the instant the context finally resumed, a frame before `start()`
-swapped in the ride track.
-
-**Reproduced and verified**, not reasoned about: headless Chrome at 412x915 with
-`mobile: true`, `--autoplay-policy=document-user-activation-required`, over the
-LAN IP (a plain-http origin with no engagement history), driving real
-`Input.dispatchTouchEvent` taps.
-
-| after the loader tap | `titleTune` | AudioContext |
-|---|---|---|
-| before the fix | `true` | **`suspended`** — silent |
-| `a5ac618` (Aug 13) | `true` | `running` |
-| after the fix | `true` | `running` |
-
-Clearing the latch by hand and re-tapping restored sound, which isolated the
-latch as the blocker rather than the policy.
-
-**The fix.** `startTitleMusic` now commits only when the context is genuinely
-running: if it is, play and latch; if it is suspended under a gesture, wait on
-the `resume()` promise and re-check inside `.then()`. A gesture that did not
-carry the activation simply never resolves, and the next one retries. The
-`state !== "title"` guard inside the callback stops a late resolution from
-starting the title tune mid-run.
-
-The same latch-on-assumption bug existed on the `<audio>` element path, where a
-rejected `play()` was swallowed by `pr.catch(() => {})`. `musicPlay` takes an
-`onFail` callback now and releases the latch when the element path is refused.
-
-Desktop regression-checked under `no-user-gesture-required`: unchanged.
-
-**Still open on this item:** none of it is committed, and it has not yet been
-confirmed on the user's actual phone — headless emulation reproduced the fault
-and shows it fixed, but the real device is the only proof that counts.
+Confirmed via headless emulation with real touch-event dispatch; not
+separately re-confirmed on the user's own phone since, though extensive real
+on-device play since (leaderboard testing) hasn't surfaced a regression.
 
 ### 2. Write AGENTS.md — DONE 2026-08-18
 
-[`AGENTS.md`](AGENTS.md) now exists: the short operating brief, meant to be read
-every session. **It does not replace this file** — the split settled on is
-AGENTS.md for the rules and the traps, this file for the architecture detail and
-the open-work queue, with AGENTS.md pointing here for depth.
-
-To keep them from drifting, the standing instructions were **removed from this
-file** rather than copied — they live in AGENTS.md alone now. Three other stale
-passages were corrected at the same time: the opening section still described
-`index copy.html` on `finger-slide-feature` as where the work lived, the
-steering section still claimed to describe that file, and "Running it" claimed
-`server.py` was loopback-only when it binds `0.0.0.0`.
-
-Every symbol AGENTS.md names was checked against `index.html` before it shipped.
+[`AGENTS.md`](AGENTS.md) exists: the short operating brief read every session.
+Split: AGENTS.md holds the rules/traps, this file holds architecture depth and
+the open-work queue.
 
 ### 3. Implement a leaderboard
 
-**FRONT END BUILT 2026-08-18 against a stubbed data layer, LIVE 2026-08-20.**
-`Board` now calls the `waterpark-leaderboard` plugin's REST routes instead of
-`localStorage` — see "Board is live" below. Everything below the "Design"
-heading is the agreed spec; what follows first is what actually exists in
-`index.html` now.
+**LIVE as of 2026-08-20.** `Board` calls the `waterpark-leaderboard` plugin's
+REST routes instead of `localStorage`. The whole leaderboard implementation
+(front end, plugin, `database-plan.md`) is **committed and merged to `main`**
+(`0c2841d`, pushed to `origin/main`) — see "Git state" at the bottom of this
+file for the full commit/branch picture. Everything below the "Design"
+heading further down is the original agreed spec, kept short as background;
+the sections above it describe what actually exists in `index.html` and the
+plugin now.
 
 #### Status — 2026-08-20
 
-**Done and verified (headless, no live WordPress involved):**
-- `database-plan.md` — schema reconciled to one row per player, token-based
-  identity, a session index. No daily/all-time leftovers.
-- `waterpark-leaderboard/` plugin scaffolded in its own folder: DB layer
-  (`class-database.php`), repository (`class-score-repository.php`),
-  name-claim service (`class-name-pool.php`), REST controller
-  (`class-rest-controller.php`) exposing `/claim`, `/submit`, `/leaderboard`,
-  `/rank`, `/names`. All `php -l` clean.
-- Word pool grown 40x40 -> 100x100, mirrored byte-identically between
-  `index.html` and the plugin — see "Word lists expanded" below.
-- `Board` rewired from the `localStorage` stub to real `fetch()` calls
-  against those routes — see "Board is live" below.
-- Naming screen: taken-name avoidance on the reels, a busy/spinner state
-  while claiming, and an error message with a "play without saving your
-  name" skip link so an unreachable backend can never hard-block a new
-  player. Verified headless at 412px — busy state, error + retry, and the
-  skip path unblocking `start()` were all confirmed working.
+**Committed and merged to `main`, verified against a real WordPress
+install.** `waterpark-leaderboard/` (DB layer, repository, name-claim
+service, REST controller exposing `/claim`, `/submit`, `/leaderboard`,
+`/rank`, `/names`), the 100x100 word pool, and `Board`'s live `fetch()` calls
+all landed in one commit. Deployed to the Kinsta dev environment
+`env-typhoontexasnew-dev` (WP 7.1, PHP 8.3.25, Wordfence active) over
+SSH/WP-CLI and exercised for real, not just `php -l`-linted:
+`wp plugin activate` clean, `SHOW CREATE TABLE` matches the plan byte-for-byte
+including `utf8mb4_unicode_520_ci` picked up live from
+`get_charset_collate()`, all five routes round-tripped with real HTTP
+(including the upsert-never-regresses guard and a real `237`-suffix
+collision), a deactivate→reactivate cycle preserves rows and schema, and
+`/var/log/sitelogs/error.log` stayed empty throughout on the site's real
+PHP 8.3.25.
 
-**Verified against a real WordPress install — 2026-08-20.** Deployed to the
-Kinsta dev environment `env-typhoontexasnew-dev` (WP 7.1, PHP 8.3.25, table
-prefix `wp_`, Wordfence active) over SSH/WP-CLI:
+**⚠️ `Board`'s `API` constant is TEMPORARILY an absolute URL, not the
+relative path it ships with.** To let the game be tested against the live
+Kinsta dev database before it's embedded in WordPress, `index.html`'s
+`const API = ...` (search for `env-typhoontexasnew-dev`) points at the dev
+site's full `https://.../wp-json/...` URL instead of the same-origin
+`/wp-json/waterpark-leaderboard/v1`. WordPress core's REST API reflects
+whatever `Origin` header a request carries (verified with curl, both GET and
+the POST preflight), which is why this works cross-origin at all — but it
+must be **reverted to the relative path** before the game is actually served
+from the WordPress site itself, or it will keep talking to the dev
+environment from production.
 
-- `wp plugin activate` ran cleanly; `SHOW CREATE TABLE wp_stampede_scores`
-  matches the plan byte-for-byte, including both unique keys, the three
-  secondary indexes, and `utf8mb4_unicode_520_ci` picked up live from
-  `$wpdb->get_charset_collate()` rather than hardcoded.
-- All five routes exercised with real HTTP requests: `/claim` (fresh name,
-  and a repeat claim that correctly landed a `237` suffix — `idx_game_name`
-  enforcing uniqueness, not just the app-level pre-check), `/submit` (a
-  higher score updates; a *lower* score afterward correctly does **not**
-  regress it — the `IF(VALUES(score) > score, ...)` upsert guard holds),
-  `/leaderboard`, `/rank`, `/names`. Error paths also confirmed live: an
-  off-word-list claim 400s, an unknown token on `/submit` 404s.
-- Deactivate → reactivate cycle leaves row count and table structure
-  unchanged (dbDelta re-run is idempotent, activation hook does not drop
-  data).
-- `/var/log/sitelogs/error.log` stayed empty through all of the above — no
-  PHP warnings, notices, or deprecations on the site's real PHP 8.3.25,
-  which local `php -l` linting could never have caught.
+**The Kinsta dev table has accumulated real test data** from this session's
+verification and from testing the fixes below against the live board (dozens
+of claimed names/scores by now, not just the original two). Fine for a dev
+environment; clear it before that environment is used for anything real.
 
-Two test rows (`Dusty Buckaroo`, `Dusty Buckaroo 237`) are still sitting in
-that dev environment's table — left in place rather than cleaned up, since
-this is the dev, not production, environment. Worth clearing before this
-plugin is treated as production-ready. Not yet tried: `wp plugin uninstall`
-(would also remove the plugin directory, not worth doing against a real
-site casually) — `uninstall.php`'s no-op body was verified by reading it, not
-by executing it.
+**Fixed this session, on top of the merged commit (uncommitted in
+`index.html` as of this writing):**
+- The naming screen's reels used to show blank, then fill in, right after the
+  loader dismissed — see "Bugs found and fixed — after going live" below.
+- The results-card rank stat opening the board used to show it unsorted and
+  then visibly animate-scroll to the player's row — same section.
+- `#stats{overflow:hidden}` could clip the entire rank row off a real short
+  phone viewport when several "New Best" pills landed at once — same
+  section. Found from a user bug report, not proactively.
+- The "The real drop opens this summer" tagline (`#overTag` /
+  `CONFIG.overTag`) was removed outright, not reworded — cut cleanly from the
+  DOM, CONFIG, JS wiring, and its CSS animation-stagger rule.
 
 **Not started:**
 - Getting `index.html` into an Oxygen Builder code block — asset-path
   rewriting (73 relative `assets/...` references assume same-path hosting),
-  and code block vs. plugin-enqueued script, discussed before this plugin
-  existed but not acted on.
-- The full pairwise audit of the 10,000 name combinations — flagged, then
-  explicitly deferred by the user ("not concerned with reading over the names
-  right now"). Still open below.
-
-**Not committed.** `HANDOFF.md`, `database-plan.md`, and `index.html` are
-modified and `waterpark-leaderboard/` is untracked — none of it committed
-yet, per AGENTS.md: commits need explicit go-ahead.
+  and code block vs. plugin-enqueued script. This is also what the temporary
+  absolute API URL above is standing in for.
+- The full pairwise audit of the 10,000 name combinations — deferred by the
+  user, tracked below under "Open for the user".
 
 #### Game flow reworked 2026-08-18
 
@@ -630,10 +585,13 @@ never needs asking for." `top()`/`rankOf()` are real awaited calls now;
 fixed two-`requestAnimationFrame` guess, since the row it scrolls to no
 longer exists synchronously.
 
-**Known gap:** local `python3 server.py` testing has no `/wp-json` to talk to,
-so the naming/leaderboard network calls always fail there — verified via the
-fail-open/error paths above, not a successful claim. Exercising the success
-path needs a real WordPress install with the plugin active.
+**`python3 server.py` has no `/wp-json` of its own to talk to** — by default,
+naming/leaderboard calls from a locally-served game fail there, which is
+useful for testing the fail-open paths but not a live claim. Worked around
+for now via the temporary absolute `API` URL flagged above, which points a
+locally-served game at the real Kinsta dev backend for real end-to-end
+testing (a real WordPress install is still needed to exercise it — the
+Kinsta dev environment now serves that purpose).
 
 #### Bugs found and fixed while building it
 
@@ -669,6 +627,44 @@ path needs a real WordPress install with the plugin active.
   rule is that the *name* gives way and the number never does — but useless to
   read. A `max-width:380px` block gives the name column its space back. Every
   name now fits unellipsised at 320px.
+
+#### Bugs found and fixed — after going live, 2026-08-20
+
+Three more, found from real use once the plugin was live rather than while
+building it.
+
+- **Naming-screen reels showed blank, then filled in.** `/names` used to be
+  fetched only after the loader dismissed and the naming screen was already
+  showing (hidden behind `#reels.loading`'s opacity while it caught up) — the
+  fetch and the reveal were sequential. Fixed by starting the fetch
+  (`namesPromise`) as soon as `Board` exists, in parallel with the ~10MB of
+  sprite loading, and having `ready()` (the loader's finish step) `await` it
+  before ever dismissing. `loadTakenNames()` now just reuses that same
+  promise instead of firing a second request. Verified against the live dev
+  backend over CDP: `/names` resolved ~3s before the naming screen ever
+  appeared.
+- **Tapping the rank stat showed the board unsorted, then visibly scrolled
+  the player's row into place.** `openBoard()` now shows a spinner
+  (`#lbLoading`, reusing the existing button-spinner CSS pattern) and jumps
+  straight to the player's row — `scrollToMe(true)`, a new instant-jump mode
+  alongside the existing eased one — *behind* that spinner, only revealing
+  the board once both the fetch and the positioning are done. Verified by
+  seeding the live dev board to 20 rows and sampling `scrollTop`: it jumps
+  straight to the final value the instant the spinner clears, never animates
+  after reveal.
+- **`#statRank` (the rank row) could get clipped almost entirely out of
+  existence on a real phone.** Same CSS trap as `#lbTabs` above, just found
+  later: `#stats{overflow:hidden}` (needed only to clip the "New Best" pill's
+  pop-in overshoot) strips `#stats`'s default flex-item protection against
+  shrinking below its content. When several pills land at once and the
+  results card is taller than the visible viewport, `#stats` — uniquely
+  among `#overPanel`'s children — was the thing flexbox squeezed to make it
+  fit, and it did that by clipping itself rather than by the panel scrolling.
+  Reported by the user on a Samsung S23; reproduced at a realistic 360x650
+  viewport (~102px of the rank row clipped) and fixed with `flex-shrink:0` on
+  `#stats`. Verified end to end: after the fix the panel correctly becomes
+  scrollable instead, and a real click on the rank row after scrolling opens
+  the board.
 
 #### Verified
 
@@ -758,225 +754,90 @@ but that is not the bar the original list was held to. Flagged below.
    and "Use This Name" sit over the top 50. Alternative is a dedicated claim
    view that swaps to the board after.
 2. **Stats cells size independently**, so a long Score renders smaller than a
-   short Descent beside it (carried over from item 4).
-3. Whether to auto-submit after the first opt-in, or prompt every run.
-4. Word lists need a **full read-through before launch** — now 10,000 pairs
+   short Descent beside it (see item 4 below — same root cause, not fixed
+   there either).
+3. Word lists need a **full read-through before launch** — now 10,000 pairs
    after the 2026-08-20 expansion to 100x100 (was 1,600 at 40x40). That audit
    is the entire safety argument for the closed set, and it has not been done.
    The 60 new adjectives and 60 new nouns added 2026-08-20 additionally have
    not had the word-by-word user review the original 80 got — see "Word lists
    expanded" above.
 
+~~Whether to auto-submit after the first opt-in, or prompt every run~~ —
+resolved by the game-flow rework above: naming happens before the first run,
+so every submission is automatic and none is ever prompted.
+
 ---
 
-#### Design (agreed 2026-08-18, unchanged)
+#### Design rationale (agreed 2026-08-18, kept short — all of this is now built)
 
-**Today** there is no leaderboard and no backend. Bests are per-device: `BEST` in
-`localStorage` under `stampede.best.v1` (`dist`, `coins`, `score`, `letters`,
-`runs`, `index.html:1621`), feeding the "NEW BEST" badges on the results panel.
+The reasoning behind decisions already implemented above, condensed to what's
+still worth knowing if one of them is ever questioned. Full detail was cut
+2026-08-20 now that the real, current schema lives in `database-plan.md` and
+the real, current code is described earlier in this section.
 
-#### Identity — a closed set, never free text
-
-**No typed names, ever.** The player composes a name from two curated word lists
-(slot-machine reels they can spin and lock): `[Adjective] [Noun]`, western and
-water-park flavoured — *Soggy Buckaroo*, *Rowdy Riptide*, *Dusty Cannonball*.
-
-The reasoning, so nobody reopens it: free text means owning a moderation problem
-forever, and blocklists lose to leetspeak, spacing, homoglyphs and every language
-that is not English. The real risk is not a rude row in a database, it is a
-screenshot of Typhoon Texas branding beside a slur. A closed set makes the
-problem structurally impossible instead of policed — and ~50x50 combinations is
-small enough to **audit in full, once**, which also catches pairs that are fine
-apart and bad together.
-
-**Update 2026-08-20:** the lists grew to 100x100 (10,000 pairs) — see "Word
-lists expanded" further down. The closed-set argument above still holds
-word-by-word, but "audit in full, once" no longer describes the pairwise
-cross-product at this size; that audit is tracked as still-outstanding in
-"Open for the user."
-
-- **Collisions** get a random 3-digit suffix, **rolled server-side and re-rolled
-  on clash** — a client-side random can collide with itself and solves nothing.
-- **The digits need a blocklist too.** `666`, `420`, `069`, `187`, `13`, `88`.
-  Engineering profanity out of the words and letting it back in through the
-  number would be an own goal. Only 1,000 values, so audit them all.
-- **Names are reserved at CREATION, not at submission**, and returned with a
-  **player token** stored beside `BEST`. Resolving collisions at submit time
-  would let a name change under a player who already had it for three runs.
-  The token is a login-less account: no email, no PII — a feature for a family
-  park, not a compromise.
-- `localStorage` **throws outright in some contexts** (see `BEST`'s try/catch).
-  The name needs the same wrapping, and the fallback is a playable game with an
-  unsaved identity, never a crash.
-
-#### Storage — one row per player
-
-**One row per player, updated only when they beat their own best.** Not one row
-per run: that lets a single good player fill the whole top 50, and turns rank
-into "#578 of 40,000 runs" instead of "#578 of 3,412 riders".
-
-**Build it as a small WordPress plugin — a custom table plus REST routes.** The
-game is going on the user's WordPress site (which uses ACF and WS Form). Both
-were considered and rejected for the store:
-
-- **ACF repeater** on an options page serialises the list into ONE `postmeta`
-  row, so two simultaneous finishes read-modify-write over each other and lose
-  scores. At park volume that is routine, not rare. **Do not use it.**
-- **ACF + a post per player** avoids that but ranks via `ORDER BY
-  meta_value_num` over the key-value `postmeta` table — slow, and it buries
-  wp-admin under thousands of junk posts.
-- **WS Form** captures submissions well, but it is append-only and this needs an
-  upsert plus cheap ranked reads. Its one real edge is an admin moderation UI —
-  and the closed-set naming means **there is nothing to moderate**.
-
-A custom table keeps everything inside the existing WP install: no new service,
-no new bill, same-origin so no CORS.
-
-```sql
-CREATE TABLE wp_stampede_scores (
-  id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  token       CHAR(32)     NOT NULL UNIQUE,
-  name        VARCHAR(64)  NOT NULL UNIQUE,
-  score       INT UNSIGNED NOT NULL,
-  achieved_at DATETIME     NOT NULL,
-  KEY score_rank (score DESC, achieved_at ASC)
-);
-```
-
-- upsert: `INSERT … ON DUPLICATE KEY UPDATE score = GREATEST(score, VALUES(score))`
-- rank: `SELECT COUNT(*)+1 WHERE score > ?`
-- board: `ORDER BY score DESC, achieved_at ASC LIMIT 50`
-
-**Ties must break deterministically** — score desc, then *earliest* achieved.
-Score is coarse (letters cap at 2,000, spare tubes 1,500, speed bonus 3,000;
-everything above that is coins at 10 each), so exact ties will happen, and
-without a tiebreak tied players swap places on every load and the board looks
-broken.
-
-#### Placement — one panel, three entry points
-
-Every existing screen uses the same **one primary + one ghost button** pattern
-(Drop In / How to Play, Ride Again / Get Season Passes). A third peer button
-breaks that everywhere at once, and on the results screen it would compete with
-the Season Passes CTA. The reveal is now the exception — it carries a single
-button, See Your Score, because the run is already over when it appears.
-
-- **Results screen is the real home, and rank is a STAT, not a destination.**
-  Add a row to the existing `#stats` block; tapping it opens the board. After a
-  run the question is "how did I do", which a rank answers inline without
-  navigation.
-- **Title screen:** Leaderboard as a second ghost button *beside* How to Play, so
-  the weight stays "one primary, one secondary row" rather than three stacked.
-- **Win screen:** rank inline only, appearing *after* the reveal animation. That
-  screen was reworked to focus on the slide reveal; a button undercuts it.
-- **HUD: no.** Ruled out. Nobody browses a leaderboard mid-run, touch during play
-  is a joystick so a tap target there is a mis-input hazard, and panel padding
-  already fights the floating mute button on short screens.
-- **Reuse the `#howPanel` pattern** for the board itself — it already scrolls,
-  has its own darker wash, swallows the keyboard while open, and is hidden
-  rather than torn down. One panel, three entry points.
-
-#### Submit flow
-
-Rank can be computed **without** submitting, since it needs only the score. So
-show the player where they would land, then let them opt in — a far better
-prompt than an abstract yes/no:
-
-```
-Score          12,940   ★ BEST
-You'd rank       #578      [ Add me to the leaderboard ]
-```
-
-First tap opens the reels and submits. After that the name persists and the
-results screen shows `Riding as SOGGY BUCKAROO 447  [change]`.
-
-**Open with the user:** whether to auto-submit after the first opt-in (my
-recommendation — a prompt between the player and *Ride Again* is friction at the
-worst moment, with an opt-out in the panel) or to ask on every run.
-
-#### Blocking questions
-
-**Both answered 2026-08-18.**
-
-1. ~~**Two boards: Daily and All-Time.**~~ Reversed 2026-08-20 — a single
-   all-time board only. `Board`, `#lbPanel`, and the results-card rank row were
-   all simplified back down to one ranking; there is no more `scope` argument
-   anywhere in `Board`'s API.
-2. **Rank on `score`, unchanged**, and **surface Score in the HUD** so players
-   can see the thing they are being ranked on while they play. It is currently
-   invisible during a run — the HUD shows Descent and Buckaroos only, so players
-   would grind metres and then be ranked on something they never saw.
-
-   `runScore()` (`index.html:1733`) = `coins x 10 + letters x 250 + spare tubes
-   x 500 + speed bonus (<=3000)`. The fixed part caps at 6,500; **everything
-   above that is coins, which are unbounded**, so the number can grow without
-   limit. See the next item — that is a real constraint, not a hypothetical.
-
-#### Not addressed, and accepted
-
-Anyone can claim any name, and the score is computed in client-side JS in a file
-anyone can read, so it is forgeable. Both are probably fine for a park promo, and
-neither should shape the naming or storage decisions. Revisit only if the board
-starts getting gamed.
+- **Closed-set naming (reels, never typed text), so nobody reopens it:** free
+  text means owning a moderation problem forever, and blocklists lose to
+  leetspeak/spacing/homoglyphs/other languages. The real risk isn't a rude
+  database row, it's a screenshot of the park's branding beside a slur — a
+  closed set makes that structurally impossible rather than policed. This
+  argument holds at 100x100 words just as it did at 40x40; only "audit the
+  full cross-product in one sitting" stopped being literally true, which is
+  why that audit is now its own open item rather than assumed done.
+- **A custom WordPress table, not ACF or WS Form.** An ACF repeater
+  serialises the whole leaderboard into one `postmeta` row — concurrent
+  finishes read-modify-write over each other and lose scores, routine at
+  park volume, not rare. ACF-post-per-player avoids that but ranks via a
+  `postmeta` value scan and buries wp-admin in junk posts. WS Form is
+  append-only where this needs upsert-plus-ranked-reads, and its one real
+  edge (admin moderation UI) is moot since the closed-set naming leaves
+  nothing to moderate.
+- **One panel, three entry points, no HUD entry.** Every existing screen is
+  "one primary button + one ghost row"; a third peer button breaks that.
+  Rank is a stat on the results card (tapping it opens the board), a second
+  ghost button on the title screen, and inline-only after the win reveal.
+  Ruled out on the HUD outright — nobody browses a leaderboard mid-run, and
+  touch during play is a joystick, so a tap target there is a mis-input
+  hazard.
+- **Score, not distance or letters, is what's ranked** — and that's why
+  Score had to be added to the HUD (item 3's build) once this was decided:
+  players were being ranked on a number they never saw mid-run. `runScore()`
+  (`index.html:1733`) = coins×10 + letters×250 + spare tubes×500 + speed
+  bonus (≤3000). The fixed part caps at 6,500; coins are unbounded, so the
+  score itself has no ceiling — see item 4 for why that's fine in practice.
+- **Two boards (Daily/All-Time) was tried, then reversed 2026-08-20** back to
+  a single all-time ranking — simpler, and there's no `scope` argument
+  anywhere in `Board`'s API now.
+- **Accepted, not addressed:** anyone can claim any name, and the score is
+  computed in client-side JS anyone can read, so it's forgeable. Fine for a
+  park promo; revisit only if the board actually gets gamed.
 
 ### 4. Long numbers overflow their boxes — FIXED 2026-08-18
 
-**Was already broken before any leaderboard work**, not caused by it.
+Pre-existing, not caused by the leaderboard work. Root cause: `.statRow > div`
+and `#coinRow .val` were `flex:1 1 0` with no `min-width:0`, so a long figure
+burst the row past the screen edge instead of compressing the cell (`.ctl` had
+already been fixed this way; these two were missed). Fixed with `min-width:0`
+in both places plus **`setFigure(el, value, maxPx)`**, which formats with
+`toLocaleString()` and steps the font size down until it fits (floor 8px),
+caching on digit count so it doesn't re-measure every frame. All six HUD/
+results figures route through it now. Verified against a measured ceiling
+(an unsteered bot's coin rate, generously multiplied), not a guessed one —
+everything up to 9 digits fits unshrunk at 320px.
 
-**Root cause.** `.statRow > div` was `flex:1 1 0` with no `min-width:0`. A flex
-item defaults to `min-width:auto` and refuses to shrink below its content, so a
-long figure did not compress the cell — it burst the whole row past both screen
-edges, taking its own border and shadow with it. `#coinRow`'s `.val` had the
-same problem in the HUD. `.ctl` (`index.html:275`) had been fixed this way
-already; these two were missed.
+Deliberately not `white-space:nowrap` on `#stats strong` — that would drag
+the "New Best" pill up beside the figure, the exact thing `display:block` is
+there to prevent, and digits don't need it (a comma carries no line-break
+opportunity).
 
-Before the fix (`getBoundingClientRect().right` vs viewport, dsf 2):
+**Open, minor, unchanged since 2026-08-18:** stat cells size independently,
+so a long Score can render smaller than a short Descent beside it — degrades
+correctly, reads slightly uneven. Tracked once, in item 3's "Open for the
+user" list, not duplicated here.
 
-| width | 12,940 *(typical today)* | 1,284,930 | 984,210,300 |
-|---|---|---|---|
-| 320px | **overflowed** 325>320 | 363 | 402 |
-| 360px | ok | **overflowed** 387>360 | 426 |
-| 412px | ok | **overflowed** 418>412 | 458 |
-
-After: **all 18 combinations pass** (3 widths x 3 magnitudes x HUD + stats).
-
-**What changed**
-
-- `min-width:0` on `.statRow > div`, `#coinRow`, `#coinRow .val`, `#hud > *`;
-  `max-width:100%` on `.board`, `62%` on `#hudRight`, `flex:none` on the coin
-  icon so it is never the thing that shrinks.
-- **`setFigure(el, value, maxPx)`** (`index.html`, above `syncHUD`) formats with
-  `toLocaleString()` and steps the font size down until the text fits, floor
-  8px. It caches on **digit count**, so it only re-measures when the number
-  changes length — the HUD is not forcing a layout every frame.
-- All six figures now route through it: `dist`, `coins` in the HUD; `fDist`,
-  `fCoins`, `fScore` on the results screen. **Formatting is now consistent** —
-  the HUD used to render raw while the results screen localised.
-
-**Deliberately NOT done: `white-space:nowrap` on `#stats strong`.** The "New
-best" pill is an `inline-block` `::after` on that element, and nowrap drags it up
-beside the figure — the exact bug the existing `display:block` is there to
-prevent. Digits do not need it: a comma between digits is UAX-14 class IS and
-carries no line-break opportunity, so `1,284,930` cannot wrap. `.board .val`
-does get nowrap, because `"18,432 m"` contains a real space and has no pill.
-
-**The ceiling was measured, not guessed.** An unsteered bot banks 67 coins in
-118s. Even granting a skilled player 5x that rate: ~15,000 after 5 minutes,
-~57,500 after 30, ~210,500 after two hours, ~2,450,000 after a full day — 6 to 9
-characters. Everything to 9 characters fits **unshrunk** at 320px. The 11-digit
-case the harness proves is beyond reach: 984,210,300 needs ~98 million coins,
-about 9,600 hours. The shrink exists for the tail, not the normal case.
-
-**Open, minor:** cells now size independently, so a long Score renders smaller
-than a short Descent beside it. It degrades correctly but reads slightly uneven.
-Fitting the whole row to its narrowest cell would look tidier at the cost of
-shrinking figures that had room. Not done — ask the user.
-
-**Still to do here, once the leaderboard lands:** Score is not in the HUD yet
-(item 3 decided it should be), and leaderboard rows pair a name up to ~22
-characters with a long score — size those columns explicitly and ellipsise the
-**name** if anything, never the number. The harness in the scratchpad
-(`overflow.js`) reports per-element overflow and belongs in `tools/`.
+Both things this item once flagged as "still to do once the leaderboard
+lands" are done: Score is in the HUD (`#hudScore`), and leaderboard name
+columns got their own width fix (see item 3's "Bugs found and fixed").
 
 ### 5. Replace Descent with Score in the HUD
 
@@ -1131,9 +992,10 @@ Agree camera pitch as a standalone change before reopening.
   given `.git` is already 242 MB.
 - **No `.gitignore`, and junk is tracked:** five `.DS_Store` files and
   `__pycache__/server.cpython-314.pyc`.
-- **Three merged branches to delete:** `finger-slide-feature`,
-  `win-screen-rework`, `wipeout-rework` — all zero commits ahead of `main`,
-  locally and on `origin`.
+- **Six merged branches to delete, all zero commits ahead of `main`:**
+  `finger-slide-feature`, `win-screen-rework`, `wipeout-rework`, `music-bug`,
+  `leaderboard`, and now `leaderboard-plugin` too (merged 2026-08-20). User
+  wants to defer this cleanup ("we'll clean later") — not done yet.
 - **The test tooling keeps getting lost to session scratchpads** — `harness.js`,
   `shot.js`, `serve_copy.py`, three times now. It earns its keep every time: it
   caught a strobing lean pose and a loader that never reached 100%, proved the
@@ -1157,16 +1019,17 @@ sections of this document (item 2). All 63 referenced assets resolve.
 
 ## Git state
 
-**The `origin` remote is temporarily pointed at SSH-over-443.** Set 2026-08-18
-because the hospital wifi the user was on blocks outbound port 22, so the normal
-`git@github.com:` remote times out. It is the same SSH key and the same
-permissions — only the transport differs.
+**The `origin` remote is still pointed at SSH-over-443** (set 2026-08-18 for
+hospital wifi that blocks outbound port 22 — same key, same permissions, only
+the transport differs). Unclear whether that network constraint still
+applies; the remote hasn't been reverted, and pushes over it are still
+working fine as of 2026-08-20.
 
 ```
-# current (temporary)
+# current
 ssh://git@ssh.github.com:443/adamhood15/stampede.git
 
-# revert to this once off that network
+# revert to this once confirmed off that network
 git remote set-url origin git@github.com:adamhood15/stampede.git
 ```
 
@@ -1174,41 +1037,39 @@ If a push ever hangs and then fails with `ssh: connect to host github.com port
 22: Operation timed out`, that is the network, not the repo — check port 22
 with `nc -z github.com 22` before debugging anything else.
 
+**The entire leaderboard implementation is committed and merged.** `main` is
+at `0c2841d` (fast-forwarded from `34a35ab`, pushed to `origin/main`) —
+`index.html`'s leaderboard/naming/game-flow rework, `database-plan.md`, and
+the whole `waterpark-leaderboard/` plugin all landed in one commit, per the
+user's choice not to split a day's tightly-coupled work into artificial
+pieces.
 
-**Working tree is NOT clean.** `main` and `music-bug` both sit at `c398d6b`,
-pushed to `origin/main` on 2026-08-18 — linear history, fast-forwarded rather
-than merged. Everything since is **uncommitted**:
+**Uncommitted right now:** only `index.html`, containing the four fixes from
+this session (see item 3's "after going live" section and the tagline
+removal) — the loading-screen `/names` race, the leaderboard open-then-scroll
+flash, the `#stats` clipping bug, and the removed tagline. **The user asks
+for commits — confirm before committing.**
 
-| path | state | what it is |
-|---|---|---|
-| `index.html` | modified | the whole leaderboard front end, the reworked game flow, the naming screen, and the long-number fix. ~570 lines added since `c398d6b`. |
-| `HANDOFF.md` | modified | this file |
-| `database-plan.md` | untracked | a leaderboard storage plan the user added 2026-08-19. Set aside for now at the user's direction — **do not act on it without asking.** |
-| `assets/sprites/chute/tunnel-ring-inner.png` | untracked | new chute art, 731 KB, **not referenced by `index.html` yet** |
+Two things worth knowing before that commit:
 
-Two things worth knowing before the next commit:
+- **`Board`'s `API` constant is temporarily an absolute URL** pointed at the
+  Kinsta dev site, not the relative path it ships with — see item 3. Must be
+  reverted before `index.html` is actually served from WordPress.
+- `assets/sprites/chute/tunnel-ring-inner.png` (committed in `7d20a6c`) is
+  **still uncompressed (731 KB) and still unreferenced by `index.html`** —
+  unchanged since the last time this was flagged. Run it through the item-10
+  compression method before it's wired up, and check whether it feeds a
+  registration-relevant sprite first.
 
-- **`tunnel-ring-inner.png` has not been through the compression pass.** At
-  714 KB it would be the **second-heaviest sprite** in the payload (behind
-  `background-western.png` at 1,091 KB) and the fifth-heaviest file overall.
-  Run it through `pngquant --quality=70-98 --speed 1` then
-  `oxipng -o max --strip safe` before it lands, or it quietly gives back a
-  chunk of item 10's saving. If it feeds a chute ring it is probably a
-  registration-relevant sprite — check before going lossy (item 10 has the
-  method).
-- The commit that lands all this is large and spans several unrelated concerns
-  (flow rework, leaderboard, layout fixes). Worth splitting if the user wants a
-  readable history; worth one commit if they do not.
-
-**The user asks for commits — confirm before committing.**
+**Six branches are fully merged into `main` (zero commits ahead) and ready to
+delete whenever the user wants to**: `finger-slide-feature`, `win-screen-
+rework`, `wipeout-rework`, `music-bug`, `leaderboard`, `leaderboard-plugin`.
+Deferred at the user's request ("we'll clean later").
 
 Loose ends, none of them blocking:
 
-- The PNG and audio backups taken during the compression pass were **deleted
-  2026-08-18**, after the work was committed, pushed and confirmed by eye. Git
-  is the only copy of the pre-compression art now, which is fine — but note that
-  reverting the compression means reverting `c398d6b`, not restoring a folder.
-- `music-bug` is now redundant — it points at the same commit as `main`. It can
-  be deleted along with the three other merged branches (see Housekeeping).
-- **No `.gitignore`.** Five `.DS_Store` files and `__pycache__/server.cpython-
-  314.pyc` are tracked, and `assets/.DS_Store` rode along in `c398d6b`.
+- `.git` is ~254 MB. No `.gitignore`; `.DS_Store` files and
+  `__pycache__/server.cpython-314.pyc` are tracked.
+- The pre-compression PNG/audio backups from item 10 were deleted after that
+  work was confirmed — reverting that compression means reverting `c398d6b`,
+  not restoring a folder.

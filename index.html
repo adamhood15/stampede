@@ -249,7 +249,6 @@
   /* Read order, top down, with the board given a beat of its own. */
   #overKicker{--d:0}
   #overTitle {--d:80}
-  #overTag   {--d:160}
   #stats     {--d:260}
   #againBtn  {--d:380}
   #ctaBtn    {--d:450}
@@ -510,6 +509,21 @@
   #lbEmpty{display:none;font-size:13px;color:var(--pale);opacity:.75;margin:18px 0}
   #lbEmpty.on{display:block}
 
+  /* Covers renderBoard()'s fetch and, when opened from the rank stat, the
+     jump to the player's row — both happen behind this rather than in front
+     of the player, which used to look like the board appearing unsorted and
+     then the player's card sliding into place. visibility (not display) on
+     #lbScroll: the jump needs real layout/getBoundingClientRect() numbers
+     from it, which display:none would zero out. */
+  #lbLoading{display:none;position:absolute;inset:0;align-items:center;justify-content:center}
+  #lbPanel.loading #lbLoading{display:flex}
+  #lbPanel.loading #lbScroll{visibility:hidden}
+  #lbLoading .spinner{width:38px;height:38px;border:4px solid rgba(255,255,255,.25);
+                      border-top-color:var(--orange);border-radius:50%;
+                      animation:btnSpin .7s linear infinite}
+  @media (prefers-reduced-motion:reduce){
+    #lbLoading .spinner{animation:none;border-top-color:var(--orange)}}
+
   /* the rank row on the results card ------------------------------------- */
   #statRank > div{cursor:pointer;pointer-events:auto}
   #statRank em{display:block;font-style:normal;font-size:9px;letter-spacing:.18em;line-height:1.5;
@@ -575,7 +589,17 @@
      Column now: a row of figures, then the word full-width beneath it. The
      board sizes itself to whichever row is wider, which on a phone is the word,
      and the figures share that width between them. */
-  #stats{display:flex;flex-direction:column;margin-top:20px;
+  /* flex-shrink:0 is load-bearing, the same way it was for #lbScroll's
+     children: overflow:hidden (kept below to clip the "New best" pill's pop
+     overshoot) switches OFF a flex item's automatic min-height protection,
+     so #stats — alone among #overPanel's children — became the one thing
+     allowed to shrink below its content once several pills made the card
+     taller than a real phone's visible height. It shrank by squeezing its
+     own overflow:hidden box rather than by #overPanel scrolling, which
+     clipped #statRank (the last row) almost entirely out of existence and
+     out of reach. Verified on a Samsung S23-realistic 360x650 viewport with
+     every stat at once triggering "New best". */
+  #stats{display:flex;flex-direction:column;flex-shrink:0;margin-top:20px;
          border:3px solid var(--ink);border-radius:6px;
          overflow:hidden;box-shadow:5px 5px 0 var(--ink)}
   .statRow{display:flex}
@@ -1076,7 +1100,6 @@
   <div class="panel" id="overPanel">
     <div class="eyebrow" id="overKicker">Wipeout</div>
     <h2 class="ride" style="font-size:clamp(38px,11vw,80px)" id="overTitle">Nice Run</h2>
-    <p class="tag" id="overTag">The real drop opens this summer.</p>
     <div id="stats">
       <div class="statRow">
         <div><span>Descent</span><strong id="fDist">0</strong></div>
@@ -1153,6 +1176,7 @@
       <div id="lbYou"></div>
       <button class="btn" id="lbBack" type="button">Back</button>
     </div>
+    <div id="lbLoading" aria-hidden="true"><span class="spinner"></span></div>
   </div>
 
   <div class="panel" id="pausePanel">
@@ -1208,7 +1232,6 @@ const CONFIG = {
   winNote:   "You spelled it. Here is the real thing.",   // blank hides the line
   tagline:   "Grab the Letters, and the Buckaroos. Dodge the crowd. Ride it before you ride it.",
   openingLine: "Coming Summer 2027",
-  overTag:   "The real drop opens this summer.",
   ctaLabel:  "Get Season Passes",
   ctaUrl:    "",                     // blank hides the button
 
@@ -1371,7 +1394,16 @@ function load(key, src){
   im.onerror = () => { failed++;      loadStep(); if (--pending === 0) ready(); };
   im.src = src;
 }
-function ready(){
+async function ready(){
+  /* Hold the loader open until the naming reels' data has actually landed —
+     namesPromise (below) was kicked off in parallel with the sprites, so on
+     any connection slower than instant this has already resolved by the
+     time every image has. Without this, a fast/cached asset load could
+     dismiss the loader and show the naming screen before /names answered,
+     which is the blank-then-filled-in reels the loader exists to prevent.
+     A no-op await for a returning player, who never needs naming data. */
+  await namesPromise;
+
   /* Finish the bar before dismissing it. Hiding on the last onload skipped
      straight from wherever the fill had eased to over to nothing, which read as
      the loader giving up rather than completing. */
@@ -1448,11 +1480,12 @@ $("parkName").textContent = CONFIG.parkName;
 $("rideName").textContent = CONFIG.rideName;
 $("revealName").textContent = CONFIG.rideName;
 $("eyebrow").textContent  = CONFIG.eyebrow;
-/* CONFIG.tagline no longer has a home on the title card — the sell line and the
-   "collect every letter" prompt both moved into #howPanel, which can explain
-   them properly instead of compressing them into one sentence. The key is left
-   in CONFIG because #overPanel's overTag still reads the same way. */
-$("overTag").textContent  = CONFIG.overTag;
+/* CONFIG.tagline no longer has a home anywhere on the card: the sell line and
+   the "collect every letter" prompt both moved into #howPanel, which can
+   explain them properly instead of compressing them into one sentence, and
+   #overPanel's own tagline ("The real drop opens this summer") was removed
+   outright rather than reworded. The key is left in CONFIG in case a sell
+   line finds a home again later. */
 $("ctaBtn").textContent   = CONFIG.ctaLabel;
 $("reveal").querySelector(".k").textContent = CONFIG.openingLine;
 /* The one line of copy on the win card, under the sign. Blank hides it outright
@@ -4979,7 +5012,11 @@ const pick = (a) => a[Math.floor(Math.random() * a.length)];
    Digit-suffix collision handling (BAD_NUM etc.) now lives entirely
    server-side; see waterpark-leaderboard/includes/class-name-pool.php. */
 const Board = (() => {
-  const API = "/wp-json/waterpark-leaderboard/v1";
+  // TEMPORARY — testing against the live Kinsta dev DB before this is
+  // embedded in WordPress. Revert to the relative "/wp-json/..." path
+  // (same-origin, no CORS dependency) once the game is served from the
+  // WP site itself.
+  const API = "https://env-typhoontexasnew-dev.kinsta.cloud/wp-json/waterpark-leaderboard/v1";
   const ME  = "stampede.rider.v1";
   const readJSON = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) || d; }
                                catch (e) { return d; } };
@@ -5069,6 +5106,14 @@ const Board = (() => {
   };
 })();
 
+/* Kicked off immediately rather than after the loader dismisses, so it runs
+   in parallel with the ~10MB of sprites instead of after them. ready()
+   (above) awaits this before finishing the loader; loadTakenNames() (below)
+   awaits the same promise rather than firing a second request. Skipped
+   entirely for a returning player — Board.me() is truthy and the naming
+   screen never shows. */
+const namesPromise = Board.me() ? Promise.resolve([]) : Board.takenNames();
+
 /* ---------- reels ---------- */
 let reelA = pick(NAME_A), reelB = pick(NAME_B);
 let takenSet = new Set();   // filled by loadTakenNames() below; empty means "unknown, allow anything"
@@ -5114,11 +5159,14 @@ let claiming = false;
 $("reelA").addEventListener("click", () => { if (!claiming) rollReel($("reelA"), pickAdjective, v => reelA = v); });
 $("reelB").addEventListener("click", () => { if (!claiming) rollReel($("reelB"), pickNoun, v => reelB = v); });
 
-/* Fetched once, right as the naming screen opens (it only ever shows once per
-   device). Reels stay hidden behind #reels.loading for the brief window this
-   takes, rather than painting a name that could jump the instant data lands. */
+/* The actual fetch is namesPromise, started during asset loading (see above)
+   and already awaited by ready() before the loader ever dismisses — this
+   should resolve immediately in practice. #reels.loading / the opacity it
+   sets stays on as a safety net for the case where it somehow doesn't
+   (e.g. afterLoader ever gets called some other way), rather than painting a
+   name that could jump the instant data lands. */
 async function loadTakenNames(){
-  takenSet = new Set(await Board.takenNames());
+  takenSet = new Set(await namesPromise);
   [reelA, reelB] = pickPair();
   paintReels();
   $("reels").classList.remove("loading");
@@ -5163,9 +5211,13 @@ $("nameSkip").addEventListener("click", () => {
 /* Ride down to the player's own row rather than dumping them at the top of a
    list of strangers. Hand-eased rather than scroll-behavior:smooth — the native
    curve is brisk and this is the payoff beat, the moment their name lands on
-   the board. Honours prefers-reduced-motion by jumping instead. */
+   the board. Honours prefers-reduced-motion by jumping instead.
+   `instant` skips the animation outright — used by openBoard() to land on
+   the right row while #lbLoading's spinner still covers the board, so the
+   player is handed an already-sorted list instead of watching their card
+   slide into place after the fact. */
 const SCROLL_DUR = 1200;
-function scrollToMe(){
+function scrollToMe(instant){
   const box = $("lbScroll");
   const row = box.querySelector(".lbRow.me");
   if (!row) return;
@@ -5175,6 +5227,7 @@ function scrollToMe(){
   const centred = box.scrollTop + (rRect.top - bRect.top)
                 - (box.clientHeight - rRect.height) / 2;
   const target = Math.max(0, Math.min(box.scrollHeight - box.clientHeight, centred));
+  if (instant){ box.scrollTop = target; return; }
   const from = box.scrollTop, delta = target - from;
   if (Math.abs(delta) < 2) return;
   if (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches){
@@ -5227,27 +5280,32 @@ async function renderBoard(){
   }
 }
 
-function openBoard(){
+/* scrollToRank: when opened from the results card's rank stat, jump straight
+   to the player's row before ever revealing the board — see scrollToMe()'s
+   `instant` param and #lbLoading's CSS comment for why. */
+function openBoard(scrollToRank){
   $("titlePanel").classList.remove("on");
   $("overPanel").classList.remove("on");
   $("lbPanel").classList.add("on");
+  $("lbPanel").classList.add("loading");
   $("lbScroll").scrollTop = 0;
   paintReels();
-  return renderBoard();
+  return renderBoard().then(() => {
+    if (scrollToRank && Board.me()) scrollToMe(true);
+    $("lbPanel").classList.remove("loading");
+  });
 }
 function closeBoard(){
   $("lbPanel").classList.remove("on");
   if (state === "title")     $("titlePanel").classList.add("on");
   else if (state === "over") $("overPanel").classList.add("on");
 }
-$("lbBtn").addEventListener("click", openBoard);
+// Not `openBoard` directly — addEventListener would pass the click event
+// through as scrollToRank, which is truthy and jumps to a "me" row that may
+// not be the reason this entry point was opened.
+$("lbBtn").addEventListener("click", () => openBoard(false));
 $("lbBack").addEventListener("click", closeBoard);
-$("statRank").addEventListener("click", () => {
-  const shown = openBoard();
-  // Waits on the fetch itself now, not a fixed rAF count — the row it is
-  // scrolling to does not exist in the DOM until renderBoard() resolves.
-  if (Board.me()) shown.then(() => requestAnimationFrame(() => requestAnimationFrame(scrollToMe)));
-});
+$("statRank").addEventListener("click", () => openBoard(true));
 
 /* ---------- the rank row on the results card ----------
    Rank is a STAT, not a destination: after a run the question is "how did I
