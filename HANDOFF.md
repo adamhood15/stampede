@@ -982,6 +982,68 @@ The fixed-pitch camera tops out near 31.7°; at 80° the vanishing point sits
 runout splash). A 45° version was built and reverted at the user's request.
 Agree camera pitch as a standalone change before reopening.
 
+### 12. Mobile UI/UX audit — 2026-08-20
+
+Requested by the user: start the server, play through every screen on a
+simulated phone viewport (412x915, touch-emulated), click every button, and
+list ways to make the UI/UX friendlier on mobile specifically. Nothing was
+changed — findings only. One side effect worth logging: testing the failed
+name-claim path by simulating offline didn't actually block the request (CDP's
+`Network.emulateNetworkConditions` didn't take), so it went through for real
+and created a live "Bubbly Jellyfish" entry + a submitted score on the Kinsta
+dev leaderboard (`Board.claim`/`Board.submit`, `index.html:5040-5067`) — the
+user was fine leaving it, since it's dev-only data.
+
+**High priority**
+
+- **Leaderboard has no quick way out.** `#lbBack` (`index.html:5307`) is the
+  only exit, and it sits below the entire ranked list inside `#lbScroll` —
+  measured at 3095px of scroll content in a 915px viewport (37+ rows). A
+  player who opens the board from the title screen (`openBoard(false)`,
+  `:5306`) has to scroll past everyone to leave. No sticky header, no back
+  arrow, no "scroll to top." By contrast, opening it from the results card's
+  rank row (`openBoard(true)` via `#statRank`, `:5308`) deep-link-scrolls to
+  the player's own row and highlights it — that path already works well and
+  is the model to extend to the title-screen entry point.
+- **No Android back-button/gesture handling anywhere.** No `popstate` or
+  history-state logic exists in `index.html`. Pressing Android's back
+  gesture while the Leaderboard, How-to-Play, or Pause panel is open won't
+  close the panel — it navigates off the page entirely. Stacked on the item
+  above, a player stuck at the top of a long leaderboard has a strong
+  instinct (swipe back) that exits the game instead of the panel.
+
+**Medium priority**
+
+- **Failed name-claim is easy to miss.** `#nameGo`'s click handler
+  (`:5178-5201`) shows `#nameError` and the `#nameSkip` link inline in the
+  naming card on failure, but there's no visual escalation (shake, color
+  flash, haptic) — on a flaky connection a player who looked away while it
+  "loaded" may not notice the card just sitting there.
+- **How-to-Play is one long scroll with no cue.** `openHow()` (`:2504-2508`)
+  always resets `#howScroll` to the top, but the first screenful gives no
+  hint that ~2 more screens of hazards + controls sit below the fold. A
+  first-time player can miss the actual control instructions if they don't
+  scroll.
+- **Leaderboard placeholder data is suspiciously uniform** — not a UI bug,
+  but ranks 1-10 all show the identical score `1,001,990`, and low ranks are
+  generic `Dusty Buckaroo #`. Worth seeding more varied dev data before this
+  is ever shown to a real player, since identical top scores read as broken.
+
+**Low priority / polish**
+
+- The title screen's control legend and the How-to-Play controls section
+  both correctly swap copy for touch (`.kb`/`.tc` spans behind `body.touch`,
+  `index.html:987-1000` and `:1074-1091`, driven by `"ontouchstart" in
+  window` at `:2502`) — confirmed by forcing the class, since headless CDP's
+  touch emulation didn't set `ontouchstart` and initially made this look
+  broken. The one real nit: the icons above that copy are still keyboard
+  key-cap glyphs (⬅➡ / ↑ / ↓ boxes) even once the label says "Flick up" or
+  "Hold & slide" — icon and text send mixed signals to a mobile player who
+  has never seen a keyboard for this game.
+- `user-scalable=no` (`:5`) disables pinch-zoom everywhere, including
+  text-heavy screens like How-to-Play. Standard for a game, but a deliberate
+  tradeoff worth naming rather than a default.
+
 ### Housekeeping found while verifying the above
 
 - **~40 MB of unreferenced files in `assets/`** — not loaded by the game, cloned
