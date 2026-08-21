@@ -261,7 +261,8 @@ about 25 lines: spawn `--headless=new` with `--remote-debugging-port`, GET
 - **`overflow.js`** — pushes typical/big/extreme figures through the HUD and the
   results stats at 320/360/412 and reports any element whose
   `getBoundingClientRect().right` exceeds the viewport or whose `scrollWidth`
-  exceeds its `clientWidth`. Built for item 4; **it is the sweep item 7 needs.**
+  exceeds its `clientWidth`. Built for the long-number overflow fix; **it is
+  the sweep item 7 needs.**
 - **`audiorepro.js`** — reproduces the mobile audio path:
   `--autoplay-policy=document-user-activation-required`, mobile emulation, and
   **real `Input.dispatchTouchEvent` taps**. Synthetic JS events do not carry the
@@ -355,32 +356,11 @@ Two habits worth copying from them:
 
 ## Open work
 
-Last rewritten 2026-08-20. Items 1–2 and 4 are done and their long
-investigation logs have been compressed to what's still worth knowing — the
-durable lessons already live in AGENTS.md. Item 3 (the leaderboard) is where
-active work is happening and keeps its full detail below.
-
-### 1. Audio bug on mobile — DONE 2026-08-18
-
-Title tune never played on Android/iPhone. Root cause: `titleTune` latched on
-gesture *intent* (`pointerdown`/`touchstart`) rather than confirmed playback —
-those fire before mobile grants user activation, so the source started into a
-suspended context, played to nobody, and the latch then blocked every later
-gesture that *would* have worked. Fixed by latching only once
-`ac.state === "running"`, waiting on `resume()`'s promise otherwise. Same
-latch-on-assumption bug existed on the `<audio>` fallback path (a swallowed
-`play()` rejection); fixed the same way. Full repro/verification method is the
-durable lesson now in AGENTS.md ("Never latch 'music started' on intent").
-
-Confirmed via headless emulation with real touch-event dispatch; not
-separately re-confirmed on the user's own phone since, though extensive real
-on-device play since (leaderboard testing) hasn't surfaced a regression.
-
-### 2. Write AGENTS.md — DONE 2026-08-18
-
-[`AGENTS.md`](AGENTS.md) exists: the short operating brief read every session.
-Split: AGENTS.md holds the rules/traps, this file holds architecture depth and
-the open-work queue.
+Last rewritten 2026-08-20. Item numbers 1, 2, and 4 have been retired —
+the mobile audio-bug fix, the AGENTS.md write, and the numeric-overflow fix
+are all done, merged, and removed from this list; their durable lessons live
+in AGENTS.md. Item 3 (the leaderboard) is where active work is happening and
+keeps its full detail below.
 
 ### 3. Implement a leaderboard
 
@@ -754,8 +734,8 @@ but that is not the bar the original list was held to. Flagged below.
    and "Use This Name" sit over the top 50. Alternative is a dedicated claim
    view that swaps to the board after.
 2. **Stats cells size independently**, so a long Score renders smaller than a
-   short Descent beside it (see item 4 below — same root cause, not fixed
-   there either).
+   short Descent beside it — same root cause as the long-number overflow fix
+   (`setFigure`, `index.html:3077`), not fixed there either.
 3. Word lists need a **full read-through before launch** — now 10,000 pairs
    after the 2026-08-20 expansion to 100x100 (was 1,600 at 40x40). That audit
    is the entire safety argument for the closed set, and it has not been done.
@@ -804,7 +784,9 @@ the real, current code is described earlier in this section.
   players were being ranked on a number they never saw mid-run. `runScore()`
   (`index.html:1733`) = coins×10 + letters×250 + spare tubes×500 + speed
   bonus (≤3000). The fixed part caps at 6,500; coins are unbounded, so the
-  score itself has no ceiling — see item 4 for why that's fine in practice.
+  score itself has no ceiling — fine in practice since `setFigure`
+  (`index.html:3077`) shrinks a figure's font to fit rather than letting it
+  overflow.
 - **Two boards (Daily/All-Time) was tried, then reversed 2026-08-20** back to
   a single all-time ranking — simpler, and there's no `scope` argument
   anywhere in `Board`'s API now.
@@ -812,40 +794,14 @@ the real, current code is described earlier in this section.
   computed in client-side JS anyone can read, so it's forgeable. Fine for a
   park promo; revisit only if the board actually gets gamed.
 
-### 4. Long numbers overflow their boxes — FIXED 2026-08-18
-
-Pre-existing, not caused by the leaderboard work. Root cause: `.statRow > div`
-and `#coinRow .val` were `flex:1 1 0` with no `min-width:0`, so a long figure
-burst the row past the screen edge instead of compressing the cell (`.ctl` had
-already been fixed this way; these two were missed). Fixed with `min-width:0`
-in both places plus **`setFigure(el, value, maxPx)`**, which formats with
-`toLocaleString()` and steps the font size down until it fits (floor 8px),
-caching on digit count so it doesn't re-measure every frame. All six HUD/
-results figures route through it now. Verified against a measured ceiling
-(an unsteered bot's coin rate, generously multiplied), not a guessed one —
-everything up to 9 digits fits unshrunk at 320px.
-
-Deliberately not `white-space:nowrap` on `#stats strong` — that would drag
-the "New Best" pill up beside the figure, the exact thing `display:block` is
-there to prevent, and digits don't need it (a comma carries no line-break
-opportunity).
-
-**Open, minor, unchanged since 2026-08-18:** stat cells size independently,
-so a long Score can render smaller than a short Descent beside it — degrades
-correctly, reads slightly uneven. Tracked once, in item 3's "Open for the
-user" list, not duplicated here.
-
-Both things this item once flagged as "still to do once the leaderboard
-lands" are done: Score is in the HUD (`#hudScore`), and leaderboard name
-columns got their own width fix (see item 3's "Bugs found and fixed").
-
 ### 5. Replace Descent with Score in the HUD
 
 Requested by the user 2026-08-18. **Remove the Descent board from the HUD
 entirely and move Score into the slot it vacates**, rather than keeping both.
 
 Score currently sits in `#hudLeft` *below* Descent, which is what pushed the
-STAMPEDE letters strip from `top:78px` down to `150px` (item 4). Dropping Descent
+STAMPEDE letters strip from `top:78px` down to `150px` (the long-number
+overflow fix). Dropping Descent
 returns the left column to a single board, so that 150px should very likely go
 back to 78px — **re-measure rather than assume**, since the strip only collided
 once the figure was wide enough to notice.
@@ -884,9 +840,9 @@ happen to show together.
 ### 7. Audit every screen at every viewport
 
 Requested by the user 2026-08-18: **view all screens at a range of widths and
-heights and confirm nothing is cut off or pushed out of its box.** Item 4 came
-out of doing a slice of this and found a live bug, so the sweep is likely to
-find more.
+heights and confirm nothing is cut off or pushed out of its box.** The
+long-number overflow fix came out of doing a slice of this and found a live
+bug, so the sweep is likely to find more.
 
 Screens: loading, title, How to Play, in-run HUD, paused, wipeout/results, win
 reveal, and the leaderboard panel once it exists.
@@ -1071,8 +1027,9 @@ user was fine leaving it, since it's dev-only data.
 
 **Closed since the last list:** the `line-dance_04-05.png` reference (current
 `index.html` points at the real `line-dance_04.png`); the dangling
-`Horse Whinny.mp3` (item 1); the stale opening, steering and "Running it"
-sections of this document (item 2). All 63 referenced assets resolve.
+`Horse Whinny.mp3` (the mobile audio-bug fix); the stale opening, steering and
+"Running it" sections of this document (the AGENTS.md write). All 63
+referenced assets resolve.
 
 **Declined / parked by the user:**
 - Narrowing `LANE_A` 0.55 → 0.495 (or shrinking the rider 0.48 → 0.378) so riders

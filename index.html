@@ -284,8 +284,22 @@
        padding:12px 34px 14px;margin-top:20px;box-shadow:6px 6px 0 var(--ink);
        transition:transform .08s,box-shadow .08s}
   .btn:active{transform:skewX(-7deg) translate(4px,4px);box-shadow:2px 2px 0 var(--ink)}
-  .btn.ghost{background:var(--orange);color:var(--white);font-size:17px;
+  /* Secondary (orange) and tertiary (blue) share one size/shape — only the
+     colour differs — because the three-button rule always pairs them side by
+     side under the primary: see .ghostRow below. */
+  .btn.ghost,.btn.tertiary{color:var(--white);font-size:17px;
              padding:11px 24px 12px;margin-top:12px;box-shadow:4px 4px 0 var(--ink)}
+  .btn.ghost{background:var(--orange)}
+  /* Deep water blue, not another shade of the ghost orange: the third action
+     in a trio needs its own colour to read as a distinct choice rather than
+     as two ghosts of different sizes, and blue keeps it in palette and clear
+     of the yellow primary. */
+  .btn.tertiary{background:var(--blue-dp)}
+  /* The lone-primary rule: whenever a screen has three actions, the primary
+     sits alone on its own row and reads slightly bigger than the standard
+     .btn, so it stays the obvious first move above the secondary/tertiary
+     pair underneath. */
+  .btn.trioPrimary{font-size:30px;padding:14px 38px 16px}
   .btn:focus-visible,.hudbtn:focus-visible{outline:3px solid var(--yellow);outline-offset:4px}
 
   /* ---------- controls ----------
@@ -315,14 +329,9 @@
          font-size:18px;letter-spacing:.04em;color:var(--yellow);margin-top:2px}
   .ctl span{font-size:9px;line-height:1.6;letter-spacing:.08em;text-transform:uppercase;
             color:rgba(252,246,240,.72)}
-  /* On the how-to card the same control gets a paragraph rather than a caption,
-     so it turns on its side: cap, name, then the explanation with room to run. */
-  #howPanel .controls{flex-direction:column;gap:10px}
-  #howPanel .ctl{flex:none;max-width:none;flex-direction:row;align-items:center;
-                 gap:13px;text-align:left;padding:12px 14px}
-  #howPanel .ctl .cap{flex:none}
-  #howPanel .ctl b{margin:0;flex:none;min-width:58px}
-  #howPanel .ctl span{flex:1;line-height:1.7}
+  /* Slide/Jump/Duck stay in one row on the how-to card too, same compact
+     vertical .ctl the title screen uses — the paragraph-length explanation
+     here just wraps to more lines instead of the caption's one or two. */
   .tc{display:none}
   body.touch .tc{display:block}
   body.touch .kb{display:none}
@@ -346,11 +355,14 @@
      loses that protection, resolving min-height to 0 and squashing to its
      border with its content clipped inside. */
   #lbScroll > *{flex:none}
+  /* Bottom padding clears the floating #lbBack hudbtn the same way .panel's
+     own padding clears #mute (see that rule's comment) — #lbBack sits outside
+     this scroller now, so nothing here reserves room for it otherwise. */
   #lbScroll{width:100%;max-height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;
             touch-action:pan-y;display:flex;flex-direction:column;align-items:center;
             text-align:center;
             padding:calc(env(safe-area-inset-top,0px) + 28px) 22px
-                    calc(env(safe-area-inset-bottom,0px) + 34px)}
+                    calc(env(safe-area-inset-bottom,0px) + 66px)}
   /* Side padding gives way on a phone so the board runs nearly edge to edge —
      22px a side was costing the name column most of what it needed. */
   @media (max-width:560px){
@@ -359,12 +371,16 @@
   .lbLead{max-width:min(92vw,420px);font-size:13px;line-height:1.6;
           color:var(--pale);opacity:.85;margin:2px 0 16px}
 
-  /* Two ghost buttons side by side. Keeps the title screen at one primary plus
-     one secondary ROW instead of a stack of three competing buttons. */
+  /* Two smaller buttons side by side, under a primary that gets its own row.
+     Used for a pair of secondaries (title: How to Play + Leaderboard, both
+     .ghost) and for the secondary/tertiary pair the three-button rule calls
+     for (pause: How to Play .ghost + Start Over .tertiary) — either way, a
+     lone .btn above beats a stack of three competing buttons. */
   .ghostRow{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;
             align-items:center;max-width:100%}
-  /* .btn and .btn.ghost carry different margin-tops (20 vs 12) for the stacked
-     layout they were built for; side by side that reads as a misalignment. */
+  /* .btn and .btn.ghost/.tertiary carry different margin-tops (20 vs 12) for
+     the stacked layout they were built for; side by side that reads as a
+     misalignment. */
   .ghostRow .btn{margin-top:14px}
 
   /* reels ---------------------------------------------------------------- */
@@ -441,6 +457,20 @@
 
   #namePanel .nameError{display:none;color:var(--orange);margin-top:10px}
   #namePanel .nameError.on{display:block}
+
+  /* A failed claim otherwise just sits there quietly — on a flaky connection
+     a player who looked away while it "loaded" can miss it entirely. The
+     shake is the escalation; see #nameGo's click handler for the matching
+     navigator.vibrate() call. */
+  @keyframes nameShake{
+    10%,90%{transform:translateX(-1px)}
+    20%,80%{transform:translateX(2px)}
+    30%,50%,70%{transform:translateX(-4px)}
+    40%,60%{transform:translateX(4px)}
+  }
+  #namePanel.shake{animation:nameShake .4s}
+  @media (prefers-reduced-motion:reduce){
+    #namePanel.shake{animation:none}}
 
   /* Only ever shown alongside a failed claim — see #nameGo's click handler.
      A broken/unreachable backend must never be a hard wall between the
@@ -553,6 +583,13 @@
              padding:calc(env(safe-area-inset-top,0px) + 28px) 22px
                      calc(env(safe-area-inset-bottom,0px) + 34px)}
   .howHead{font-size:clamp(34px,10vw,64px);margin-bottom:4px}
+  /* .howHead's own 4px margin-bottom is sized for #howPanel, where the next
+     thing down is a .howSec that supplies its own 26px margin-top. #lbTitle
+     has no such buffer of its own — #lbHead butts straight up against it
+     above 560px, and below it #lbHead is display:none so the first .lbRow
+     would butt up against it instead — so it needs a real gap of its own,
+     on every screen size, independent of whichever sibling ends up next. */
+  #lbTitle{margin-bottom:20px}
   .howSec{width:100%;max-width:min(92vw,560px);margin-top:26px;
           padding-top:22px;border-top:3px solid rgba(10,10,10,.35)}
   .howSec:first-of-type{border-top:none;padding-top:0}
@@ -580,6 +617,72 @@
      read as a different KIND of thing — a banner sitting under the grid rather
      than the fifth card in it. */
   .haz span{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--orange)}
+
+  /* ---------- HUD guide ----------
+     Same one-card-per-entry grid as #hazards, but the tiles are not all the
+     same shape — a 48px icon square next to a full-width speed bar next to a
+     three-up row of stat cards — so cards size to their own content and the
+     wide ones (.hgWide) span the whole row instead of being squeezed into a
+     hazard-sized cell. A class, not an id: the Buttons and Gameplay Stats
+     sections each get their own instance of this grid. */
+  .hudGuide{margin-top:16px;display:grid;gap:12px;
+            grid-template-columns:repeat(auto-fit,minmax(132px,1fr))}
+  .hgItem{display:flex;flex-direction:column;align-items:center;gap:7px;
+          padding:14px 8px 12px;border-radius:8px;background:rgba(30,48,72,.55);
+          border:3px solid var(--ink);box-shadow:4px 4px 0 var(--ink)}
+  .hgItem b{font-family:var(--display);text-transform:uppercase;transform:skewX(-7deg);
+            font-size:17px;letter-spacing:.04em;color:var(--white)}
+  .hgItem span{font-size:9px;letter-spacing:.1em;line-height:1.6;
+               color:rgba(252,246,240,.72)}
+  .hgWide{grid-column:1 / -1}
+  /* Score, Buckaroos and Tubes share one row (like Mute/Back/Play do as
+     ordinary auto-fit tiles) instead of each claiming a full-width row of its
+     own — flex:1 1 0 + min-width:0 is the same shrink-safe three-across trick
+     #stats already uses for its own row of figures. */
+  .hgRow3{display:flex;gap:12px}
+  .hgRow3 .hgItem{flex:1 1 0;min-width:0}
+  /* The real .board's figure is sized for a HUD corner with nothing beside
+     it; squeezed to a third of this card it needs to give up some size to
+     keep from overflowing or forcing the row to scroll. */
+  .hgRow3 .board{height:auto;padding:7px 8px 8px}
+  .hgRow3 .board .val{font-size:17px}
+  .hgRow3 .hgCoinRow img{width:18px;height:18px}
+  .hgRow3 .hgCoinRow{gap:4px}
+  /* A static double of .hudbtn's chrome — same box, same icon sizing — but in
+     normal flow rather than pinned to a screen corner, since this is an
+     illustration sitting in a card, not a real button. */
+  .hgIcon{width:48px;height:48px;flex:none;display:flex;align-items:center;
+          justify-content:center;background:rgba(30,48,72,.8);
+          border:3px solid var(--ink);border-radius:5px;color:var(--sky-low);
+          box-shadow:3px 3px 0 var(--ink)}
+  .hgIcon svg{width:23px;height:23px;display:block;fill:currentColor}
+  /* Score/Buckaroos: the real .board dropped into the grid with sample
+     figures instead of live ones. */
+  .hgCoinRow{display:flex;align-items:center;gap:7px;justify-content:center}
+  .hgCoinRow img{width:26px;height:26px;display:block}
+  /* Three tubes at the real size and colour, one spent, so the row itself
+     shows "you lose these one at a time" rather than just decorating. */
+  .hgTubes{display:flex;gap:6px}
+  /* One #speedbar strip laid flat in the card instead of floating over the
+     canvas — same sprites, same lit/boosted rule, just not position:absolute
+     about it. */
+  .hgSpeedbar{display:flex;align-items:center;gap:5px;width:100%;max-width:280px}
+  .hgSpeedbar i{flex:1 1 0;min-width:0;aspect-ratio:200/127;
+                background:no-repeat center/contain url("assets/sprites/hud/horse-grey.png")}
+  .hgSpeedbar i.lit{background-image:url("assets/sprites/hud/horse-white.png")}
+  .hgSpeedbar i.boosted{background-image:url("assets/sprites/hud/horse-yellow.png")}
+  /* Every three-across row on the how-to card goes two-up on a phone instead —
+     Slide/Jump/Duck and Score/Buckaroos/Tubes both fit this, and any future
+     three-card row picking up .controls or .hgRow3 gets it for free. The odd
+     third card wraps onto its own row and sits flush left, same as a fifth
+     .hgItem left over in .hudGuide's grid — one rule for every orphaned card
+     on this screen, not a centred one here and a left-aligned one there. */
+  @media (max-width:560px){
+    #howPanel .controls,
+    #howPanel .hgRow3{flex-wrap:wrap;justify-content:flex-start}
+    #howPanel .controls > .ctl{flex:0 0 calc(50% - 5px);max-width:calc(50% - 5px)}
+    #howPanel .hgRow3 > .hgItem{flex:0 0 calc(50% - 6px);max-width:calc(50% - 6px)}
+  }
 
   /* ONE results object, not two. The letters used to sit outside this board as
      a separate labelled block, which put two competing result cards on top of
@@ -782,13 +885,6 @@
               margin-top:clamp(20px,5vh,52px);
               animation:overIn .46s cubic-bezier(.16,1.25,.4,1) .46s both}
   #revealBtns .btn{margin-top:0}
-  /* Deliberately not .ghost's orange — that is the banner's own colour, and a
-     button matching the sign above it reads as part of the sign rather than as
-     something to press. Deep water blue keeps it in palette and well clear of
-     the yellow primary. */
-  /* Both Start Overs, on the win card and on pause, so the same words are the
-     same colour wherever they appear. */
-  #pauseAgainBtn{background:var(--blue-dp);color:var(--white)}
   /* A landscape phone is only ~360px tall and the poster wants far more, so the
      card would push its own buttons off screen — and they are the only way out
      of a modal. The art already shrinks on its own (its width cap is written in
@@ -874,6 +970,22 @@
   #mute{display:flex;left:calc(env(safe-area-inset-left,0px) + 14px)}
   #pause{display:none;right:calc(env(safe-area-inset-right,0px) + 14px)}
   #pause.on{display:flex}
+  /* Shares #pause's corner rather than getting its own: #pause is always off
+     (.on not set) whenever #lbPanel, #howPanel or #overPanel can be open, so
+     none of the four ever contend for it. #lbPanel is a title-screen-only
+     entry point, and #overPanel is post-run (gameOver() removes #pause's .on
+     before the results card ever shows), so both are naturally off. #howPanel
+     is reachable from mid-run pause too, so openHow()/closeHow() toggle
+     #pause's .on explicitly rather than relying on state alone. */
+  #lbBack, #howClose, #overHome{display:flex;right:calc(env(safe-area-inset-right,0px) + 14px)}
+  /* #lbBack/#howClose sit outside their panel's inner scroller, so the panel
+     itself never scrolls and their inherited position:absolute already pins
+     them to the viewport. #overHome has no such inner scroller — it is a
+     direct child of #overPanel, which is the scroll container on a results
+     card tall enough to overflow — so position:absolute would carry it up
+     off-screen with the rest of the card's content. position:fixed anchors
+     it to the viewport instead, exactly like #mute, so it never moves. */
+  #overHome{position:fixed}
 
   /* Both glyphs of each pair ship in the markup; a class picks which shows, so
      toggling costs no reflow and needs no second request. */
@@ -975,10 +1087,12 @@
     <div id="heroWrap">
       <img id="heroDance" alt="">
     </div>
-    <button class="btn" id="playBtn" type="button">Drop In</button>
+    <!-- Three-button rule: Drop In alone on its row and a size up, How to
+         Play (orange) and Leaderboard (blue) side by side underneath. -->
+    <button class="btn trioPrimary" id="playBtn" type="button">Drop In</button>
     <div class="ghostRow">
       <button class="btn ghost" id="howBtn" type="button">How to Play</button>
-      <button class="btn ghost" id="lbBtn" type="button">Leaderboard</button>
+      <button class="btn tertiary" id="lbBtn" type="button">Leaderboard</button>
     </div>
     <div class="controls">
       <div class="ctl">
@@ -1093,8 +1207,112 @@
         </div>
       </section>
 
+      <section class="howSec">
+        <h3>The Buttons</h3>
+        <p class="howLead">The controls tucked around the edge of the screen.</p>
+        <div class="hudGuide">
+          <div class="hgItem">
+            <div class="hgIcon">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M4 9.5v5h3.2L12 19V5L7.2 9.5H4z"/>
+                <g fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
+                  <path d="M15 9.4a3.8 3.8 0 0 1 0 5.2"/>
+                  <path d="M17.7 7a7.2 7.2 0 0 1 0 10"/>
+                </g>
+              </svg>
+            </div>
+            <b>Mute</b><span>Kills the music and effects — tap again to bring them back.</span>
+          </div>
+
+          <div class="hgItem">
+            <div class="hgIcon">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.6"
+                      stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <b>Back</b><span>Leaves whatever screen you're on without touching the run.</span>
+          </div>
+
+          <div class="hgItem">
+            <div class="hgIcon">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M7 4.2 19.5 12 7 19.8 Z" fill="currentColor"/>
+              </svg>
+            </div>
+            <b>Play</b><span>Drops you back into a paused run.</span>
+          </div>
+
+          <div class="hgItem">
+            <div class="hgIcon">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <rect x="6" y="4" width="4.5" height="16" rx="1.2" fill="currentColor"/>
+                <rect x="13.5" y="4" width="4.5" height="16" rx="1.2" fill="currentColor"/>
+              </svg>
+            </div>
+            <b>Pause</b><span>Holds the run right where it is.</span>
+          </div>
+
+          <div class="hgItem">
+            <div class="hgIcon">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M4 11.5L12 4l8 7.5" fill="none" stroke="currentColor" stroke-width="2.4"
+                      stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M6 10.5V19a1 1 0 0 0 1 1h3v-5h4v5h3a1 1 0 0 0 1-1v-8.5" fill="none"
+                      stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <b>Home</b><span>Heads back to the title from your results.</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="howSec">
+        <h3>Gameplay Hud</h3>
+        <p class="howLead">What the boards and bars are telling you mid-ride.</p>
+        <div class="hudGuide">
+          <div class="hgRow3 hgWide">
+            <div class="hgItem">
+              <div class="board"><span class="lbl">Score</span><span class="val">24,180</span></div>
+              <b>Score</b><span>Your running total for the ride.</span>
+            </div>
+
+            <div class="hgItem">
+              <div class="board"><span class="lbl">Buckaroos</span>
+                <div class="hgCoinRow"><img id="hudCoin" alt=""><span class="val">42</span></div>
+              </div>
+              <b>Buckaroos</b><span>Coins banked so far this run.</span>
+            </div>
+
+            <div class="hgItem">
+              <div class="hgTubes">
+                <span class="tube"></span><span class="tube"></span><span class="tube spent"></span>
+              </div>
+              <b>Tubes</b><span>Three to start — lose one every hit.</span>
+            </div>
+          </div>
+
+          <div class="hgItem hgWide">
+            <div class="hgSpeedbar">
+              <i></i><i></i><i class="lit"></i><i class="lit"></i><i class="lit"></i>
+              <i class="boosted"></i><i class="boosted"></i>
+            </div>
+            <b>Speed</b><span>Horses light up as you pick up speed — gold means you're boosted.</span>
+          </div>
+        </div>
+      </section>
+
       <button class="btn" id="howBack" type="button">Got It</button>
     </div>
+    <!-- Same floating hudbtn as #lbBack, for the same reason: How to Play is
+         "one long scroll with no cue" (HANDOFF item 12) and Got It sits at the
+         bottom of it, so a quick exit shouldn't require reading to the end. -->
+    <button id="howClose" class="hudbtn" type="button" aria-label="Close How to Play">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.6"
+              stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
   </div>
 
   <div class="panel" id="overPanel">
@@ -1136,6 +1354,17 @@
          ~60px of where he already is, so the move reads as him picking himself
          up and settling, and the card fills in above him. -->
     <img id="overRider" alt="" aria-hidden="true">
+    <!-- Same floating hudbtn as #lbBack/#howClose, for the same reason: a way
+         off this card that doesn't require reading Ride Again / Get Season
+         Passes and deciding neither is what you want. -->
+    <button id="overHome" class="hudbtn" type="button" aria-label="Back to title">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M4 11.5L12 4l8 7.5" fill="none" stroke="currentColor" stroke-width="2.4"
+              stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M6 10.5V19a1 1 0 0 0 1 1h3v-5h4v5h3a1 1 0 0 0 1-1v-8.5" fill="none"
+              stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
   </div>
 
   <!-- The win card, as a ride announcement poster: the slide itself is the
@@ -1174,8 +1403,18 @@
       <div id="lbList"></div>
       <p id="lbEmpty">No rides logged yet. Be the first.</p>
       <div id="lbYou"></div>
-      <button class="btn" id="lbBack" type="button">Back</button>
     </div>
+    <!-- A hudbtn, not the column's .btn: it used to be the last thing in
+         #lbScroll, so leaving the board meant scrolling past the whole ranked
+         list first. Floating it like #mute/#pause keeps an exit reachable from
+         anywhere in the scroll, matching the pattern that already works for
+         opening the board (scrollToMe) but was missing for closing it. -->
+    <button id="lbBack" class="hudbtn" type="button" aria-label="Close leaderboard">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.6"
+              stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
     <div id="lbLoading" aria-hidden="true"><span class="spinner"></span></div>
   </div>
 
@@ -1183,12 +1422,15 @@
     <div class="eyebrow">Paused</div>
     <h2 class="ride" style="font-size:clamp(38px,11vw,80px)">Take a Breath</h2>
     <p class="tag">The slide will wait.</p>
-    <button class="btn" id="resumeBtn" type="button">Resume</button>
-    <!-- Second, and secondary. Resume is what you came here for and keeps the
-         primary yellow; this one is the ghost below it, so the run you are in
-         the middle of cannot be thrown away by a thumb landing on the wrong
-         half of the screen. -->
-    <button class="btn ghost" id="pauseAgainBtn" type="button">Start Over</button>
+    <button class="btn trioPrimary" id="resumeBtn" type="button">Resume</button>
+    <!-- Three-button rule: the primary (Resume) gets its own row above, and
+         the secondary/tertiary pair goes side by side below — orange first,
+         so the run in progress cannot be thrown away by a thumb landing on
+         the wrong half of the screen; blue Start Over sits past it. -->
+    <div class="ghostRow">
+      <button class="btn ghost" id="pauseHowBtn" type="button">How to Play</button>
+      <button class="btn tertiary" id="pauseAgainBtn" type="button">Start Over</button>
+    </div>
   </div>
 
   <div id="flash"></div>
@@ -2210,6 +2452,22 @@ function reset(){
   drawTubes();
 }
 
+/* The results card's only way back to the title screen without starting a new
+   run. Reuses reset() rather than inventing a second path to a clean
+   title-screen state — the same call Ride Again already makes, just without
+   the state="play" that follows it there. */
+function goHome(){
+  if (state !== "over") return;
+  reset();
+  state = "title";
+  $("overPanel").classList.remove("on");
+  $("titlePanel").classList.add("on");
+  // Same crossfade showReveal() uses to bring the title tune back in over
+  // whatever the results screen was playing.
+  Sound.musicStop(MUSIC_FADE);
+  Sound.music("start", 0.34, 1.3);
+}
+
 const laneAngle = (i) => i * LANE_A;
 function add(t, z, i, w){
   const e = { t:t, z:z, i:i, a:laneAngle(i), dead:false, w:w||1,
@@ -2407,6 +2665,38 @@ window.addEventListener("keydown", (e) => {
 window.addEventListener("keyup", (e) => { keys[e.key.toLowerCase()] = false; });
 
 /* ------------------------------------------------------------------
+   ANDROID BACK GESTURE
+   The gesture (and the hardware back button) fires no event of its own —
+   it just navigates. A modal panel with nothing on the history stack is
+   invisible to it, so swiping back while How to Play, the Leaderboard or
+   Pause is open left the game entirely instead of dismissing the panel
+   sitting on top of it.
+   openHow/openBoard/pauseGame each push one history entry while their panel
+   is open, giving the gesture something in THIS document to pop instead.
+   Popping it — however that happens: the gesture, a hardware back button, or
+   our own popModal() below — fires popstate, and popstate is the ONE place
+   that actually closes the panel. That means a swipe-back and tapping Got
+   It/Back/Resume end up running through the exact same close function.
+   suppressPop guards the loop running the other way: closeHow()/closeBoard()/
+   resumeGame() call popModal() to remove the entry THEY pushed, which fires
+   popstate right back at this handler — without the guard it would "close"
+   an already-closed panel and call history.back() a second time from inside
+   its own handler. */
+let suppressPop = false;
+function pushModal(){ history.pushState({ stampedeModal: true }, ""); }
+function popModal(){
+  if (suppressPop) return;
+  if (history.state && history.state.stampedeModal) history.back();
+}
+window.addEventListener("popstate", () => {
+  suppressPop = true;
+  if ($("howPanel").classList.contains("on")) closeHow();
+  else if ($("lbPanel").classList.contains("on")) closeBoard();
+  else if (state === "paused" && !revealOpen) resumeGame();
+  suppressPop = false;
+});
+
+/* ------------------------------------------------------------------
    TOUCH — hold and slide
    The thumb is a JOYSTICK, not a swipe detector: wherever it lands
    becomes lane-zero-relative-to-here, and from then on its horizontal
@@ -2493,7 +2783,7 @@ cv.addEventListener("touchcancel", endTouch, { passive:true });
    never show a different cow than the chute does, and a file that moves only
    has to move in one place. A missing file hides its own tile instead of
    leaving a broken-image box on the card. */
-const HOW_ART = { howCoin:"coinA", hazCow:"cow", hazYeti:"yeti", hazWave:"wave2", hazPig:"pig2" };
+const HOW_ART = { howCoin:"coinA", hudCoin:"coinA", hazCow:"cow", hazYeti:"yeti", hazWave:"wave2", hazPig:"pig2" };
 for (const id in HOW_ART){
   const src = ART[HOW_ART[id]];
   if (src) $(id).src = src;
@@ -2502,22 +2792,44 @@ for (const id in HOW_ART){
 if ("ontouchstart" in window) document.body.classList.add("touch");
 
 function openHow(){
+  // Opened from either the title or the pause screen: whichever is showing
+  // gets hidden behind it, and closeHow() below hands it back to the same one.
   $("titlePanel").classList.remove("on");
+  // #pause shares How to Play's corner with #howClose. It is only ever "on"
+  // during a paused run (see #pause's CSS comment), but that assumption broke
+  // the day How to Play became reachable from pause — without hiding it here,
+  // it would sit on top of #howClose for as long as the card is open.
+  if (state === "paused"){
+    $("pausePanel").classList.remove("on");
+    $("pause").classList.remove("on");
+  }
   $("howPanel").classList.add("on");
-  $("howScroll").scrollTop = 0;        // always opens at the top, not where it
-}                                      // was left after the last read
+  // Always opens at the top, not where it was left after the last read.
+  $("howScroll").scrollTop = 0;
+  pushModal();
+}
 function closeHow(){
   $("howPanel").classList.remove("on");
   if (state === "title") $("titlePanel").classList.add("on");
+  if (state === "paused"){
+    $("pausePanel").classList.add("on");
+    // Still carries the "paused" class from pauseGame(), so this brings back
+    // the Play icon, not the Pause one.
+    $("pause").classList.add("on");
+  }
+  popModal();
 }
 $("howBtn").addEventListener("click", openHow);
+$("pauseHowBtn").addEventListener("click", openHow);
 $("howBack").addEventListener("click", closeHow);
+$("howClose").addEventListener("click", closeHow);
 
 $("playBtn").addEventListener("click", start);
 $("againBtn").addEventListener("click", start);
 $("ctaBtn").addEventListener("click", () => {
   if (CONFIG.ctaUrl) window.open(CONFIG.ctaUrl, "_blank", "noopener");
 });
+$("overHome").addEventListener("click", goHome);
 $("pause").addEventListener("click", togglePause);
 $("resumeBtn").addEventListener("click", resumeGame);
 $("pauseAgainBtn").addEventListener("click", pauseRestart);
@@ -2786,6 +3098,12 @@ function syncHUD(){
   }
 }
 function start(){
+  // Restarting out of Pause (or, per the how-to comment below, How to Play)
+  // tears down a panel that pushed a history entry for the Android back
+  // gesture — see that section — without going through closeHow()/resumeGame,
+  // so pop it here or a later back press lands on a stale entry instead of
+  // actually leaving the game.
+  if ($("pausePanel").classList.contains("on") || $("howPanel").classList.contains("on")) popModal();
   Sound.unlock(); reset(); state = "play";
   Sound.unhold();
   // Faded rather than cut: musicPlay stops the current track outright, which
@@ -2817,6 +3135,7 @@ function pauseGame(){
   $("pausePanel").classList.add("on");
   $("pause").classList.add("paused");
   $("pause").setAttribute("aria-label", "Resume");
+  pushModal();
 }
 function resumeGame(){
   // revealOpen guards every ordinary route out of "paused". The card is modal:
@@ -2829,6 +3148,7 @@ function resumeGame(){
   $("pause").classList.remove("paused");
   $("pause").setAttribute("aria-label", "Pause");
   last = performance.now();
+  popModal();
 }
 /* Abandon the run from the pause screen. start() already does the whole job —
    reset, unhold the audio, HUD back up, panels down, the pause button
@@ -5056,7 +5376,10 @@ const Board = (() => {
     submit(score){
       const r = readJSON(ME, null); if (!r) return null;
       if (score > (r.score || 0)){
-        r.score = score; r.at = Date.now(); writeJSON(ME, r);
+        // A higher score moves the rider up the board, so the rank cached
+        // against the old score is no longer valid — drop it and let the
+        // next rankOf() call earn a fresh one.
+        r.score = score; r.at = Date.now(); r.rank = null; writeJSON(ME, r);
         timeoutFetch(API + "/submit", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -5082,12 +5405,21 @@ const Board = (() => {
 
     /* Needs only the score, so a player can be shown where they WOULD land
        before deciding to submit. Null on failure — callers show a dash
-       rather than a wrong number. */
+       rather than a wrong number.
+       Cached against the rider's own record, keyed on the score it was
+       computed for: as long as that score hasn't been beaten, the rank
+       can't have improved, so repeat lookups (results card, then the board,
+       then the results card again next run) are served from storage instead
+       of re-hitting the API. submit() clears the cached rank the moment a
+       new high score lands, which is the only time the real rank can move. */
     async rankOf(score){
+      const r = readJSON(ME, null);
+      if (r && r.score === score && r.rank != null) return r.rank;
       try {
         const res = await timeoutFetch(API + "/rank?score=" + Math.max(0, Math.floor(score)), {}, 8000);
         if (!res.ok) return null;
         const data = await res.json();
+        if (r && r.score === score){ r.rank = data.rank; writeJSON(ME, r); }
         return data.rank;
       } catch (e) { return null; }
     },
@@ -5192,12 +5524,23 @@ $("nameGo").addEventListener("click", async () => {
     $("nameError").textContent = "Couldn't save your name — try again in a bit.";
     $("nameError").classList.add("on");
     $("nameSkip").classList.add("on");
+    // Escalation beyond the inline text — a player who looked away mid-"load"
+    // should still catch the failure. Remove-then-reflow-then-add so back-to-
+    // back failures restart the shake instead of the class already being on
+    // being a no-op.
+    $("namePanel").classList.remove("shake");
+    void $("namePanel").offsetWidth;
+    $("namePanel").classList.add("shake");
+    if (navigator.vibrate) navigator.vibrate(200);
   } finally {
     claiming = false;
     $("nameGo").classList.remove("busy");
     $("nameGo").disabled = false;
     $("reels").classList.remove("disabled");
   }
+});
+$("namePanel").addEventListener("animationend", (e) => {
+  if (e.animationName === "nameShake") $("namePanel").classList.remove("shake");
 });
 /* Only reachable after a failed claim (see above) — a broken backend must
    never be a hard wall between the player and the game. Board.me() stays
@@ -5289,6 +5632,7 @@ function openBoard(scrollToRank){
   $("lbPanel").classList.add("on");
   $("lbPanel").classList.add("loading");
   $("lbScroll").scrollTop = 0;
+  pushModal();
   paintReels();
   return renderBoard().then(() => {
     if (scrollToRank && Board.me()) scrollToMe(true);
@@ -5299,6 +5643,7 @@ function closeBoard(){
   $("lbPanel").classList.remove("on");
   if (state === "title")     $("titlePanel").classList.add("on");
   else if (state === "over") $("overPanel").classList.add("on");
+  popModal();
 }
 // Not `openBoard` directly — addEventListener would pass the click event
 // through as scrollToRank, which is truthy and jumps to a "me" row that may
