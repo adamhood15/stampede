@@ -287,8 +287,8 @@
   /* Secondary (orange) and tertiary (blue) share one size/shape — only the
      colour differs — because the three-button rule always pairs them side by
      side under the primary: see .ghostRow below. */
-  .btn.ghost,.btn.tertiary{color:var(--white);font-size:17px;
-             padding:11px 24px 12px;margin-top:12px;box-shadow:4px 4px 0 var(--ink)}
+  .btn.ghost,.btn.tertiary{color:var(--white);font-size:14px;
+             padding:10px 18px 11px;margin-top:12px;box-shadow:4px 4px 0 var(--ink)}
   .btn.ghost{background:var(--orange)}
   /* Deep water blue, not another shade of the ghost orange: the third action
      in a trio needs its own colour to read as a distinct choice rather than
@@ -2419,8 +2419,6 @@ let flyers = [];
 
 const JUMP_DUR = 0.62, JUMP_H = 0.55;
 const BOOST_DUR = 2.4;      // also roughly the length of the boost sample
-// Only a rider already at top speed gets carried past it — anyone still
-// accelerating just gets rushed up to the ordinary max, not beyond it.
 const BOOST_SUPER_MULT = 1.25;
 
 function reset(){
@@ -3689,7 +3687,8 @@ function update(dt){
       // tunnel itself stays visible so the rider actually flies through it
       if (!e.triggered){
         e.triggered = true;
-        boostSuper = speed >= CONFIG.maxSpeed;
+        // Always carries the rider 25% past max, whatever their current pace.
+        boostSuper = true;
         boostT = BOOST_DUR; Sound.boost(); puff(16);
       }
     } else if (e.t === T.WAVE){
