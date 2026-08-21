@@ -197,6 +197,40 @@ reported a catastrophe that was not there. **Calibrate a metric against a known
 
 ---
 
+## Power-ups
+
+Standing checklist for every power-up added to the game (set 2026-08-21).
+Run new ones against all ten before building:
+
+1. Total of 4-5 power-ups in the game, no more.
+2. Should feel fun/exciting to get.
+3. Should not spawn too often — not constant loot.
+4. Should not spawn too rarely — not a scavenger hunt.
+5. Each needs its own differentiating glow/strobe/animation effect, visually
+   distinct from the others — not the same effect recolored.
+6. Each provides some benefit to the character.
+7. When active, the player must get a clear on-screen visual cue that it's
+   active — and which power-up it is, not just "something is boosted."
+8. Every power-up gets its own card on the How to Play screen with a brief
+   benefit description.
+9. Every power-up needs its own unique sound effect on pickup.
+10. Document each power-up in the README as it's added.
+
+**Spawning is one shared clock across every power-up type** (`spawnPowerup()`,
+`POWERUP_GAP`, `POWERUP_TYPES`), not one clock per type — independent clocks
+per type would make rule 3 quietly break every time a new power-up is added,
+since several independent "occasional" clocks combine into "often." Add a new
+power-up's entity type to `POWERUP_TYPES` rather than writing a second spawn
+function.
+
+Built so far: **Fast Pass** (`T.BOOST`) and **Souvenir Bottle** (`T.SOUVENIR`).
+**Fast Pass** reusing the existing `Sound.boost()` sample was a one-off
+exception to rule 9, requested explicitly — it does not waive rule 9 for
+future power-ups. **Season Pass** and **Extra Life**
+(`assets/sprites/power-ups/season-pass.png`, `extra-life.png`) have art
+already dropped in `assets/` but no mechanic defined or discussed — do not
+start on them unprompted.
+
 ## Where things live
 
 ```

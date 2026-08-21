@@ -63,6 +63,17 @@ in the server's log output when you reload.
 | Swipe up / tap | Jump (touch) |
 | Swipe down | Duck (touch) |
 
+## Power-Ups
+
+Rare pickups riding down the flume, separate from the coins and letters.
+Each has its own artwork, glow/strobe effect, sound, and card on the
+in-game How to Play screen.
+
+| Power-up | Benefit | Sound |
+|---|---|---|
+| **Fast Pass** | Surges you past top speed for a few seconds — the same rush a tunnel gives, just something you have to grab. | The existing "Speed Boost 05" effect |
+| **Souvenir Bottle** | Instantly banks 100 Buckaroos, same as if you'd collected them one at a time. The Buckaroos HUD figure flashes yellow to call it out. | Its own sound effect |
+
 ## Project structure
 
 ```
@@ -72,7 +83,8 @@ assets/
   music/        Background and game-over music tracks
   sound-effects/  Jump, collect, hurt/death, and UI sound effects
   sprites/      Rider animation frames (move/jump/duck/hurt/die/spin),
-                obstacles (cow, pig, snowman, waves), coins, and backdrop art
+                obstacles (cow, pig, snowman, waves), coins, power-ups,
+                and backdrop art
 old-version/    Earlier prototype (claude-stampede.html), kept for reference
 HANDOFF.md      Engineering notes: architecture, known gotchas, and open work
 ```

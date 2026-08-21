@@ -1038,18 +1038,17 @@ referenced assets resolve.
 
 ## Git state
 
-**The `origin` remote is still pointed at SSH-over-443** (set 2026-08-18 for
-hospital wifi that blocks outbound port 22 — same key, same permissions, only
-the transport differs). Unclear whether that network constraint still
-applies; the remote hasn't been reverted, and pushes over it are still
-working fine as of 2026-08-20.
+**The `origin` remote was reverted back to plain SSH on 2026-08-21** — port 22
+tested open (`nc -z github.com 22` succeeded) and `git ls-remote origin HEAD`
+confirmed access, so the SSH-over-443 workaround set on 2026-08-18 for
+hospital wifi is no longer needed.
 
 ```
 # current
-ssh://git@ssh.github.com:443/adamhood15/stampede.git
+git@github.com:adamhood15/stampede.git
 
-# revert to this once confirmed off that network
-git remote set-url origin git@github.com:adamhood15/stampede.git
+# fall back to this if a network ever blocks outbound port 22 again
+ssh://git@ssh.github.com:443/adamhood15/stampede.git
 ```
 
 If a push ever hangs and then fails with `ssh: connect to host github.com port

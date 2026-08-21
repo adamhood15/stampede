@@ -77,6 +77,16 @@ const SCREEN_SCRIPTS = {
     ${SKIP_LOADER}
     openBoard();
   `,
+  // Seeds the rider directly rather than calling Board.claim(), which is a
+  // real network call against the live Kinsta dev backend (HANDOFF: Board's
+  // API is a temporary absolute URL) — this screen is about layout, not the
+  // naming flow, so it shouldn't depend on that round-trip succeeding.
+  how: `
+    localStorage.setItem("stampede.rider.v1", JSON.stringify({token:"t", player_name:"Test Rider", score:0}));
+    ${SKIP_LOADER}
+    afterLoader();
+    openHow();
+  `,
 };
 
 const OVERFLOW_PROBE = `
