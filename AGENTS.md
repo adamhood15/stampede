@@ -224,12 +224,63 @@ power-up's entity type to `POWERUP_TYPES` rather than writing a second spawn
 function.
 
 Built so far: **Fast Pass** (`T.BOOST`), **Souvenir Bottle** (`T.SOUVENIR`),
-and **Extra Life** (`T.EXTRALIFE`, added 2026-08-21). **Fast Pass** reusing
-the existing `Sound.boost()` sample was a one-off exception to rule 9,
-requested explicitly — it does not waive rule 9 for future power-ups.
-**Season Pass** (`assets/sprites/power-ups/season-pass.png`) has art already
-dropped in `assets/` but no mechanic defined or discussed — do not start on
-it unprompted.
+**Extra Life** (`T.EXTRALIFE`, added 2026-08-21), and **Whirlpool**
+(`T.WHIRLPOOL`, added 2026-08-21) — 4 of the 4-5 total in rule 1. **Fast
+Pass** reusing the existing `Sound.boost()` sample was a one-off exception to
+rule 9, requested explicitly — it does not waive rule 9 for future
+power-ups. **Season Pass** (`assets/sprites/power-ups/season-pass.png`) has
+art already dropped in `assets/` but no mechanic defined or discussed — do
+not start on it unprompted. With Whirlpool built, only one power-up slot is
+left before rule 1's cap.
+
+**Whirlpool** grants a 6s magnet (`WHIRLPOOL_DUR`), pulling every live coin
+within `WHIRLPOOL_RANGE` (8 world units ahead — not the whole visible chute)
+toward the rider's own depth/lane every frame (`update()`'s magnet pass,
+right before the main collision loop). It does NOT add a second collection
+path: easing a coin's `.i`/`.z` toward the rider is enough that it falls into
+the ordinary `T.COIN` branch once close, so the sound/score/removal are
+identical to grabbing one by hand. A per-coin `.swirl` phase adds a cosmetic
+orbit wobble on top of the straight pull, purely in the draw call — the
+collision math never sees it. Unlike Fast Pass's `boostT`, a survived hit
+does NOT cancel `whirlpoolT` (Adam's explicit call); `gameOver()` does clear
+it, since the "play" branch that ticks it down and runs the magnet never
+executes again once a run ends, and nothing else would ever stop the looping
+sample. The sample itself plays via a new `Sound.loopStart`/`loopStop` pair —
+a genuine loop channel (same dual web-audio/`<audio>`-element shape as music,
+own gain/element so it layers over the ride track), used because
+`sample()`'s one-shot sources can't sustain 6 seconds without hardcoding the
+clip's exact length. There's only one whirlpool sound asset, so it does
+double duty as the pickup confirmation (rule 9) and the sustained "it's
+active" sound, started the instant it's grabbed.
+
+**Whirlpool's ACTIVE cue went through two revisions after the first build,
+both Adam's direct feedback, not something to re-litigate:**
+1. The icon originally rotated (`ctx.rotate`) both as the world pickup and
+   as the active cue. Changed to a STATIC icon — the rotation read as "the
+   badge is spinning," not "things are being pulled in." The vortex motion
+   now lives entirely in `whirlpoolMotes()`: small dots that visibly dive
+   from an outer ring to the centre on a spiral path, looping forever, drawn
+   IN FRONT of the icon (a first version drew them behind it and the icon's
+   own decorative sparkle art — which reaches out further than its disc —
+   hid nearly every mote). `whirlpoolHalo()` is the separate, static aura
+   still drawn behind the icon, same as the other pickups' glows.
+2. The active cue originally floated above the rider's head
+   (`riderLift() + WHIRLPOOL_ACTIVE_LIFT`). Adam's call: it belongs UNDER
+   him, on the water, like a vortex he's riding over — not a badge trailing
+   him. It's now drawn at a small FIXED lift (`WHIRLPOOL_ACTIVE_LIFT = 0.16`,
+   not tied to `riderLift()`, so it stays on the surface rather than
+   following him into a jump), called BEFORE `drawRider()` in `render()` so
+   his tube sits visibly on top of it, and sized 1.6x the tube's own
+   footprint so a clear ring peeks out around him — at the tube's exact
+   size, the tube covered almost the whole thing.
+
+**`floorPt(z, a, lift)`'s `lift` argument is not safe above ~1** — its
+vertical term is `cos(a) * (1 - lift)`, which flips sign as `lift` crosses 1
+and sends the point rocketing up-screen instead of settling near the top.
+Whirlpool's floating-above-the-head attempt (now superseded, see above) first
+tried `riderLift() + 1.15`, which put it up by the STAMPEDE wordmark, nowhere
+near the rider — found by screenshot, not inspection. Worth remembering for
+any future effect that scales a `floorPt` lift off another dynamic value.
 
 **Extra Life** adds a bonus tube, visually distinct (`--red-life`, measured
 off the art) from the normal orange tubes, placed to their LEFT by

@@ -1216,6 +1216,7 @@
           <div class="haz good"><img id="hazFastPass" alt=""><b>Fast Pass</b><span>Surges you past top speed</span></div>
           <div class="haz good"><img id="hazSouvenir" alt=""><b>Souvenir Bottle</b><span>Instant 100 Buckaroos</span></div>
           <div class="haz good"><img id="hazExtraLife" alt=""><b>Extra Life</b><span>A bonus tube, spent before your real ones</span></div>
+          <div class="haz good"><img id="hazWhirlpool" alt=""><b>Whirlpool</b><span>Sucks nearby Buckaroos to you for 6 seconds</span></div>
         </div>
       </section>
 
@@ -1620,6 +1621,7 @@ const ART = {
   fastPass: "assets/sprites/power-ups/fast-pass.png",
   souvenir: "assets/sprites/power-ups/souvenir-bottle.png",
   extraLife: "assets/sprites/power-ups/extra-life.png",
+  whirlpool: "assets/sprites/power-ups/whirlpool.png",
 
   /* The ride itself, shown on the win card. Preloaded here rather than left to
      the <img> so it is decoded long before the card can appear — it is 2MB and
@@ -1645,6 +1647,7 @@ const SFX = {
   stampede:"assets/sound-effects/special/stampede-sound.mp3",
   souvenir:"assets/sound-effects/power-ups/souvenir-bottle.mp3",
   extraLife:"assets/sound-effects/power-ups/extra-life.mp3",
+  whirlpool:"assets/sound-effects/power-ups/whirlpool.mp3",
 };
 
 const C = {
@@ -1996,6 +1999,45 @@ const Sound = (function(){
     sfxPath = path;
     if (window.console) console.info("[sfx] playing via " + path);
   }
+  /* Whirlpool's active effect needs its own SUSTAINED sound (looped for
+     WHIRLPOOL_DUR), not a one-shot like every other pickup's sound() call —
+     sample()'s source is single-use by design (see loadSample's comment), and
+     restarting it every clip-length would mean hardcoding the mp3's exact
+     duration to avoid a gap or an overlap. Same dual web-audio/element shape as
+     music, but its own channel: it has to layer OVER the ride track, not
+     replace it, and music's own fade/stop logic is tuned for the ride/over/
+     start tracks specifically. */
+  let loopSrc = null, loopGain = null, loopEl = null;
+  function loopStart(key, vol){
+    loopStop();
+    if (!on) return;
+    const a = ctxr();
+    if (a && buffers[key]){
+      loopSrc = a.createBufferSource(); loopGain = a.createGain();
+      loopSrc.buffer = buffers[key]; loopSrc.loop = true;
+      loopGain.gain.value = vol;
+      loopGain.__vol = vol;                  // read back by toggle()'s mute/unmute
+      loopSrc.connect(loopGain).connect(a.destination);
+      loopSrc.start();
+      return;
+    }
+    const el = els[key];                     // file:// fallback
+    if (el){
+      try {
+        loopEl = el; el.loop = true; el.volume = vol; el.__vol = vol;
+        el.currentTime = 0;
+        const p = el.play();
+        if (p && p.catch) p.catch(() => { if (loopEl === el) loopEl = null; });
+      } catch (e) {}
+    }
+  }
+  function loopStop(){
+    if (loopSrc){ try { loopSrc.stop(); } catch (e) {} loopSrc = null; loopGain = null; }
+    if (loopEl){
+      const el = loopEl; loopEl = null;
+      try { el.pause(); el.currentTime = 0; el.loop = false; } catch (e) {}
+    }
+  }
   function sample(key, vol){
     if (!on) return false;
     const a = ctxr();
@@ -2073,18 +2115,30 @@ const Sound = (function(){
         musicGain.gain.setValueAtTime(on ? musicVol : 0, ac.currentTime);
       }
       if (musicEl) elFade(musicEl, on ? musicVol : 0, 0);
+      // Same mute/unmute as the music channel — the loop's own gain.value is
+      // whatever loopStart(key, vol) was called with, not MUSIC_VOL, so it is
+      // read back rather than assumed.
+      if (loopGain && ac) loopGain.gain.setValueAtTime(on ? loopGain.__vol : 0, ac.currentTime);
+      if (loopEl) loopEl.volume = on ? loopEl.__vol : 0;
       return on;
     },
     music:     musicPlay,
     musicStop: musicStop,
+    loopStart: loopStart,
+    loopStop:  loopStop,
     /* Pause suspends the whole context rather than stopping the source: it
        silences instantly and keeps the playhead, so resuming picks up mid-bar
        rather than restarting the track from the top. `held` stops ctxr() from
-       quietly waking it again if any UI path asks for audio while paused. */
+       quietly waking it again if any UI path asks for audio while paused.
+       The web-audio loop rides the same context, so suspending it here already
+       silences loopSrc for free — only the <audio>-element fallback needs its
+       own pause/play, same as musicEl. */
     hold(){ const a = ctxr(); held = true; if (a) a.suspend();
-            if (musicEl){ try { musicEl.pause(); } catch (e) {} } },
+            if (musicEl){ try { musicEl.pause(); } catch (e) {} }
+            if (loopEl){ try { loopEl.pause(); } catch (e) {} } },
     unhold(){ held = false; if (ac && ac.state === "suspended") ac.resume();
-              if (musicEl){ try { musicEl.play(); } catch (e) {} } },
+              if (musicEl){ try { musicEl.play(); } catch (e) {} }
+              if (loopEl){ try { loopEl.play(); } catch (e) {} } },
     /* Backgrounding. Same silence as hold(), with one difference that matters:
        it will not CREATE a context. hold() goes through ctxr(), so calling it
        on a page that was hidden before anyone touched it would spin up an
@@ -2093,19 +2147,21 @@ const Sound = (function(){
        Returns whether there was anything to silence, so the caller can tell a
        backgrounded run from a page that never made a sound. */
     suspendAll(){
-      if (!ac && !musicEl) return false;
+      if (!ac && !musicEl && !loopEl) return false;
       held = true;
       if (ac && ac.state === "running") ac.suspend();
       if (musicEl){ try { musicEl.pause(); } catch (e) {} }
+      if (loopEl){ try { loopEl.pause(); } catch (e) {} }
       return true;
     },
     resumeAll(){
-      if (!ac && !musicEl) return false;
+      if (!ac && !musicEl && !loopEl) return false;
       held = false;
       if (ac && ac.state === "suspended") ac.resume();
       // Only restart the element if a track was actually playing when we left:
       // musicEl is nulled by musicStop, so a non-null one is a live track.
       if (musicEl){ try { const p = musicEl.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {} }
+      if (loopEl){ try { const p = loopEl.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {} }
       return true;
     },
     // quietest of the samples on purpose: coins arrive in lines of 3-5 and each
@@ -2146,7 +2202,7 @@ const Sound = (function(){
 /* ==================================================================
    STATE
    ================================================================== */
-const T = { COW:0, YETI:1, WAVE:2, TUNNEL:3, COIN:4, BOOST:5, PIG:6, LETTER:7, SOUVENIR:8, EXTRALIFE:9 };
+const T = { COW:0, YETI:1, WAVE:2, TUNNEL:3, COIN:4, BOOST:5, PIG:6, LETTER:7, SOUVENIR:8, EXTRALIFE:9, WHIRLPOOL:10 };
 
 /* ------------------------------------------------------------------
    SNIPER PIG
@@ -2460,7 +2516,7 @@ const POWERUP_AHEAD = 20;   // same reasoning as LETTER_AHEAD
    from the draw while extraLife is already held (see spawnPowerup()), per the
    user's call that a second one should never even appear until the first is
    used up. */
-const POWERUP_TYPES = [T.BOOST, T.SOUVENIR, T.EXTRALIFE];
+const POWERUP_TYPES = [T.BOOST, T.SOUVENIR, T.EXTRALIFE, T.WHIRLPOOL];
 /* Holds the row until the run-off is done. The last letter leaves the screen
    somewhere between 7.0s (wide desktop) and 7.9s (phone) — the spread is real,
    because the word is a bigger share of a narrow viewport and so has further to
@@ -2506,12 +2562,28 @@ let powerupZ = 0, fastPassLabelT = 0;
    flyExtraLife()/updateFlyers()) — not the instant it's picked up. That's the
    gate spawnPowerup() checks, and hitRider()'s shield branch. */
 let extraLife = false;
+/* Whirlpool's magnet, active while > 0 (see update()'s pull loop and
+   whirlpoolActive()). Unlike Fast Pass's boostT, a hit does NOT clear this —
+   Adam's call: the effect rides out its own 6s even through a survived crash,
+   rather than being cancelled the way a boost is. */
+let whirlpoolT = 0;
 
 const JUMP_DUR = 0.62, JUMP_H = 0.55;
 const BOOST_DUR = 2.4;      // also roughly the length of the boost sample
 const BOOST_SUPER_MULT = 1.25;
 const FASTPASS_LABEL_DUR = 1.1;   // seconds the "FAST PASS!" callout holds the screen
 const SOUVENIR_BONUS = 100;       // "acts the same as if you had collected 100 coins"
+const WHIRLPOOL_DUR   = 6.0;   // seconds the magnet stays active, per Adam's spec
+const WHIRLPOOL_RANGE = 8;     // world units ahead of the rider a coin can be
+                               // pulled from — "coins near the player", not
+                               // every coin currently drawn out to DRAW_FAR (26)
+const WHIRLPOOL_PULL  = 3.2;   // ease rate coins close the gap at; frame-rate
+                               // independent (1 - e^-PULL*dt), same shape as
+                               // the rider's own laneA ease
+const WHIRLPOOL_SPIN  = 4.2;   // rad/s the real, physically-pulled coins orbit
+                               // at while they close in — see the pull loop
+                               // below. The icon's own glow runs on a
+                               // separate clock (see whirlpoolGlow).
 
 function reset(){
   travelled = 0; metres = 0; coins = 0;
@@ -2521,6 +2593,7 @@ function reset(){
                                       // longer owns the wheel it anchored on
   invuln = 0; boostT = 0; boostSuper = false; shake = 0; hurtT = 0; moveT = 0; moveDir = 0; leanV = 0; duckA = 0;
   tunnelIn = 0; lastTunZ = -1e9; dieT = 0; fastPassLabelT = 0; extraLife = false;
+  whirlpoolT = 0; Sound.loopStop();  // in case a run restarted mid-effect
   /* Give the canvas its rider back. The results card takes him OFF the canvas
      and replaces him with a DOM img (see handOverRider), and that flag lived
      only in showOver's reset — so Ride Again started a run whose rider was
@@ -2899,7 +2972,7 @@ cv.addEventListener("touchcancel", endTouch, { passive:true });
    never show a different cow than the chute does, and a file that moves only
    has to move in one place. A missing file hides its own tile instead of
    leaving a broken-image box on the card. */
-const HOW_ART = { howCoin:"coinA", hudCoin:"coinA", hazCow:"cow", hazYeti:"yeti", hazWave:"wave2", hazPig:"pig2", hazFastPass:"fastPass", hazSouvenir:"souvenir", hazExtraLife:"extraLife" };
+const HOW_ART = { howCoin:"coinA", hudCoin:"coinA", hazCow:"cow", hazYeti:"yeti", hazWave:"wave2", hazPig:"pig2", hazFastPass:"fastPass", hazSouvenir:"souvenir", hazExtraLife:"extraLife", hazWhirlpool:"whirlpool" };
 for (const id in HOW_ART){
   const src = ART[HOW_ART[id]];
   if (src) $(id).src = src;
@@ -3487,6 +3560,12 @@ function gameOver(){
   // would hang frozen over the wipeout. The letter is already banked in
   // gotLetters, which is what the results card reads.
   flyers = []; coinSpill = [];
+  // The magnet itself survives a survivable hit (Adam's call — unlike Fast
+  // Pass's boost, it is NOT cancelled in hitRider()), but the run is over now,
+  // and the "play" branch that ticks whirlpoolT down never runs again from
+  // here — without this the loop sample would keep looping through the whole
+  // wipeout and results screen with nothing left to ever stop it.
+  if (whirlpoolT > 0){ whirlpoolT = 0; Sound.loopStop(); }
   /* The records are banked in showOver(), not here: they have to be COMPARED
      against before they are updated, and showOver is where the comparison and
      the badges live. Folding it in there keeps one place that can get it wrong
@@ -3919,6 +3998,10 @@ function update(dt){
   if (hurtT  > 0) hurtT  -= dt;
   if (moveT  > 0) moveT  -= dt;
   if (boostT > 0) boostT -= dt;
+  if (whirlpoolT > 0){
+    whirlpoolT -= dt;
+    if (whirlpoolT <= 0){ whirlpoolT = 0; Sound.loopStop(); }
+  }
   if (fastPassLabelT > 0) fastPassLabelT = Math.max(0, fastPassLabelT - dt);
   if (shake > 0) shake = Math.max(0, shake - dt * 3);
   // Held until the run-off has finished rather than hidden on the last pickup,
@@ -3979,6 +4062,33 @@ function update(dt){
   const laneNow = laneA / LANE_A;
   const nearLane = (i, w) => Math.abs(i - laneNow) < w;
 
+  /* Whirlpool's magnet. Runs as its OWN pass over every live coin, separate
+     from the collision loop below — that loop only ever looks at the tight
+     z-window right next to the rider (e.z within [-1.2, 0.5]), which is right
+     for "did you just touch this" but too narrow to pull a coin in from
+     further up the chute. Easing e.i toward laneNow is what actually does the
+     pulling in; e.z is eased the same way so the coin also closes the DEPTH
+     gap rather than just sliding to the rider's lane a chute-length away.
+     Once a coin is close enough it falls inside the collision loop's own
+     window below and is collected through the ordinary T.COIN branch — no
+     second collection path needed, so the reward/sound/score stay identical
+     to grabbing one by hand. e.a is re-derived every frame so the coin is
+     actually DRAWN following e.i, the same relationship spawn()/add() set up
+     for every entity. */
+  if (whirlpoolT > 0){
+    const pull = 1 - Math.exp(-WHIRLPOOL_PULL * dt);
+    for (const e of ents){
+      if (e.dead || e.t !== T.COIN) continue;
+      const dz = e.z - travelled;
+      if (dz < -0.5 || dz > WHIRLPOOL_RANGE) continue;
+      if (e.swirl === undefined) e.swirl = Math.random() * 6.283;  // stable per-coin phase
+      e.swirl += WHIRLPOOL_SPIN * dt;
+      e.z -= (e.z - travelled) * pull;
+      e.i += (laneNow - e.i) * pull;
+      e.a = laneAngle(e.i);
+    }
+  }
+
   for (const e of ents){
     if (e.dead || e.w === 0) continue;          // w:0 == scenery, never collides
     if (e.z > travelled + 0.5 || e.z < travelled - 1.2) continue;
@@ -4037,6 +4147,15 @@ function update(dt){
       // normal hit, not a shield that was never visibly granted.
       if (nearLane(e.i, LANE_PICK)){
         e.dead = true; puff(16); flyExtraLife();
+      }
+    } else if (e.t === T.WHIRLPOOL){
+      // Starts the magnet the instant it's grabbed, same "banked on the grab"
+      // reasoning as the souvenir bottle — the 6s window has to start ticking
+      // right away, not after some later beat. The loop sample plays for the
+      // whole effect, doubling as the pickup's own sound (rule 9).
+      if (nearLane(e.i, LANE_PICK)){
+        e.dead = true; whirlpoolT = WHIRLPOOL_DUR; puff(20);
+        Sound.loopStart("whirlpool", 0.5);
       }
     } else if (e.t === T.TUNNEL){
       // enclosed section: passing through it gives a speed boost, but the
@@ -4926,6 +5045,92 @@ function extraLifeSmellLines(x, y, h){
   ctx.restore();
 }
 
+/* ------------------------------------------------------------------
+   WHIRLPOOL GLOW
+   Adam's call: the pickup's own artwork should NOT spin — a first version
+   rotated the icon itself, which read as "the badge is spinning" rather than
+   "things are being pulled in." This replaces that with a ring of small
+   motes that visibly dive from the outer edge to the centre on a spiral
+   path, looping forever — that dive IS the "swirling towards it" cue, and it
+   reads the same whether or not a real coin happens to be nearby right now,
+   which matters for the world pickup (nothing to attract yet) as much as for
+   the active effect. Each mote drags a short trail of fading echoes along
+   its OWN path (stepped a beat earlier in the same cycle) rather than being
+   independently animated, so it reads as one thing diving in, not a cluster
+   of unrelated sparks. Neither a halo (Fast Pass, Souvenir) nor rising
+   motion (Extra Life) — the one silhouette on this list that reads as a
+   vortex rather than a status glow (rule 5). Shared with whirlpoolActive()
+   below, so the world pickup and the post-collection cue visibly look like
+   the same mechanism.
+   ------------------------------------------------------------------ */
+const WHIRLPOOL_H     = 0.60;   // world height at full size, matching Fast Pass's tag
+const WHIRLPOOL_LIFT  = 0.44;   // hangs a little above the water, like the others
+const WHIRLPOOL_RING_COLOR = "70,190,225";   // teal-blue, off the art's own water tone
+const WHIRLPOOL_CORE_COLOR = "252,246,240";  // C.white, matching the other pickups' core
+const WHIRLPOOL_MOTES = 5;      // dive-in points spaced evenly around the ring
+const WHIRLPOOL_TURNS = 1.4;    // full turns a mote makes between the outer edge and the centre
+const WHIRLPOOL_CYCLE = 1.3;    // seconds for one mote's outer-to-centre dive
+const WHIRLPOOL_TAIL  = 4;      // trailing echoes per mote, tracing its own spiral path
+const WHIRLPOOL_ORBIT = 0.82;   // outer radius the motes dive in from, as a
+                                // fraction of h — well past the icon's OWN
+                                // decorative sparkles (measured by screenshot:
+                                // those reach further out than the disc art
+                                // itself, so a tighter orbit hid every mote
+                                // behind them)
+
+// Static aura, drawn BEHIND the icon (same order as the other pickups'
+// glows) — just marks "something is here", not the swirl itself.
+function whirlpoolHalo(x, y, h){
+  ctx.save();
+  ctx.translate(x, y);
+  const halo = ctx.createRadialGradient(0, 0, 0, 0, 0, h * 0.62);
+  halo.addColorStop(0,    "rgba(" + WHIRLPOOL_CORE_COLOR + ",0.30)");
+  halo.addColorStop(0.55, "rgba(" + WHIRLPOOL_RING_COLOR + ",0.22)");
+  halo.addColorStop(1,    "rgba(" + WHIRLPOOL_RING_COLOR + ",0)");
+  ctx.fillStyle = halo;
+  ctx.beginPath(); ctx.arc(0, 0, h * 0.62, 0, 6.284); ctx.fill();
+  ctx.restore();
+}
+
+/* The actual "things are swirling towards it" cue. Drawn IN FRONT of the
+   icon (see both call sites) — a first version drew the whole glow behind
+   the artwork and nearly every mote vanished under the icon's own sparkle
+   graphics, which reach out further than the disc itself. Each mote drags a
+   short trail of fading echoes along its OWN path (stepped a beat earlier in
+   the same cycle) rather than being independently animated, so it reads as
+   one thing diving in, not a cluster of unrelated sparks. */
+function whirlpoolMotes(x, y, h, t){
+  ctx.save();
+  ctx.translate(x, y);
+  for (let i = 0; i < WHIRLPOOL_MOTES; i++){
+    const phase0 = i / WHIRLPOOL_MOTES;
+    for (let k = 0; k <= WHIRLPOOL_TAIL; k++){
+      // +100 before the modulo: JS's % can return negative for a negative
+      // dividend, and k * 0.045 stepping backward in the cycle would
+      // otherwise go negative right at the start of every lap.
+      const cyc = (((t / WHIRLPOOL_CYCLE) + phase0) - k * 0.045 + 100) % 1;
+      const rFrac = 1 - cyc;                       // 1 at the outer edge, 0 at the centre
+      const r = h * WHIRLPOOL_ORBIT * rFrac;
+      const a = phase0 * 6.283 + cyc * WHIRLPOOL_TURNS * 6.283;
+      // *0.55 on Y flattens the circle to match the floor plane's own
+      // perspective squash — a true circle here would read as floating flat
+      // in front of the icon rather than swirling around it.
+      const px = Math.cos(a) * r, py = Math.sin(a) * r * 0.55;
+      // Ramps in fast at birth (cyc~0) and out fast at the centre (cyc~1),
+      // full brightness through the middle of the dive; each trailing echo
+      // is dimmer than the last.
+      const env = Math.min(1, cyc * 8) * Math.min(1, (1 - cyc) * 8);
+      const fade = env * (1 - k / (WHIRLPOOL_TAIL + 1));
+      if (fade <= 0.02) continue;
+      const rr = Math.max(1, h * 0.06 * (0.4 + rFrac * 0.6));
+      ctx.beginPath(); ctx.arc(px, py, rr, 0, 6.284);
+      ctx.fillStyle = "rgba(" + WHIRLPOOL_CORE_COLOR + "," + (0.9 * fade).toFixed(2) + ")";
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
 function drawEnt(e){
   const dzf = e.z - travelled + CAM_DZ;
   if (e.w === 0) return drawEntInner(e);          // scenery never fades
@@ -4993,6 +5198,16 @@ function drawEntInner(e){
     const c = Math.cos(ph);
     const img = c >= 0 ? IMG.coinA : IMG.coinB;
     const p = floorPt(e.z, e.a, 0.34);
+    /* Whirlpool's swirl. e.a already tracks the magnet's straight pull (see
+       update()'s pull loop), so this is a purely cosmetic orbit layered on
+       TOP of that — without it a pulled coin reads as sliding sideways, not
+       spiralling in. Shrinks to nothing as the coin nears the rider (dz -> 0)
+       so it doesn't still be orbiting the instant it's collected. */
+    if (whirlpoolT > 0 && e.swirl !== undefined){
+      const orbitR = Math.min(0.5, Math.max(0, e.z - travelled) * 0.16) * s;
+      p.x += Math.cos(e.swirl) * orbitR;
+      p.y += Math.sin(e.swirl) * orbitR * 0.35;   // flattened to match the floor's own perspective squash
+    }
     if (!img){                                   // stand-in coin
       const rr = 0.19 * s, sq = Math.max(0.18, Math.abs(c));
       ctx.beginPath(); ctx.ellipse(p.x, p.y, rr * sq, rr, 0, 0, 6.284);
@@ -5109,6 +5324,34 @@ function drawEntInner(e){
       ctx.textBaseline = "alphabetic";
     }
     extraLifeSmellLines(p.x, p.y, h);
+    return;
+  }
+
+  if (e.t === T.WHIRLPOOL){
+    // Whirlpool. Same "ride higher, read as its own thing" reasoning as the
+    // other pickups; the dive-in motes run off the clock rather than any
+    // game-state timer, same as fastPassGlow/souvenirGlow, since this is the
+    // uncollected world pickup, not the active effect. The icon itself stays
+    // put — see whirlpoolMotes's own comment for why it no longer spins.
+    const p = floorPt(e.z, e.a, WHIRLPOOL_LIFT);
+    const dist = e.z - travelled;
+    const grow = Math.max(0.25, Math.min(1, 1 - (dist - 2) / 14));
+    const h = WHIRLPOOL_H * s * grow;
+    if (h < 6) return;
+    const t = performance.now() * 0.001;
+    whirlpoolHalo(p.x, p.y, h);
+    const img = IMG.whirlpool;
+    if (img){
+      const w = h * (img.width / img.height);
+      ctx.drawImage(img, p.x - w / 2, p.y - h / 2, w, h);
+    } else {                          // file still loading, or failed
+      const r = h * 0.42;
+      ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 6.284);
+      ctx.fillStyle = "rgb(" + WHIRLPOOL_RING_COLOR + ")"; ctx.fill();
+      ctx.strokeStyle = C.ink; ctx.lineWidth = Math.max(2, 0.04 * s); ctx.stroke();
+    }
+    // Motes drawn LAST, on top of the icon — see whirlpoolMotes's comment.
+    whirlpoolMotes(p.x, p.y, h, t);
     return;
   }
 
@@ -5721,6 +5964,53 @@ function fastPassLabel(){
   ctx.restore();
 }
 
+/* Whirlpool's ACTIVE cue. This is what rule 7 actually hangs on: it is not a
+   generic vignette or particle trail the way boostRush/speedLines are for
+   Fast Pass — it is the power-up's own icon, sitting on the water right
+   under the rider for the whole WHIRLPOOL_DUR, so there is no ambiguity
+   about WHICH power-up fired. A first version floated it above his head, but
+   Adam's call was under him, ON the slide — a swirl in the water he's riding
+   over, not a badge trailing him. Drawn from floorPt(travelled, laneA, ...)
+   exactly like drawRider() itself, so it tracks his lean, but at a FIXED
+   lift rather than riderLift() — it stays on the water surface even when he
+   jumps, rather than following him into the air. Called BEFORE drawRider()
+   in render() so his tube visibly sits on top of it. The icon itself holds
+   still — whirlpoolMotes' dive-in motes are the "this is pulling things in"
+   cue now, not the icon spinning. */
+const WHIRLPOOL_ACTIVE_LIFT = 0.16;   // just above the water, like a coin
+                                      // (0.34) but lower — this reads as ON
+                                      // the surface, not hovering over it
+function whirlpoolActive(){
+  if (whirlpoolT <= 0) return;
+  const S = focal / CAM_DZ;
+  const p = floorPt(travelled, laneA, WHIRLPOOL_ACTIVE_LIFT);
+  // Sized bigger than the tube on purpose — sitting under him at the tube's
+  // own footprint left almost nothing visible around its edge, and rule 7
+  // needs this readable as WHICH power-up, not just a sliver of colour
+  // peeking out from behind Typhoon.
+  const h = Math.max(0.34 * S, H * 0.08) * 1.6;
+  // Fades in/out over its first/last quarter second rather than popping in or
+  // vanishing mid-frame the moment the timer crosses zero.
+  const k = Math.min(1, (WHIRLPOOL_DUR - whirlpoolT) / 0.25, whirlpoolT / 0.25);
+  if (k <= 0.01) return;
+  const t = performance.now() * 0.001;
+  ctx.save();
+  ctx.globalAlpha = k;
+  whirlpoolHalo(p.x, p.y, h);
+  const img = IMG.whirlpool;
+  if (img){
+    const w = h * (img.width / img.height);
+    ctx.drawImage(img, p.x - w / 2, p.y - h / 2, w, h);
+  } else {
+    ctx.beginPath(); ctx.arc(p.x, p.y, h * 0.42, 0, 6.284);
+    ctx.fillStyle = "rgb(" + WHIRLPOOL_RING_COLOR + ")"; ctx.fill();
+    ctx.strokeStyle = C.ink; ctx.lineWidth = Math.max(2, 0.04 * S); ctx.stroke();
+  }
+  // Motes drawn LAST, on top of the icon — see whirlpoolMotes's comment.
+  whirlpoolMotes(p.x, p.y, h, t);
+  ctx.restore();
+}
+
 function render(){
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   if (shake > 0 && state === "play")
@@ -5749,6 +6039,11 @@ function render(){
      a different distance every run depending on where the track happened to be
      bending. Same reasoning as the flyers below, which reset for the same
      reason — a fixed screen slot has to be drawn in fixed screen space. */
+  // Drawn BEFORE the rider, not after — it sits ON the water under him, so
+  // his tube needs to be the thing on top. whirlpoolT is always 0 by the
+  // time `placed` (below) is true (gameOver() clears it — see its comment),
+  // so this never needs the same placed/restore dance drawRider() does.
+  whirlpoolActive();
   const placed = state === "dying" || state === "over";
   if (placed){ ctx.save(); ctx.setTransform(DPR, 0, 0, DPR, 0, 0); }
   drawRider();

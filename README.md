@@ -74,6 +74,7 @@ in-game How to Play screen.
 | **Fast Pass** | Surges you past top speed for a few seconds — the same rush a tunnel gives, just something you have to grab. | The existing "Speed Boost 05" effect |
 | **Souvenir Bottle** | Instantly banks 100 Buckaroos, same as if you'd collected them one at a time. Coins spill out of it the whole way up to the HUD, and the Buckaroos HUD figure flashes yellow when it lands. | Its own sound effect |
 | **Extra Life** | Flies up to the HUD and adds a bonus tube in its own red, to the left of your normal three. It's spent first: the next hit lands like any other (same shake, flash and hurt sound), but instead of costing a real tube the bonus one explodes — only the hit after that costs a life. Only one can ever be held — a second won't spawn until it's used. | Its own sound effect |
+| **Whirlpool** | Swirls in the water beneath you for 6 seconds. Any Buckaroo coin nearby is pulled in and collected automatically — no steering onto it required. Survives a crash; only runs its course or ends when the run does. | Its own sound effect, looped for the whole 6 seconds |
 
 ## Project structure
 
