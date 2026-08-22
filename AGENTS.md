@@ -223,13 +223,51 @@ since several independent "occasional" clocks combine into "often." Add a new
 power-up's entity type to `POWERUP_TYPES` rather than writing a second spawn
 function.
 
-Built so far: **Fast Pass** (`T.BOOST`) and **Souvenir Bottle** (`T.SOUVENIR`).
-**Fast Pass** reusing the existing `Sound.boost()` sample was a one-off
-exception to rule 9, requested explicitly — it does not waive rule 9 for
-future power-ups. **Season Pass** and **Extra Life**
-(`assets/sprites/power-ups/season-pass.png`, `extra-life.png`) have art
-already dropped in `assets/` but no mechanic defined or discussed — do not
-start on them unprompted.
+Built so far: **Fast Pass** (`T.BOOST`), **Souvenir Bottle** (`T.SOUVENIR`),
+and **Extra Life** (`T.EXTRALIFE`, added 2026-08-21). **Fast Pass** reusing
+the existing `Sound.boost()` sample was a one-off exception to rule 9,
+requested explicitly — it does not waive rule 9 for future power-ups.
+**Season Pass** (`assets/sprites/power-ups/season-pass.png`) has art already
+dropped in `assets/` but no mechanic defined or discussed — do not start on
+it unprompted.
+
+**Extra Life** adds a bonus tube, visually distinct (`--red-life`, measured
+off the art) from the normal orange tubes, placed to their LEFT by
+`drawTubes()` (inserted first — `#tubes` is `justify-content:flex-end`, so
+DOM order still reads left-to-right within the packed row). It does not go
+through the shared `POWERUP_TYPES` draw unconditionally: `spawnPowerup()`
+filters `T.EXTRALIFE` out of the draw entirely while one is already held
+(`extraLife === true`), per the user's call that a second should never even
+appear until the first is used — narrower than rule 3's general spawn-rate
+guidance, and specific to this power-up. `extraLife` only flips true once the
+pickup's flight animation actually lands in the HUD
+(`flyExtraLife()`/`updateFlyers()`), not at the moment it's grabbed — mirrors
+how a letter's `shownLetters` lags `gotLetters`, and for the same reason: a
+hit taken mid-flight must be a normal hit, not a shield the player never
+actually saw granted.
+
+`hitRider()` runs the same shake/flash/speed-penalty/hurt-pose/`Sound.hurt()`
+as every other hit whether or not `extraLife` is set — the user's call, after
+an earlier "softer" version (no shake, no speed loss, its own sound) read as
+inconsistent rather than distinct. The one thing that differs when `extraLife`
+is true: `lives` is never touched, and the bonus tube plays its own explosion
+keyframe (`explodeExtraTube()`, CSS `.tube.extra.exploding`) instead of the
+normal tube being dimmed — `drawTubes()` always rebuilds from scratch, which
+would otherwise cut the animation off before it plays, so the real DOM removal
+is deferred to the animation's `animationend`. The next hit after that falls
+through to the normal `lives--` path unchanged.
+
+**Souvenir Bottle** fires a one-shot radial burst of coins the instant it's
+grabbed (`burstCoins()`, called from `flySouvenir()`) rather than a trail that
+follows the bottle up to the HUD — the user's call, after an initial trailing
+version read as "coins chasing the cup" instead of "coins exploding out of
+it." The burst is pushed into a separate `coinSpill` array (own physics, own
+draw pass) rather than folding into `flyers` itself, because the coins keep
+falling and fading for a beat after the bottle lands and its own flyer entry
+is gone. Drawn in the same unrolled screen space as `drawFlyers()`, and before
+it, so the bottle sits on top of the coins it just exploded out of. Reuses the
+world coin sprites' (`IMG.coinA`/`IMG.coinB`) alternating-face spin rather than
+new art, so a burst Buckaroo reads as the same coin, just airborne.
 
 ## Where things live
 

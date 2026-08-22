@@ -23,6 +23,9 @@
     /* Bright counterpart to --green, for chips that carry ink text. --green is
        a fill for large dark areas; at 1.5:1 against --ink it cannot hold type. */
     --green-lt: #6ee06e;
+    /* Measured off extra-life.png's own checkered tray edge — the Extra Life
+       bonus tube's color, distinct from the normal --orange tube. */
+    --red-life: #fa3c32;
     --navy:     #1e3048;
     --ink:      #0a0a0a;
 
@@ -70,6 +73,28 @@
   .tube{width:17px;height:17px;border-radius:50%;background:var(--orange);
         border:3px solid var(--ink);box-shadow:inset 0 0 0 2px rgba(252,246,240,.55)}
   .tube.spent{background:transparent;box-shadow:none;opacity:.35}
+  /* Extra Life's bonus tube. Placed first (drawTubes()), left of the normal
+     three. tubeLand plays every time because drawTubes() rebuilds the row
+     from scratch (same reasoning as #letters b.got), so there is no stale
+     animation state to worry about. */
+  .tube.extra{background:var(--red-life);
+        box-shadow:inset 0 0 0 2px rgba(252,246,240,.55),0 0 8px 1px rgba(250,60,50,.65);
+        animation:tubeLand .3s cubic-bezier(.16,1.4,.4,1)}
+  @keyframes tubeLand{from{transform:scale(1.6)} to{transform:scale(1)}}
+  /* Plays instead of tubeLand the instant a hit consumes the extra life —
+     three classes beats two, so this wins outright with no !important.
+     explodeExtraTube() adds .exploding and only removes the tube for real at
+     animationend, so the player actually sees the burst rather than the tube
+     just disappearing under a normal hit's flash/shake. */
+  .tube.extra.exploding{animation:tubeExplode .38s ease-out forwards}
+  @keyframes tubeExplode{
+    0%  {transform:scale(1);   opacity:1;
+         box-shadow:inset 0 0 0 2px rgba(252,246,240,.55),0 0 8px 1px rgba(250,60,50,.65)}
+    35% {transform:scale(1.7); opacity:1;
+         box-shadow:inset 0 0 0 2px rgba(252,246,240,.7),0 0 20px 8px rgba(250,60,50,.9)}
+    100%{transform:scale(2.6); opacity:0;
+         box-shadow:0 0 0 0 rgba(250,60,50,0)}
+  }
 
   /* The banked word. Absolutely centred rather than a third flex child so it
      stays on the screen's centre line regardless of how wide the two boards
@@ -1190,6 +1215,7 @@
         <div id="powerups">
           <div class="haz good"><img id="hazFastPass" alt=""><b>Fast Pass</b><span>Surges you past top speed</span></div>
           <div class="haz good"><img id="hazSouvenir" alt=""><b>Souvenir Bottle</b><span>Instant 100 Buckaroos</span></div>
+          <div class="haz good"><img id="hazExtraLife" alt=""><b>Extra Life</b><span>A bonus tube, spent before your real ones</span></div>
         </div>
       </section>
 
@@ -1593,6 +1619,7 @@ const ART = {
      collectible below for how Fast Pass uses this. */
   fastPass: "assets/sprites/power-ups/fast-pass.png",
   souvenir: "assets/sprites/power-ups/souvenir-bottle.png",
+  extraLife: "assets/sprites/power-ups/extra-life.png",
 
   /* The ride itself, shown on the win card. Preloaded here rather than left to
      the <img> so it is decoded long before the card can appear — it is 2MB and
@@ -1617,6 +1644,7 @@ const SFX = {
   letter:"assets/sound-effects/letter-collect/Happy%20Game%20Notification.mp3",
   stampede:"assets/sound-effects/special/stampede-sound.mp3",
   souvenir:"assets/sound-effects/power-ups/souvenir-bottle.mp3",
+  extraLife:"assets/sound-effects/power-ups/extra-life.mp3",
 };
 
 const C = {
@@ -2109,14 +2137,16 @@ const Sound = (function(){
     // A jackpot, not a single coin: layered rather than the coin() chime alone,
     // so a 100-coin pickup doesn't sound identical to a 1-coin one.
     souvenir(){ if (!sample("souvenir", 0.85)){ tone(500, 1800, 0.3, "triangle", 0.15);
-                                                tone(750, 2200, 0.22, "sine", 0.1); } }
+                                                tone(750, 2200, 0.22, "sine", 0.1); } },
+    extraLife(){ if (!sample("extraLife", 0.85)){ tone(440, 880, 0.18, "triangle", 0.14);
+                                                  tone(660, 1320, 0.22, "sine", 0.12); } }
   };
 })();
 
 /* ==================================================================
    STATE
    ================================================================== */
-const T = { COW:0, YETI:1, WAVE:2, TUNNEL:3, COIN:4, BOOST:5, PIG:6, LETTER:7, SOUVENIR:8 };
+const T = { COW:0, YETI:1, WAVE:2, TUNNEL:3, COIN:4, BOOST:5, PIG:6, LETTER:7, SOUVENIR:8, EXTRALIFE:9 };
 
 /* ------------------------------------------------------------------
    SNIPER PIG
@@ -2426,8 +2456,11 @@ const LETTER_AHEAD = 20;    // spawn distance; inside DRAW_FAR (26) so it fades
 const POWERUP_GAP   = 550 / CONFIG.metresPerUnit;   // ~550m between offers
 const POWERUP_AHEAD = 20;   // same reasoning as LETTER_AHEAD
 /* Every power-up currently unlocked. spawnPowerup() draws one type from this
-   set each time the shared clock fires. */
-const POWERUP_TYPES = [T.BOOST, T.SOUVENIR];
+   set each time the shared clock fires — except T.EXTRALIFE, which it drops
+   from the draw while extraLife is already held (see spawnPowerup()), per the
+   user's call that a second one should never even appear until the first is
+   used up. */
+const POWERUP_TYPES = [T.BOOST, T.SOUVENIR, T.EXTRALIFE];
 /* Holds the row until the run-off is done. The last letter leaves the screen
    somewhere between 7.0s (wide desktop) and 7.9s (phone) — the spread is real,
    because the word is a bigger share of a narrow viewport and so has further to
@@ -2463,7 +2496,16 @@ const WIN_INVULN = FLY_DUR * FLY_LAND + STAMPEDE_DUR + 0.25;
    stays empty while its letter is still on the way up. */
 let gotLetters = 0, shownLetters = 0, letterZ = 0, stampedeT = -1;
 let flyers = [];
+/* Buckaroos exploding out of the Souvenir Bottle at the moment it's grabbed
+   (see flySouvenir()/burstCoins()) — a purely cosmetic one-shot burst kept
+   separate from `flyers` itself, so it can keep falling for its own tail-off
+   even after the bottle (and its own flyer entry) is long gone. */
+let coinSpill = [];
 let powerupZ = 0, fastPassLabelT = 0;
+/* True once a picked-up Extra Life has actually landed in the HUD (see
+   flyExtraLife()/updateFlyers()) — not the instant it's picked up. That's the
+   gate spawnPowerup() checks, and hitRider()'s shield branch. */
+let extraLife = false;
 
 const JUMP_DUR = 0.62, JUMP_H = 0.55;
 const BOOST_DUR = 2.4;      // also roughly the length of the boost sample
@@ -2478,7 +2520,7 @@ function reset(){
   touchId = null; steering = false;   // a thumb still down across a restart no
                                       // longer owns the wheel it anchored on
   invuln = 0; boostT = 0; boostSuper = false; shake = 0; hurtT = 0; moveT = 0; moveDir = 0; leanV = 0; duckA = 0;
-  tunnelIn = 0; lastTunZ = -1e9; dieT = 0; fastPassLabelT = 0;
+  tunnelIn = 0; lastTunZ = -1e9; dieT = 0; fastPassLabelT = 0; extraLife = false;
   /* Give the canvas its rider back. The results card takes him OFF the canvas
      and replaces him with a DOM img (see handOverRider), and that flag lived
      only in showOver's reset — so Ride Again started a run whose rider was
@@ -2495,7 +2537,7 @@ function reset(){
   gotLetters = 0; shownLetters = 0; letterZ = LETTER_GAP * 0.55; stampedeT = -1;
   powerupZ = POWERUP_GAP * 0.7;
   runT = 0; spellT = -1; spellLives = 0;
-  flyers = [];
+  flyers = []; coinSpill = [];
   closeReveal();                     // a fresh run never starts with it up
   paintLetters();
   drawTubes();
@@ -2642,7 +2684,11 @@ function spawnLetter(){
    clock. */
 function spawnPowerup(){
   if (travelled < powerupZ) return;
-  const type = POWERUP_TYPES[Math.random() * POWERUP_TYPES.length | 0];
+  // Extra Life drops out of the draw entirely while one is already held, so
+  // the shared clock still fires on schedule (rule 3 still holds) but only
+  // ever offers Fast Pass/Souvenir until the held one is spent.
+  const offered = extraLife ? POWERUP_TYPES.filter(t => t !== T.EXTRALIFE) : POWERUP_TYPES;
+  const type = offered[Math.random() * offered.length | 0];
   const z = travelled + POWERUP_AHEAD;
   const start = Math.random() * 3 | 0;
   for (let k = 0; k < 3; k++){
@@ -2853,7 +2899,7 @@ cv.addEventListener("touchcancel", endTouch, { passive:true });
    never show a different cow than the chute does, and a file that moves only
    has to move in one place. A missing file hides its own tile instead of
    leaving a broken-image box on the card. */
-const HOW_ART = { howCoin:"coinA", hudCoin:"coinA", hazCow:"cow", hazYeti:"yeti", hazWave:"wave2", hazPig:"pig2", hazFastPass:"fastPass", hazSouvenir:"souvenir" };
+const HOW_ART = { howCoin:"coinA", hudCoin:"coinA", hazCow:"cow", hazYeti:"yeti", hazWave:"wave2", hazPig:"pig2", hazFastPass:"fastPass", hazSouvenir:"souvenir", hazExtraLife:"extraLife" };
 for (const id in HOW_ART){
   const src = ART[HOW_ART[id]];
   if (src) $(id).src = src;
@@ -2939,11 +2985,34 @@ const speedHorseEls = speedbar.querySelectorAll("i");
 
 function drawTubes(){
   const box = $("tubes"); box.innerHTML = "";
+  // Extra Life's bonus tube goes in FIRST — #tubes is justify-content:flex-end,
+  // so DOM order is still left-to-right within the packed row, and the first
+  // child lands on the left of the normal three. Never .spent.
+  if (extraLife){
+    const d = document.createElement("div");
+    d.className = "tube extra";
+    box.appendChild(d);
+  }
   for (let i = 0; i < CONFIG.lives; i++){
     const d = document.createElement("div");
     d.className = "tube" + (i < lives ? "" : " spent");
     box.appendChild(d);
   }
+}
+
+/* hitRider()'s tell that the extra life absorbed a hit rather than a real
+   tube being spent: the tube stays in the DOM and plays its own explosion
+   keyframe (CSS .tube.extra.exploding, higher specificity than .tube.extra's
+   plain tubeLand so it fully overrides it) instead of just vanishing on the
+   next drawTubes(). drawTubes() itself can't do this — it always rebuilds
+   from scratch, which is exactly what would cut the animation off before it
+   plays. extraLife is already false by the time this runs (see hitRider()),
+   so the drawTubes() at animationend rebuilds the row without it. */
+function explodeExtraTube(){
+  const el = document.querySelector("#tubes .tube.extra");
+  if (!el){ drawTubes(); return; }
+  el.addEventListener("animationend", drawTubes, { once: true });
+  el.classList.add("exploding");
 }
 
 /* Shared by the HUD row and the game-over recap. Rebuilt from scratch rather
@@ -3030,7 +3099,60 @@ function flySouvenir(){
       h1 = b.height * 0.6;             // a bottle filling the whole board would
     }                                   // overpower the number it's landing on
   }
+  const h0 = Math.max(32, H * 0.1);
   flyers.push({ kind: "souvenir", x0: from.x, y0: from.y, x1: to.x, y1: to.y,
+                h0, h1, t: 0 });
+  burstCoins(from.x, from.y, h0);
+}
+
+/* The "coins explode out of the cup" flourish — a one-shot radial burst fired
+   the instant the bottle is grabbed (see flySouvenir() above), not a trail
+   that follows it to the HUD: real coins don't ride along for the whole trip,
+   they pop out at the moment of impact and fall away while the bottle
+   carries on alone. Pushed into the same coinSpill array drawFlyers()'s
+   screen-space pass already draws (see drawCoinSpill()), so it needs no draw
+   code of its own. */
+function burstCoins(x, y, h){
+  const N = 16;
+  for (let i = 0; i < N; i++){
+    // An even ring plus per-coin jitter reads as a burst; pure Math.random()
+    // angles clump and leave visible gaps.
+    const ang = (i / N) * 6.283 + (Math.random() - 0.5) * 0.7;
+    const spd = 220 + Math.random() * 260;
+    const life = 0.5 + Math.random() * 0.3;
+    coinSpill.push({
+      x: x + (Math.random() - 0.5) * h * 0.15,
+      y: y + (Math.random() - 0.5) * h * 0.15,
+      vx: Math.cos(ang) * spd,
+      vy: Math.sin(ang) * spd - 60,        // upward bias so it reads as a pop, not a spray
+      r: h * (0.13 + Math.random() * 0.06),
+      spin: Math.random() * 6.283,
+      life, maxLife: life,
+    });
+  }
+}
+
+/* Same shape again, targeting #tubes as a whole (there's no specific slot to
+   aim at — the bonus tube doesn't exist in the DOM until updateFlyers() adds
+   it on landing, same as a letter's shownLetters). extraLife itself is set
+   true only once this lands, not at pickup — so a hit taken mid-flight is
+   still a normal hit rather than a shield that was never actually seen. */
+function flyExtraLife(){
+  const p = floorPt(travelled, laneA, riderLift() + 0.42);
+  const roll = rollAngle(), cs = Math.cos(roll), sn = Math.sin(roll);
+  const dx = p.x - W / 2, dy = p.y - horizon;
+  const from = { x: W / 2 + dx * cs - dy * sn, y: horizon + dx * sn + dy * cs };
+
+  let to = { x: W - 30, y: 70 }, h1 = 20;
+  const box = $("tubes");
+  if (box){
+    const b = box.getBoundingClientRect(), cr = cv.getBoundingClientRect();
+    if (b.width > 0){
+      to = { x: b.right - cr.left, y: b.top + b.height / 2 - cr.top };
+      h1 = Math.max(17, b.height);
+    }
+  }
+  flyers.push({ kind: "extralife", x0: from.x, y0: from.y, x1: to.x, y1: to.y,
                 h0: Math.max(32, H * 0.1), h1, t: 0 });
 }
 
@@ -3038,15 +3160,22 @@ function updateFlyers(dt){
   for (let i = flyers.length - 1; i >= 0; i--){
     const f = flyers[i];
     f.t += dt / FLY_DUR;
+
     /* The slot lights while the badge is still fading out on top of it. Landing
        only at t=1 left ~100ms where the badge had faded and the slot had not
        lit yet, and the letter read as vanishing rather than arriving. */
     if (!f.landed && f.t >= FLY_LAND){
       f.landed = true;
       if (f.kind === "souvenir"){
-        // coins itself was already banked at pickup (see T.SOUVENIR above) —
-        // this is the payoff, timed to the bottle actually arriving.
-        flashCoins(); Sound.souvenir();
+        // coins itself and Sound.souvenir() both already fired at pickup (see
+        // T.SOUVENIR above) — this is just the HUD payoff, timed to the
+        // bottle actually arriving.
+        flashCoins();
+      } else if (f.kind === "extralife"){
+        // Unlike souvenir's coins, nothing was banked at pickup — the bonus
+        // tube becomes real right here, the instant it's actually seen in
+        // the HUD (see flyExtraLife()'s comment).
+        extraLife = true; drawTubes(); Sound.extraLife();
       } else {
         shownLetters = Math.max(shownLetters, f.idx + 1);
         paintLetters();
@@ -3055,6 +3184,11 @@ function updateFlyers(dt){
       }
     }
     if (f.t >= 1) flyers.splice(i, 1);
+  }
+  for (let i = coinSpill.length - 1; i >= 0; i--){
+    const p = coinSpill[i];
+    p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 640 * dt;
+    if (p.life <= 0) coinSpill.splice(i, 1);
   }
 }
 
@@ -3069,7 +3203,30 @@ function drawFlyers(){
     const h = f.h0 + (f.h1 - f.h0) * e;
     const alpha = t > FLY_LAND ? Math.max(0, (1 - t) / (1 - FLY_LAND)) : 1;
     if (f.kind === "souvenir") drawSouvenirFlyer(x, y, h, alpha);
+    else if (f.kind === "extralife") drawExtraLifeFlyer(x, y, h, alpha);
     else letterBadge(x, y, h, f.idx, alpha);
+  }
+}
+
+/* The burst burstCoins() fires when a Souvenir Bottle is grabbed. Drawn in
+   the same plain screen space as drawFlyers() (see render()'s call site) and
+   BEFORE it, so the bottle itself sits on top of the coins it just exploded
+   out of. Reuses the world coin sprites' alternating-face spin (drawEntInner's
+   T.COIN case) so a burst Buckaroo reads as the same coin, just airborne. */
+function drawCoinSpill(){
+  for (const p of coinSpill){
+    const alpha = Math.max(0, p.life / p.maxLife);
+    ctx.globalAlpha = alpha;
+    const img = Math.cos(p.spin + p.life * 14) >= 0 ? IMG.coinA : IMG.coinB;
+    if (img){
+      const w = p.r * 2 * (img.width / img.height);
+      ctx.drawImage(img, p.x - w / 2, p.y - p.r, w, p.r * 2);
+    } else {
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.284);
+      ctx.fillStyle = C.yellow; ctx.fill();
+      ctx.strokeStyle = C.ink; ctx.lineWidth = 1.5; ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
   }
 }
 
@@ -3086,6 +3243,23 @@ function drawSouvenirFlyer(x, y, h, alpha){
     const r = h * 0.42;
     ctx.beginPath(); ctx.arc(x, y, r, 0, 6.284);
     ctx.fillStyle = C.yellow; ctx.fill();
+    ctx.strokeStyle = C.ink; ctx.lineWidth = Math.max(2, h * 0.05); ctx.stroke();
+  }
+  if (alpha < 1) ctx.globalAlpha = 1;
+}
+
+/* Same fallback shape as drawEntInner's T.EXTRALIFE case, no glow — same
+   reasoning as drawSouvenirFlyer above. */
+function drawExtraLifeFlyer(x, y, h, alpha){
+  if (alpha < 1) ctx.globalAlpha = alpha;
+  const img = IMG.extraLife;
+  if (img){
+    const w = h * (img.width / img.height);
+    ctx.drawImage(img, x - w / 2, y - h / 2, w, h);
+  } else {
+    const r = h * 0.42;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, 6.284);
+    ctx.fillStyle = "rgb(250,60,50)"; ctx.fill();
     ctx.strokeStyle = C.ink; ctx.lineWidth = Math.max(2, h * 0.05); ctx.stroke();
   }
   if (alpha < 1) ctx.globalAlpha = 1;
@@ -3312,7 +3486,7 @@ function gameOver(){
   // updateFlyers only runs in the play branch, so anything still in the air
   // would hang frozen over the wipeout. The letter is already banked in
   // gotLetters, which is what the results card reads.
-  flyers = [];
+  flyers = []; coinSpill = [];
   /* The records are banked in showOver(), not here: they have to be COMPARED
      against before they are updated, and showOver is where the comparison and
      the badges live. Folding it in there keeps one place that can get it wrong
@@ -3629,12 +3803,25 @@ function flashCoins(){
 }
 function hitRider(){
   if (invuln > 0) return;
-  lives--; invuln = 1.4; hurtT = 1.4;
+  invuln = 1.4; hurtT = 1.4;
   // Proportional, so a hit at full tilt actually costs you something — the old
   // flat -1.2 barely registered at speed. A boost can't survive a crash either.
   speed = Math.max(CONFIG.startSpeed, speed * 0.62);
   boostT = 0; boostSuper = false; fastPassLabelT = 0;
-  shake = 1; flash(); puff(26); drawTubes();
+  shake = 1; flash(); puff(26);
+  if (extraLife){
+    // The extra life absorbs this hit instead of a real tube — every OTHER
+    // effect above is identical to a normal hit, on purpose (the user's call:
+    // it should feel like a real hit landed, not a softer one). The one tell
+    // that it wasn't a real tube is the tube itself: it explodes rather than
+    // just vanishing (see explodeExtraTube()).
+    extraLife = false;
+    explodeExtraTube();
+    Sound.hurt();
+    return;
+  }
+  lives--;
+  drawTubes();
   // gameOver plays the death cry, so the two never stack on the fatal hit
   if (lives <= 0) gameOver(); else Sound.hurt();
 }
@@ -3834,13 +4021,22 @@ function update(dt){
       // running the moment a run ends (gameOver() clears flyers outright —
       // "anything still in the air would hang frozen over the wipeout"), so
       // anything deferred to the flyer landing would be lost if the rider
-      // dies mid-flight. Only the PAYOFF — the
-      // sound and the HUD flash — waits for flySouvenir()'s flight to land,
-      // so grabbing it reads as "this is what just paid out" rather than a
-      // silent number change somewhere else on screen.
+      // dies mid-flight. Sound.souvenir() fires HERE too, on the grab itself —
+      // the user's call, so the cue confirms the pickup instantly rather than
+      // trailing a beat behind it while the bottle is still in the air. Only
+      // the HUD flash still waits for flySouvenir()'s flight to land, so the
+      // Buckaroos figure lighting up reads as "this is what just paid out."
       if (nearLane(e.i, LANE_PICK)){
         e.dead = true; coins += SOUVENIR_BONUS;
-        puff(24); flySouvenir();
+        puff(24); flySouvenir(); Sound.souvenir();
+      }
+    } else if (e.t === T.EXTRALIFE){
+      // Nothing is banked here — unlike the souvenir bottle, extraLife itself
+      // only flips true once the flyer actually lands in the HUD (see
+      // flyExtraLife() and updateFlyers()), so a hit taken mid-flight is a
+      // normal hit, not a shield that was never visibly granted.
+      if (nearLane(e.i, LANE_PICK)){
+        e.dead = true; puff(16); flyExtraLife();
       }
     } else if (e.t === T.TUNNEL){
       // enclosed section: passing through it gives a speed boost, but the
@@ -4659,6 +4855,77 @@ function souvenirGlow(x, y, h){
   ctx.restore();
 }
 
+/* ------------------------------------------------------------------
+   EXTRA LIFE SMELL LINES
+   The pickup is a plate of BBQ, not a tag or a bottle — a radial halo read as
+   a generic status glow, the same idea as Fast Pass/Souvenir with a different
+   color. Cartoon smell lines are the on-theme choice instead, and give this
+   pickup a silhouette the other two don't share: motion that rises and fades,
+   not a halo that surrounds.
+
+   A first version didn't read as smell at all — two things fixed it. First,
+   speed: it wobbled at ~1 full cycle/second, which looks like static or a
+   scribble; real steam ambles, so this drifts at a quarter of that. Second,
+   color: EXTRALIFE_COLOR (bright red, measured off the tray for the HUD tube)
+   reads as heat/alert on a rising squiggle, not "smells good" — steam is
+   almost always warm cream/white in this style, so the wisps get their own
+   color for that reason alone. Each wisp is also drawn as several overlapping
+   strokes of shrinking length/width/opacity so it visibly tapers to a point
+   rather than ending in a flat-capped ribbon, the way a real wisp thins out
+   as it rises and disperses.
+   ------------------------------------------------------------------ */
+const EXTRALIFE_H     = 0.32;   // matches the other pickups' on-screen footprint —
+                                // extra-life.png is a wide 200x124 tray, so at
+                                // Fast Pass's own 0.60 height it rendered nearly
+                                // twice as wide. Sized instead so its WIDTH lands
+                                // close to Fast Pass's (h * 200/124 ~= 0.52).
+const EXTRALIFE_LIFT  = 0.44;
+const EXTRALIFE_COLOR = "250,60,50";        // measured off extra-life.png's tray
+                                            // edge — used for the HUD tube only
+const EXTRALIFE_SMELL_COLOR = "255,244,214"; // warm steam cream, not the tube's red
+
+function extraLifeSmellLines(x, y, h){
+  const t = performance.now() * 0.001;
+  const baseY = y - h * 0.48;    // starts at the top edge of the tray
+  const riseH = h * 1.9;         // how far above the tray the wisps reach
+  const WISPS = [
+    { dx: -0.32, amp: 0.42, speed: 0.28, phase: 0.0, w: 1.0  },
+    { dx:  0.00, amp: 0.36, speed: 0.24, phase: 2.3, w: 1.2  },
+    { dx:  0.33, amp: 0.44, speed: 0.32, phase: 4.4, w: 0.85 },
+  ];
+  ctx.save();
+  ctx.lineCap = "round";
+  const STEPS = 26;
+  for (const wp of WISPS){
+    const baseX = x + wp.dx * h;
+    const pts = [];
+    for (let i = 0; i <= STEPS; i++){
+      const k = i / STEPS;
+      // One smooth S-bend (a single half-turn of sine), amplitude ramping in
+      // with height so each wisp starts tight at the tray and swings wider
+      // as it climbs, plus a slow phase drift so the bend ambles over time
+      // instead of holding one static shape.
+      const bend = Math.sin(k * Math.PI * 1.4 + t * wp.speed + wp.phase);
+      pts.push({ x: baseX + bend * wp.amp * h * k, y: baseY - riseH * k });
+    }
+    // Layered taper: each pass covers less of the wisp from the base outward,
+    // stacking extra width/opacity near the tray while only the full-length,
+    // thinnest/faintest pass reaches the tip.
+    const PASSES = 3;
+    for (let p = 0; p < PASSES; p++){
+      const upTo = Math.round(STEPS * (1 - p * 0.28));
+      ctx.beginPath();
+      for (let i = 0; i <= upTo; i++){
+        if (i === 0) ctx.moveTo(pts[i].x, pts[i].y); else ctx.lineTo(pts[i].x, pts[i].y);
+      }
+      ctx.lineWidth = Math.max(1, h * 0.09 * wp.w * (1 - p * 0.3));
+      ctx.strokeStyle = "rgba(" + EXTRALIFE_SMELL_COLOR + "," + (0.5 - p * 0.12).toFixed(3) + ")";
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
 function drawEnt(e){
   const dzf = e.z - travelled + CAM_DZ;
   if (e.w === 0) return drawEntInner(e);          // scenery never fades
@@ -4813,6 +5080,35 @@ function drawEntInner(e){
       ctx.fillStyle = C.ink; ctx.fillText("+100", p.x, p.y);
       ctx.textBaseline = "alphabetic";
     }
+    return;
+  }
+
+  if (e.t === T.EXTRALIFE){
+    // Extra Life. Same "ride higher, read as its own thing" reasoning as
+    // Fast Pass and Souvenir.
+    const p = floorPt(e.z, e.a, EXTRALIFE_LIFT);
+    const dist = e.z - travelled;
+    const grow = Math.max(0.25, Math.min(1, 1 - (dist - 2) / 14));
+    const h = EXTRALIFE_H * s * grow;
+    if (h < 6) return;
+    // Drawn BEFORE the smell lines, unlike Fast Pass/Souvenir's glow-then-
+    // sprite order — smell lines rise off the food and read wrong if the tray
+    // art draws on top of them and clips their base.
+    const img = IMG.extraLife;
+    if (img){
+      const w = h * (img.width / img.height);
+      ctx.drawImage(img, p.x - w / 2, p.y - h / 2, w, h);
+    } else {                          // file still loading, or failed
+      const r = h * 0.42;
+      ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 6.284);
+      ctx.fillStyle = "rgb(" + EXTRALIFE_COLOR + ")"; ctx.fill();
+      ctx.strokeStyle = C.ink; ctx.lineWidth = Math.max(2, 0.04 * s); ctx.stroke();
+      ctx.font = "700 " + (r * 0.9).toFixed(1) + "px " + MONO;
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillStyle = C.white; ctx.fillText("+1", p.x, p.y);
+      ctx.textBaseline = "alphabetic";
+    }
+    extraLifeSmellLines(p.x, p.y, h);
     return;
   }
 
@@ -5462,9 +5758,12 @@ function render(){
 
   /* Outside the rolled frame on purpose: these fly to fixed HUD slots, which
      never bank or shake with the camera. Resetting the transform also puts
-     them in the same screen space the slot rects were measured in. */
-  if (flyers.length){
+     them in the same screen space the slot rects were measured in.
+     coinSpill is checked separately from flyers — its coins can still be
+     falling for a beat after the bottle itself has landed and been removed. */
+  if (flyers.length || coinSpill.length){
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    drawCoinSpill();
     drawFlyers();
   }
   if (fastPassLabelT > 0){
