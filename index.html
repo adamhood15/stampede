@@ -23,9 +23,6 @@
     /* Bright counterpart to --green, for chips that carry ink text. --green is
        a fill for large dark areas; at 1.5:1 against --ink it cannot hold type. */
     --green-lt: #6ee06e;
-    /* Measured off extra-life.png's own checkered tray edge — the Extra Life
-       bonus tube's color, distinct from the normal --orange tube. */
-    --red-life: #fa3c32;
     --navy:     #1e3048;
     --ink:      #0a0a0a;
 
@@ -70,30 +67,30 @@
   #coinRow img{flex:none}
   #coinRow img{width:26px;height:26px;display:block}
   #tubes{margin-top:10px;display:flex;gap:6px;justify-content:flex-end}
-  .tube{width:17px;height:17px;border-radius:50%;background:var(--orange);
-        border:3px solid var(--ink);box-shadow:inset 0 0 0 2px rgba(252,246,240,.55)}
-  .tube.spent{background:transparent;box-shadow:none;opacity:.35}
-  /* Extra Life's bonus tube. Placed first (drawTubes()), left of the normal
+  /* A life is a pizza slice icon now, not a plain colour fill, so the art
+     itself carries the outline/shading and .tube is just its box — sized off
+     the source file's own ratio (30x28) so "contain" never stretches it. */
+  .tube{width:19px;aspect-ratio:30/28;
+        background:no-repeat center/contain url("assets/sprites/typhoon-sprites/extra-life/extra-life.png");
+        filter:drop-shadow(1px 2px 0 rgba(10,10,10,.5))}
+  .tube.spent{opacity:.3;filter:grayscale(1)}
+  /* Extra Life's bonus slice. Placed first (drawTubes()), left of the normal
      three. tubeLand plays every time because drawTubes() rebuilds the row
      from scratch (same reasoning as #letters b.got), so there is no stale
-     animation state to worry about. */
-  .tube.extra{background:var(--red-life);
-        box-shadow:inset 0 0 0 2px rgba(252,246,240,.55),0 0 8px 1px rgba(250,60,50,.65);
-        animation:tubeLand .3s cubic-bezier(.16,1.4,.4,1)}
+     animation state to worry about. Plain pizza art, same as a real life —
+     position (leftmost) plus the pop-in/explosion animations are the cue. */
+  .tube.extra{animation:tubeLand .3s cubic-bezier(.16,1.4,.4,1)}
   @keyframes tubeLand{from{transform:scale(1.6)} to{transform:scale(1)}}
   /* Plays instead of tubeLand the instant a hit consumes the extra life —
      three classes beats two, so this wins outright with no !important.
      explodeExtraTube() adds .exploding and only removes the tube for real at
-     animationend, so the player actually sees the burst rather than the tube
+     animationend, so the player actually sees the burst rather than the slice
      just disappearing under a normal hit's flash/shake. */
   .tube.extra.exploding{animation:tubeExplode .38s ease-out forwards}
   @keyframes tubeExplode{
-    0%  {transform:scale(1);   opacity:1;
-         box-shadow:inset 0 0 0 2px rgba(252,246,240,.55),0 0 8px 1px rgba(250,60,50,.65)}
-    35% {transform:scale(1.7); opacity:1;
-         box-shadow:inset 0 0 0 2px rgba(252,246,240,.7),0 0 20px 8px rgba(250,60,50,.9)}
-    100%{transform:scale(2.6); opacity:0;
-         box-shadow:0 0 0 0 rgba(250,60,50,0)}
+    0%  {transform:scale(1);   opacity:1}
+    35% {transform:scale(1.7); opacity:1}
+    100%{transform:scale(2.6); opacity:0}
   }
 
   /* The banked word. Absolutely centred rather than a third flex child so it
@@ -188,20 +185,29 @@
      edge, so 72px (margin + button + a 10px breather) is reserved per side
      before the bar even starts, then it shrinks with the icons rather than
      overlapping the buttons on a narrow phone. */
-  #speedbar{position:absolute;left:50%;
+  #speedbar{position:absolute;left:50%;box-sizing:border-box;
             /* .hudbtn's vertical centre sits 14px + half its 48px height above
                the safe-area line; translateY(50%) re-centres THIS box on that
                same line using its own (shorter, width-dependent) height, so it
                lines up with #mute/#pause regardless of how wide the bar is. */
             bottom:calc(env(safe-area-inset-bottom,0px) + 14px + 24px);
             transform:translate(-50%, 50%);
-            display:flex;align-items:center;gap:5px;
+            display:flex;align-items:center;gap:4px;
+            padding:6px 10px;background:rgba(30,48,72,.8);
+            border:3px solid var(--ink);border-radius:6px;
+            box-shadow:3px 3px 0 var(--ink);
             width:min(320px,calc(100% - (env(safe-area-inset-left,0px) +
               env(safe-area-inset-right,0px) + 144px)))}
   #speedbar i{flex:1 1 0;min-width:0;aspect-ratio:200/127;
     background:no-repeat center/contain url("assets/sprites/hud/horse-grey.png")}
-  #speedbar i.lit{background-image:url("assets/sprites/hud/horse-white.png")}
-  #speedbar i.boosted{background-image:url("assets/sprites/hud/horse-yellow.png")}
+  #speedbar i.lit{background-image:url("assets/sprites/hud/horse-yellow.png")}
+  /* Over top speed: filled horses jitter in place to read as "past the
+     redline" instead of adding yet another colour tier. Staggered delays
+     keep them from all snapping in perfect unison. */
+  #speedbar i.boosted{animation:speedShake .2s steps(2) infinite}
+  #speedbar i.boosted:nth-child(2n){animation-delay:.05s}
+  #speedbar i.boosted:nth-child(3n){animation-delay:.09s}
+  @keyframes speedShake{0%,100%{transform:translateX(0)} 50%{transform:translateX(1.5px)}}
 
   /* ---------- panels ---------- */
   /* Centred, but scroll-safe. `justify-content:center` alone CLIPS a column
@@ -355,7 +361,7 @@
             background:var(--white);color:var(--ink);border:3px solid var(--ink);
             box-shadow:0 4px 0 var(--ink);font-size:19px;line-height:1}
   .ctl b{font-family:var(--display);text-transform:uppercase;transform:skewX(-7deg);
-         font-size:18px;letter-spacing:.04em;color:var(--yellow);margin-top:2px}
+         font-size:18px;letter-spacing:.04em;color:var(--white);margin-top:2px}
   .ctl span{font-size:9px;line-height:1.6;letter-spacing:.08em;text-transform:uppercase;
             color:rgba(252,246,240,.72)}
   /* Slide/Jump/Duck stay in one row on the how-to card too, same compact
@@ -655,7 +661,7 @@
      background, a green accent line and the whole row to itself, which made it
      read as a different KIND of thing — a banner sitting under the grid rather
      than the fifth card in it. */
-  .haz span{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--orange)}
+  .haz span{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:rgba(252,246,240,.72)}
 
   /* ---------- HUD guide ----------
      Same one-card-per-entry grid as #hazards, but the tiles are not all the
@@ -699,17 +705,19 @@
      figures instead of live ones. */
   .hgCoinRow{display:flex;align-items:center;gap:7px;justify-content:center}
   .hgCoinRow img{width:26px;height:26px;display:block}
-  /* Three tubes at the real size and colour, one spent, so the row itself
-     shows "you lose these one at a time" rather than just decorating. */
+  /* Three life icons at the real size, one spent, so the row itself shows
+     "you lose these one at a time" rather than just decorating. */
   .hgTubes{display:flex;gap:6px}
   /* One #speedbar strip laid flat in the card instead of floating over the
      canvas — same sprites, same lit/boosted rule, just not position:absolute
      about it. */
-  .hgSpeedbar{display:flex;align-items:center;gap:5px;width:100%;max-width:280px}
+  .hgSpeedbar{display:flex;align-items:center;gap:4px;width:100%;max-width:280px;
+              box-sizing:border-box;padding:6px 10px;background:rgba(30,48,72,.8);
+              border:3px solid var(--ink);border-radius:6px;box-shadow:3px 3px 0 var(--ink)}
   .hgSpeedbar i{flex:1 1 0;min-width:0;aspect-ratio:200/127;
                 background:no-repeat center/contain url("assets/sprites/hud/horse-grey.png")}
-  .hgSpeedbar i.lit{background-image:url("assets/sprites/hud/horse-white.png")}
-  .hgSpeedbar i.boosted{background-image:url("assets/sprites/hud/horse-yellow.png")}
+  .hgSpeedbar i.lit{background-image:url("assets/sprites/hud/horse-yellow.png")}
+  .hgSpeedbar i.boosted{animation:speedShake .2s steps(2) infinite}
   /* Every three-across row on the how-to card goes two-up on a phone instead —
      Slide/Jump/Duck and Score/Buckaroos/Tubes both fit this, and any future
      three-card row picking up .controls or .hgRow3 gets it for free. The odd
@@ -1198,7 +1206,7 @@
       <section class="howSec">
         <h3>Dodge, jump, duck</h3>
         <p class="howLead">Every hazard has one right answer. Hit one and it
-           costs a tube — three and the run is over.</p>
+           costs a life — three and the run is over.</p>
         <div id="hazards">
           <div class="haz"><img id="hazCow" alt=""><b>Cow tube</b><span>Slide around</span></div>
           <div class="haz"><img id="hazYeti" alt=""><b>Snowman tube</b><span>Slide around</span></div>
@@ -1225,8 +1233,9 @@
         <div id="powerups">
           <div class="haz good"><img id="hazFastPass" alt=""><b>Fast Pass</b><span>Surges you past top speed</span></div>
           <div class="haz good"><img id="hazSouvenir" alt=""><b>Souvenir Bottle</b><span>Instant 100 Buckaroos</span></div>
-          <div class="haz good"><img id="hazExtraLife" alt=""><b>Extra Life</b><span>A bonus tube, spent before your real ones</span></div>
-          <div class="haz good"><img id="hazWhirlpool" alt=""><b>Whirlpool</b><span>Sucks nearby Buckaroos to you for 6 seconds</span></div>
+          <div class="haz good"><img id="hazExtraLife" alt=""><b>Extra Life</b><span>A bonus pizza slice, spent before your real ones</span></div>
+          <div class="haz good"><img id="hazWhirlpool" alt=""><b>Whirlpool</b><span>Sucks nearby Buckaroos and letters to you for 6 seconds</span></div>
+          <div class="haz good"><img id="hazSeasonPass" alt=""><b>Season Pass</b><span>9 seconds of total invincibility, +50% speed, and every pickup pulled straight to you</span></div>
         </div>
       </section>
 
@@ -1339,16 +1348,16 @@
               <div class="hgTubes">
                 <span class="tube"></span><span class="tube"></span><span class="tube spent"></span>
               </div>
-              <b>Tubes</b><span>Three to start — lose one every hit.</span>
+              <b>Lives</b><span>Three to start — lose one every hit.</span>
             </div>
           </div>
 
           <div class="hgItem hgWide">
             <div class="hgSpeedbar">
               <i></i><i></i><i class="lit"></i><i class="lit"></i><i class="lit"></i>
-              <i class="boosted"></i><i class="boosted"></i>
+              <i class="lit boosted"></i><i class="lit boosted"></i>
             </div>
-            <b>Speed</b><span>Horses light up as you pick up speed — gold means you're boosted.</span>
+            <b>Speed</b><span>Horses fill in gold as you speed up — they shake once you're past top speed.</span>
           </div>
         </div>
       </section>
@@ -1566,6 +1575,10 @@ const ART = {
   horseGrey:   "assets/sprites/hud/horse-grey.png",
   horseWhite:  "assets/sprites/hud/horse-white.png",
   horseYellow: "assets/sprites/hud/horse-yellow.png",
+
+  /* #tubes' life icon. Listed here only to get it preloaded — it is drawn by
+     CSS (.tube's background), same reasoning as the horses above. */
+  lifeIcon: "assets/sprites/typhoon-sprites/extra-life/extra-life.png",
   wave1:    "assets/sprites/obstacles/waves_1.png",
   wave2:    "assets/sprites/obstacles/waves_2.png",
   wave3:    "assets/sprites/obstacles/waves_3.png",
@@ -1644,6 +1657,22 @@ const ART = {
   souvenir: "assets/sprites/power-ups/souvenir-bottle.png",
   extraLife: "assets/sprites/power-ups/extra-life.png",
   whirlpool: "assets/sprites/power-ups/whirlpool.png",
+  seasonPass: "assets/sprites/power-ups/season-pass.png",
+
+  /* Season Pass's own rider pose, tube-registered like eat/duck/hurt (see
+     SEASONPASS_REG) — nine frames: hyping up over the pass (01-03), settling
+     into the tube with it (04-05), blissed out (06, where the effect HOLDS
+     for the bulk of its 10s), then winding up and tossing the card away
+     (07-09) as the effect runs out. */
+  sp0:      "assets/sprites/typhoon-sprites/season-pass/season-pass_01.png",
+  sp1:      "assets/sprites/typhoon-sprites/season-pass/season-pass_02.png",
+  sp2:      "assets/sprites/typhoon-sprites/season-pass/season-pass_03.png",
+  sp3:      "assets/sprites/typhoon-sprites/season-pass/season-pass_04.png",
+  sp4:      "assets/sprites/typhoon-sprites/season-pass/season-pass_05.png",
+  sp5:      "assets/sprites/typhoon-sprites/season-pass/season-pass_06.png",
+  sp6:      "assets/sprites/typhoon-sprites/season-pass/season-pass_07.png",
+  sp7:      "assets/sprites/typhoon-sprites/season-pass/season-pass_08.png",
+  sp8:      "assets/sprites/typhoon-sprites/season-pass/season-pass_09.png",
 
   /* The ride itself, shown on the win card. Preloaded here rather than left to
      the <img> so it is decoded long before the card can appear — it is 2MB and
@@ -1657,6 +1686,8 @@ const MUSIC = {
   ride:  "assets/music/game-play.mp3",
   over:  "assets/music/game-over.mp3",
   start: "assets/music/game-start.mp3",   // title card, and again on the win card
+  seasonPass: "assets/music/season-pass-music.mp3",   // takes over the ride
+                                                       // track for the effect
 };
 
 const SFX = {
@@ -1672,6 +1703,7 @@ const SFX = {
   souvenir:"assets/sound-effects/power-ups/souvenir-bottle.mp3",
   extraLife:"assets/sound-effects/power-ups/extra-life.mp3",
   whirlpool:"assets/sound-effects/power-ups/whirlpool.mp3",
+  seasonPass:"assets/sound-effects/power-ups/season-pass.mp3",
 };
 
 const C = {
@@ -2225,6 +2257,23 @@ const Sound = (function(){
                                                 tone(750, 2200, 0.22, "sine", 0.1); } },
     extraLife(){ if (!sample("extraLife", 0.85)){ tone(440, 880, 0.18, "triangle", 0.14);
                                                   tone(660, 1320, 0.22, "sine", 0.12); } },
+    /* Season Pass's pickup stinger, played the instant it's grabbed. Unlike
+       Whirlpool's loop sample, this doesn't need to hand anything off itself
+       — the game times season-pass-music.mp3's entrance off
+       SEASONPASS_INTRO_DUR (measured against this very clip's own length,
+       ~3.03s) rather than this sample's onended, so the world-freeze/reveal
+       animation and the music switch stay in lockstep even if this falls
+       back to the synth tones below. */
+    seasonPass(){
+      if (!sample("seasonPass", 0.9)){
+        tone(300, 900, 0.3, "triangle", 0.16); tone(500, 1400, 0.22, "sine", 0.12);
+      }
+    },
+    /* "This didn't hurt you." Fired instead of hurt()/hit() when a hazard is
+       shrugged off during Season Pass — bright and rising rather than harsh,
+       so it reads as the opposite of taking a hit, not a softer version of one. */
+    seasonPassSafe(){ tone(760, 1320, 0.14, "triangle", 0.16);
+                       tone(1140, 1560, 0.10, "sine", 0.10); },
     // Chained rather than two independent calls: slurp has to start the instant
     // eating ends, not on a guessed delay, so it rides eating's own onended.
     eating(){ if (!sample("eating", 0.9, () => sample("slurp", 0.9))){
@@ -2236,7 +2285,7 @@ const Sound = (function(){
 /* ==================================================================
    STATE
    ================================================================== */
-const T = { COW:0, YETI:1, WAVE:2, TUNNEL:3, COIN:4, BOOST:5, PIG:6, LETTER:7, SOUVENIR:8, EXTRALIFE:9, WHIRLPOOL:10 };
+const T = { COW:0, YETI:1, WAVE:2, TUNNEL:3, COIN:4, BOOST:5, PIG:6, LETTER:7, SOUVENIR:8, EXTRALIFE:9, WHIRLPOOL:10, SEASONPASS:11 };
 
 /* ------------------------------------------------------------------
    SNIPER PIG
@@ -2564,6 +2613,7 @@ const POWERUP_DEBUG_TYPE = {
   souvenir: T.SOUVENIR, "souvenir-bottle": T.SOUVENIR,
   extralife: T.EXTRALIFE, "extra-life": T.EXTRALIFE,
   whirlpool: T.WHIRLPOOL,
+  seasonpass: T.SEASONPASS, "season-pass": T.SEASONPASS,
 }[POWERUP_DEBUG_NAME];
 const POWERUP_DEBUG_FAST = POWERUP_DEBUG_NAME !== undefined || /[?&]powerups\b/.test(location.search);
 const POWERUP_GAP   = (POWERUP_DEBUG_FAST ? 50 : 550) / CONFIG.metresPerUnit;   // ~550m between offers
@@ -2572,8 +2622,10 @@ const POWERUP_AHEAD = 20;   // same reasoning as LETTER_AHEAD
    set each time the shared clock fires — except T.EXTRALIFE, which it drops
    from the draw while extraLife is already held (see spawnPowerup()), per the
    user's call that a second one should never even appear until the first is
-   used up. */
-const POWERUP_TYPES = [T.BOOST, T.SOUVENIR, T.EXTRALIFE, T.WHIRLPOOL];
+   used up, and T.SEASONPASS, which drops out for good the instant it has been
+   offered once (see seasonPassSpawned) — the grand-finale power-up, so it
+   only ever shows up once in a run. */
+const POWERUP_TYPES = [T.BOOST, T.SOUVENIR, T.EXTRALIFE, T.WHIRLPOOL, T.SEASONPASS];
 /* Holds the row until the run-off is done. The last letter leaves the screen
    somewhere between 7.0s (wide desktop) and 7.9s (phone) — the spread is real,
    because the word is a bigger share of a narrow viewport and so has further to
@@ -2624,6 +2676,25 @@ let extraLife = false;
    Adam's call: the effect rides out its own 6s even through a survived crash,
    rather than being cancelled the way a boost is. */
 let whirlpoolT = 0;
+/* Season Pass runs in two phases, both riding their own countdown:
+   seasonPassIntroT — the frozen reveal. The world holds still (see update()'s
+   early return while this is > 0) while the stinger plays and the rider
+   steps through season-pass_01-06; nothing can collide or move, so none of
+   the mechanical effects below are live yet.
+   seasonPassT — the resumed effect, once the intro finishes: true
+   invincibility (hitRider() no-ops entirely while this is > 0 — see its top
+   guard), +50% top speed, and the whirlpool magnet widened to every
+   collectible. The rider holds season-pass_06 for the bulk of this window,
+   then plays 07-09 as it runs out (see seasonPassFrame()).
+   Also true for the run, forever, once it has been offered — see
+   spawnPowerup()'s filter — so it only ever shows up once. */
+let seasonPassIntroT = 0, seasonPassT = 0, seasonPassSpawned = false;
+/* Set the instant season-pass-music.mp3 actually takes the music channel
+   (when the intro finishes — see update()), so the countdown below only
+   hands the channel back to the ride track if Season Pass's music is
+   actually the thing playing — a run that ends or restarts before then
+   never touched the channel, so there is nothing to hand back. */
+let seasonPassMusicPlaying = false;
 
 const JUMP_DUR = 0.62, JUMP_H = 0.55;
 const BOOST_DUR = 2.4;      // also roughly the length of the boost sample
@@ -2642,6 +2713,32 @@ const WHIRLPOOL_SPIN  = 4.2;   // rad/s the real, physically-pulled coins orbit
                                // below. The icon's own glow runs on a
                                // separate clock (see whirlpoolGlow).
 
+/* Season Pass: the biggest power-up in the game by design (rule 2). Grabbing
+   it freezes the world for a beat while the reveal animation plays, then
+   resumes into a window of invincibility, +50% top speed, and Whirlpool's
+   magnet widened to every collectible, not just coins. One per run (see
+   seasonPassSpawned).
+   SEASONPASS_INTRO_DUR and SEASONPASS_DUR are sized off the real audio,
+   not guessed — `afinfo` on the actual files gives season-pass.mp3 (the
+   stinger) at ~3.03s and season-pass-music.mp3 at ~9.14s. Both constants sit
+   a hair under their sample's measured length so the animation never
+   outruns its sound, or, worse, so update()'s expiry code never hands the
+   music channel back mid-note. Re-measure both if either file is
+   re-exported. */
+const SEASONPASS_INTRO_DUR  = 3.0;   // frozen reveal: season-pass.mp3 plays
+                                     // while season-pass_01-06 step through
+const SEASONPASS_DUR        = 9.0;   // resumed effect: season-pass-music.mp3
+                                     // plays for this whole window
+const SEASONPASS_SPEED_MULT = 1.5;   // vs. CONFIG.maxSpeed — bigger than a
+                                     // Fast Pass/tunnel boost's 1.25
+                                     // (BOOST_SUPER_MULT); see update()'s
+                                     // target formula, which takes the larger
+                                     // of the two rather than stacking them
+const SEASONPASS_PULL  = 3.6;  // ease rate, same shape as WHIRLPOOL_PULL but
+                               // a touch snappier — "biggest and best"
+const SEASONPASS_RANGE = 10;   // world units ahead a collectible can be
+                               // pulled from — wider than WHIRLPOOL_RANGE (8)
+
 function reset(){
   travelled = 0; metres = 0; coins = 0;
   speed = CONFIG.startSpeed; lives = CONFIG.lives;
@@ -2651,6 +2748,8 @@ function reset(){
   invuln = 0; boostT = 0; boostSuper = false; shake = 0; hurtT = 0; eatT = 0; moveT = 0; moveDir = 0; leanV = 0; duckA = 0;
   tunnelIn = 0; lastTunZ = -1e9; dieT = 0; fastPassLabelT = 0; extraLife = false;
   whirlpoolT = 0; Sound.loopStop();  // in case a run restarted mid-effect
+  // seasonPassSpawned resets every run, same as extraLife.
+  seasonPassIntroT = 0; seasonPassT = 0; seasonPassSpawned = false; seasonPassMusicPlaying = false;
   /* Give the canvas its rider back. The results card takes him OFF the canvas
      and replaces him with a DOM img (see handOverRider), and that flag lived
      only in showOver's reset — so Ride Again started a run whose rider was
@@ -2816,11 +2915,14 @@ function spawnPowerup(){
   if (travelled < powerupZ) return;
   // Extra Life drops out of the draw entirely while one is already held, so
   // the shared clock still fires on schedule (rule 3 still holds) but only
-  // ever offers Fast Pass/Souvenir until the held one is spent.
-  const offered = extraLife ? POWERUP_TYPES.filter(t => t !== T.EXTRALIFE) : POWERUP_TYPES;
+  // ever offers Fast Pass/Souvenir until the held one is spent. Season Pass
+  // drops out for good, not just temporarily, once it has been offered once —
+  // it's the grand finale, so a run only ever sees it the one time.
+  let offered = extraLife ? POWERUP_TYPES.filter(t => t !== T.EXTRALIFE) : POWERUP_TYPES;
+  if (seasonPassSpawned) offered = offered.filter(t => t !== T.SEASONPASS);
   // ?powerup=<name> pins every offer to one type for testing — see the note
-  // by POWERUP_DEBUG_TYPE above. Overrides the extraLife filter too, since a
-  // test session asking for it explicitly wants to SEE it, held one or not.
+  // by POWERUP_DEBUG_TYPE above. Overrides the extraLife/Season Pass filters
+  // too, since a test session asking for it explicitly wants to SEE it.
   const type = POWERUP_DEBUG_TYPE !== undefined
     ? POWERUP_DEBUG_TYPE : offered[Math.random() * offered.length | 0];
   const z = travelled + POWERUP_AHEAD;
@@ -2829,6 +2931,7 @@ function spawnPowerup(){
     const i = ((start + k) % 3) - 1;
     if (laneBlocked(z, i)) continue;
     add(type, z, i);
+    if (type === T.SEASONPASS) seasonPassSpawned = true;
     powerupZ = travelled + POWERUP_GAP;
     return;
   }
@@ -3033,7 +3136,7 @@ cv.addEventListener("touchcancel", endTouch, { passive:true });
    never show a different cow than the chute does, and a file that moves only
    has to move in one place. A missing file hides its own tile instead of
    leaving a broken-image box on the card. */
-const HOW_ART = { howCoin:"coinA", hudCoin:"coinA", hazCow:"cow", hazYeti:"yeti", hazWave:"wave2", hazPig:"pig2", hazFastPass:"fastPass", hazSouvenir:"souvenir", hazExtraLife:"extraLife", hazWhirlpool:"whirlpool" };
+const HOW_ART = { howCoin:"coinA", hudCoin:"coinA", hazCow:"cow", hazYeti:"yeti", hazWave:"wave2", hazPig:"pig2", hazFastPass:"fastPass", hazSouvenir:"souvenir", hazExtraLife:"extraLife", hazWhirlpool:"whirlpool", hazSeasonPass:"seasonPass" };
 for (const id in HOW_ART){
   const src = ART[HOW_ART[id]];
   if (src) $(id).src = src;
@@ -3518,15 +3621,16 @@ function setFigure(el, value, maxPx){
 function syncHUD(){
   setFigure($("coins"), coins, 25);
   setFigure($("hudScore"), runScore(), 25);
-  const lit = Math.round((speed - CONFIG.startSpeed) / (CONFIG.maxSpeed - CONFIG.startSpeed) * SPEED_HORSES);
-  // Only reachable mid-boost, once speed has been pushed past the ordinary
-  // max — see BOOST_SUPER_MULT. Fills from the first horse, same proportional
-  // scheme as `lit`, but across the boosted span above maxSpeed.
-  const boosted = Math.min(SPEED_HORSES, Math.round(Math.max(0, speed - CONFIG.maxSpeed) /
-    (CONFIG.maxSpeed * (BOOST_SUPER_MULT - 1)) * SPEED_HORSES));
+  const fillFrac = Math.max(0, Math.min(1,
+    (speed - CONFIG.startSpeed) / (CONFIG.maxSpeed - CONFIG.startSpeed)));
+  const lit = Math.round(fillFrac * SPEED_HORSES);
+  // Past ordinary max speed (mid-boost — see BOOST_SUPER_MULT) the bar is
+  // already full, so "going faster still" reads as a shake on the filled
+  // horses rather than a further fill.
+  const overMax = speed > CONFIG.maxSpeed;
   for (let i = 0; i < SPEED_HORSES; i++){
     speedHorseEls[i].classList.toggle("lit", i < lit);
-    speedHorseEls[i].classList.toggle("boosted", i < boosted);
+    speedHorseEls[i].classList.toggle("boosted", overMax && i < lit);
   }
 }
 function start(){
@@ -3860,13 +3964,13 @@ function showOver(){
 /* ==================================================================
    UPDATE
    ================================================================== */
-function puff(n){
+function puff(n, color){
   const p = floorPt(travelled, laneA, 0.1);
   for (let i = 0; i < n; i++){
     spray.push({ x: p.x + (Math.random()-0.5) * p.s * 0.2,
                  y: p.y + (Math.random()-0.5) * 12,
                  vx: (Math.random()-0.5) * 300, vy: -Math.random()*190 - 40,
-                 r: 2 + Math.random()*5, life: 0.3 + Math.random()*0.4 });
+                 r: 2 + Math.random()*5, life: 0.3 + Math.random()*0.4, color: color });
   }
 }
 /* ------------------------------------------------------------------
@@ -3932,7 +4036,17 @@ function drawStreak(s, fade){
   ctx.beginPath(); ctx.moveTo(p2.x, p2.y); ctx.lineTo(p1.x, p1.y); ctx.stroke();
 }
 
-function flash(){ const f = $("flash"); f.style.opacity = .55; setTimeout(()=>{f.style.opacity=0;},130); }
+/* color/opacity/dur let a caller flash something other than a hit's plain
+   orange — see Season Pass's pickup below — without a second DOM element;
+   the defaults reproduce the original hit flash exactly. background is reset
+   to "" on clear rather than left on the last color, or the NEXT plain
+   flash() (a hit) would fire in whatever color a power-up last used. */
+function flash(color, opacity, dur){
+  const f = $("flash");
+  if (color) f.style.background = color;
+  f.style.opacity = opacity == null ? .55 : opacity;
+  setTimeout(() => { f.style.opacity = 0; if (color) f.style.background = ""; }, dur || 130);
+}
 /* Souvenir Bottle's "you just got 100 coins" cue. clearTimeout so a second
    pickup inside the hold window restarts the clock instead of the first
    timeout cutting the second flash short. */
@@ -3943,7 +4057,18 @@ function flashCoins(){
   clearTimeout(flashCoinsT);
   flashCoinsT = setTimeout(() => { el.style.color = ""; }, 380);
 }
+/* Season Pass's "this isn't hurting you" cue — a golden puff at the rider
+   plus a bright, rising chime, in place of every other hit's shake/flash/hurt
+   sound. Checked ahead of the ordinary invuln guard below, and returns
+   instead of falling into it, so this stays specific to Season Pass: the
+   post-hit i-frames and the win-reveal invuln still silently no-op the way
+   they always have, rather than gaining a cue they were never asked for. */
+function seasonPassBounce(){
+  puff(14, SEASONPASS_GOLD);
+  Sound.seasonPassSafe();
+}
 function hitRider(){
+  if (seasonPassT > 0){ seasonPassBounce(); return; }
   if (invuln > 0) return;
   invuln = 1.4; hurtT = 1.4;
   // Proportional, so a hit at full tilt actually costs you something — the old
@@ -4043,13 +4168,43 @@ function update(dt){
     return;
   }
 
+  /* Season Pass's frozen reveal — "action pauses" per Adam's spec. Everything
+     that advances the world (travel, spawns, collisions, every other
+     power-up's own clock) holds still while the stinger plays and the rider
+     steps through season-pass_01-06 (see seasonPassFrame()); only cosmetic
+     particle decay keeps running, so the pickup's own puff still fades
+     naturally instead of freezing mid-burst. Once the timer runs out, the
+     world resumes and the mechanical effect (seasonPassT) and its music both
+     start together. */
+  if (seasonPassIntroT > 0){
+    seasonPassIntroT -= dt;
+    if (seasonPassIntroT <= 0){
+      seasonPassIntroT = 0;
+      seasonPassT = SEASONPASS_DUR;
+      seasonPassMusicPlaying = true;
+      // Nothing to fade out — the grab itself already silenced the channel
+      // (see the T.SEASONPASS branch above) and it's stayed that way through
+      // the whole reveal, so this only needs to fade IN.
+      Sound.music("seasonPass", null, 0.3);
+    }
+    camX = curveX(travelled); camY = curveY(travelled) - CAM_UP;
+    for (const p of spray){ p.life -= dt; p.x += p.vx*dt; p.y += p.vy*dt; p.vy += 900*dt; }
+    spray = spray.filter(p => p.life > 0);
+    return;
+  }
+
   /* Riding time, for the score's speed term. Counted here — after the early
      return — so it is time spent PLAYING: the pause panel, the reveal card and
      the wipeout animation all sit in other states and none of them charge you. */
   runT += dt;
 
-  const target = boostT > 0 && boostSuper ? CONFIG.maxSpeed * BOOST_SUPER_MULT : CONFIG.maxSpeed;
-  speed = Math.min(target, speed + CONFIG.accel * dt * (boostT > 0 ? 6 : 1));
+  // Season Pass's +50% outranks a plain boost's +25% rather than stacking with
+  // it — Math.max, not multiplying the two together — so grabbing a Fast Pass
+  // mid-Season-Pass doesn't launch the rider past either power-up's own spec.
+  const boostMult = (boostT > 0 && boostSuper) ? BOOST_SUPER_MULT : 1;
+  const seasonMult = seasonPassT > 0 ? SEASONPASS_SPEED_MULT : 1;
+  const target = CONFIG.maxSpeed * Math.max(boostMult, seasonMult);
+  speed = Math.min(target, speed + CONFIG.accel * dt * ((boostT > 0 || seasonPassT > 0) ? 6 : 1));
   travelled += speed * dt;
   metres += speed * dt * CONFIG.metresPerUnit;
 
@@ -4065,6 +4220,21 @@ function update(dt){
   if (whirlpoolT > 0){
     whirlpoolT -= dt;
     if (whirlpoolT <= 0){ whirlpoolT = 0; Sound.loopStop(); }
+  }
+  if (seasonPassT > 0){
+    seasonPassT -= dt;
+    // seasonPassMusicPlaying is always true here — it's set in the same
+    // breath seasonPassT itself is (see the intro's own countdown above) —
+    // but still checked rather than assumed, matching whirlpoolT's own
+    // "hand the channel/sample back" pattern just above.
+    if (seasonPassT <= 0){
+      seasonPassT = 0;
+      if (seasonPassMusicPlaying){
+        seasonPassMusicPlaying = false;
+        Sound.musicStop(0.4);
+        Sound.music("ride", null, 0.5);
+      }
+    }
   }
   if (fastPassLabelT > 0) fastPassLabelT = Math.max(0, fastPassLabelT - dt);
   if (shake > 0) shake = Math.max(0, shake - dt * 3);
@@ -4139,14 +4309,30 @@ function update(dt){
      to grabbing one by hand. e.a is re-derived every frame so the coin is
      actually DRAWN following e.i, the same relationship spawn()/add() set up
      for every entity. */
-  if (whirlpoolT > 0){
-    const pull = 1 - Math.exp(-WHIRLPOOL_PULL * dt);
+  /* Season Pass widens the exact same magnet to every collectible, not just
+     coins/letters — "combining Whirlpool" per Adam's spec — and pulls a
+     little harder from a little further out (SEASONPASS_PULL/RANGE vs
+     WHIRLPOOL_*). One loop covers both rather than a second copy: whichever
+     effect is active picks the rate/range, and the pullable-type check only
+     widens past COIN/LETTER when Season Pass specifically is the one
+     running. Hazards are never pullable — invincible or not, dragging a
+     yeti onto the rider would look like a bug, not a feature. */
+  if (whirlpoolT > 0 || seasonPassT > 0){
+    const pull = 1 - Math.exp(-(seasonPassT > 0 ? SEASONPASS_PULL : WHIRLPOOL_PULL) * dt);
+    const range = seasonPassT > 0 ? SEASONPASS_RANGE : WHIRLPOOL_RANGE;
     for (const e of ents){
-      if (e.dead || e.t !== T.COIN) continue;
+      if (e.dead) continue;
+      const pullable = e.t === T.COIN || e.t === T.LETTER || (seasonPassT > 0 &&
+        (e.t === T.SOUVENIR || e.t === T.EXTRALIFE || e.t === T.BOOST || e.t === T.WHIRLPOOL));
+      if (!pullable) continue;
       const dz = e.z - travelled;
-      if (dz < -0.5 || dz > WHIRLPOOL_RANGE) continue;
-      if (e.swirl === undefined) e.swirl = Math.random() * 6.283;  // stable per-coin phase
-      e.swirl += WHIRLPOOL_SPIN * dt;
+      if (dz < -0.5 || dz > range) continue;
+      if (e.t === T.COIN){
+        // Only coins get the cosmetic orbit wobble — see drawEntInner's
+        // T.COIN case, the only place e.swirl is read.
+        if (e.swirl === undefined) e.swirl = Math.random() * 6.283;  // stable per-coin phase
+        e.swirl += WHIRLPOOL_SPIN * dt;
+      }
       e.z -= (e.z - travelled) * pull;
       e.i += (laneNow - e.i) * pull;
       e.a = laneAngle(e.i);
@@ -4223,6 +4409,28 @@ function update(dt){
       if (nearLane(e.i, LANE_PICK)){
         e.dead = true; whirlpoolT = WHIRLPOOL_DUR; puff(20);
         Sound.loopStart("whirlpool", 0.5);
+      }
+    } else if (e.t === T.SEASONPASS){
+      // The grand finale. Grabbing it starts the FROZEN reveal
+      // (seasonPassIntroT) — see update()'s early return while it's > 0 —
+      // rather than the mechanical effect itself: nothing can collide or
+      // move during the reveal anyway, so invincibility/speed/the magnet
+      // only actually start once the world resumes and seasonPassT takes
+      // over (also in update()).
+      if (nearLane(e.i, LANE_PICK)){
+        e.dead = true; seasonPassIntroT = SEASONPASS_INTRO_DUR; puff(30, SEASONPASS_GOLD);
+        // Its own flash, not the plain hit-orange — white-to-gold, matching
+        // the glow, and held noticeably longer/brighter than a hit's 130ms
+        // blink so the grab reads as a big moment, not a jolt.
+        flash("radial-gradient(circle, var(--white), var(--gold))", 0.7, 260);
+        // Gameplay music cuts out the instant it's grabbed — quick fade, not
+        // a hard pop — and STAYS silent through the whole frozen reveal.
+        // season-pass-music.mp3 is the only thing that fills the gap, once
+        // the world resumes (see update()'s intro-expiry code); Adam's call
+        // was silence in between, not the ride track still playing under
+        // the reveal.
+        Sound.musicStop(0.15);
+        Sound.seasonPass();
       }
     } else if (e.t === T.TUNNEL){
       // enclosed section: passing through it gives a speed boost, but the
@@ -5303,6 +5511,61 @@ function whirlpoolMotes(x, y, h, t){
   ctx.restore();
 }
 
+/* ------------------------------------------------------------------
+   SEASON PASS GLOW
+   The "biggest and best" power-up's own look (rule 5): a bright white core
+   that never really leaves, wrapped in a golden halo, with slow concentric
+   gold rings expanding outward and fading — the literal "spreads out around
+   it" Adam described, and its own motif rather than Fast Pass's rotating
+   spokes or Whirlpool's diving motes/pinwheel blur. Used for the uncollected
+   world pickup only (drawEntInner's T.SEASONPASS case) — unlike Whirlpool,
+   the ACTIVE in-effect cue is deliberately NOT this glow scaled up around the
+   rider; Adam's call was a translucent overlay across the whole screen
+   instead (seasonPassScreenOverlay()), reusing this motif's white/gold
+   palette and pulse but not the function itself.
+   ------------------------------------------------------------------ */
+const SEASONPASS_H     = 0.72;   // world height at full size — the largest of
+                                 // every pickup's footprint, on purpose
+const SEASONPASS_LIFT  = 0.46;   // hangs a little above the water, like the others
+const SEASONPASS_WHITE = "252,246,240";   // C.white
+const SEASONPASS_GOLD  = "246,186,0";     // C.gold
+const SEASONPASS_PULSE_HZ  = 0.9;    // core/halo breathing rate
+const SEASONPASS_RING_N    = 3;      // concurrent expanding rings, staggered
+const SEASONPASS_RING_CYCLE = 1.6;   // seconds for one ring's full expand-fade lap
+
+function seasonPassGlow(x, y, h, scale){
+  const t = performance.now() * 0.001;
+  const pulse = 0.5 + 0.5 * Math.sin(t * SEASONPASS_PULSE_HZ * 6.283);
+  ctx.save();
+  const core = ctx.createRadialGradient(x, y, 0, x, y, h * 0.55 * scale);
+  core.addColorStop(0,   "rgba(" + SEASONPASS_WHITE + "," + (0.85 + 0.12 * pulse).toFixed(3) + ")");
+  core.addColorStop(0.5, "rgba(" + SEASONPASS_WHITE + "," + (0.40 + 0.15 * pulse).toFixed(3) + ")");
+  core.addColorStop(1,   "rgba(" + SEASONPASS_WHITE + ",0)");
+  ctx.fillStyle = core;
+  ctx.beginPath(); ctx.arc(x, y, h * 0.55 * scale, 0, 6.284); ctx.fill();
+
+  const halo = ctx.createRadialGradient(x, y, 0, x, y, h * 1.15 * scale);
+  halo.addColorStop(0,    "rgba(" + SEASONPASS_GOLD + ",0)");
+  halo.addColorStop(0.35, "rgba(" + SEASONPASS_GOLD + "," + (0.30 + 0.22 * pulse).toFixed(3) + ")");
+  halo.addColorStop(1,    "rgba(" + SEASONPASS_GOLD + ",0)");
+  ctx.fillStyle = halo;
+  ctx.beginPath(); ctx.arc(x, y, h * 1.15 * scale, 0, 6.284); ctx.fill();
+
+  // Expanding gold shockwave rings — three staggered laps, not one, so a ring
+  // is always mid-flight rather than the motif popping once per cycle.
+  ctx.lineWidth = Math.max(1.5, h * 0.035 * scale);
+  for (let i = 0; i < SEASONPASS_RING_N; i++){
+    const phase = ((t / SEASONPASS_RING_CYCLE) + i / SEASONPASS_RING_N) % 1;
+    const a = (1 - phase) * 0.5;
+    if (a <= 0.01) continue;
+    const r = h * scale * (0.5 + phase * 1.1);
+    ctx.beginPath(); ctx.arc(x, y, r, 0, 6.284);
+    ctx.strokeStyle = "rgba(" + SEASONPASS_GOLD + "," + a.toFixed(3) + ")";
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function drawEnt(e){
   const dzf = e.z - travelled + CAM_DZ;
   if (e.w === 0) return drawEntInner(e);          // scenery never fades
@@ -5370,12 +5633,13 @@ function drawEntInner(e){
     const c = Math.cos(ph);
     const img = c >= 0 ? IMG.coinA : IMG.coinB;
     const p = floorPt(e.z, e.a, 0.34);
-    /* Whirlpool's swirl. e.a already tracks the magnet's straight pull (see
-       update()'s pull loop), so this is a purely cosmetic orbit layered on
+    /* Whirlpool's swirl — also runs under Season Pass, which pulls coins with
+       the same magnet (see update()'s pull loop). e.a already tracks the
+       magnet's straight pull, so this is a purely cosmetic orbit layered on
        TOP of that — without it a pulled coin reads as sliding sideways, not
        spiralling in. Shrinks to nothing as the coin nears the rider (dz -> 0)
        so it doesn't still be orbiting the instant it's collected. */
-    if (whirlpoolT > 0 && e.swirl !== undefined){
+    if ((whirlpoolT > 0 || seasonPassT > 0) && e.swirl !== undefined){
       const orbitR = Math.min(0.5, Math.max(0, e.z - travelled) * 0.16) * s;
       p.x += Math.cos(e.swirl) * orbitR;
       p.y += Math.sin(e.swirl) * orbitR * 0.35;   // flattened to match the floor's own perspective squash
@@ -5524,6 +5788,33 @@ function drawEntInner(e){
     }
     // Motes drawn LAST, on top of the icon — see whirlpoolMotes's comment.
     whirlpoolMotes(p.x, p.y, h, t);
+    return;
+  }
+
+  if (e.t === T.SEASONPASS){
+    // Season Pass. Same "ride higher, read as its own thing" reasoning as the
+    // other pickups, but the biggest footprint of any of them (rule 2) — see
+    // SEASONPASS_H.
+    const p = floorPt(e.z, e.a, SEASONPASS_LIFT);
+    const dist = e.z - travelled;
+    const grow = Math.max(0.25, Math.min(1, 1 - (dist - 2) / 14));
+    const h = SEASONPASS_H * s * grow;
+    if (h < 6) return;
+    seasonPassGlow(p.x, p.y, h, 1);
+    const img = IMG.seasonPass;
+    if (img){
+      const w = h * (img.width / img.height);
+      ctx.drawImage(img, p.x - w / 2, p.y - h / 2, w, h);
+    } else {                          // file still loading, or failed
+      const r = h * 0.42;
+      ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 6.284);
+      ctx.fillStyle = "rgb(" + SEASONPASS_GOLD + ")"; ctx.fill();
+      ctx.strokeStyle = C.ink; ctx.lineWidth = Math.max(2, 0.04 * s); ctx.stroke();
+      ctx.font = "700 " + (r * 0.62).toFixed(1) + "px " + MONO;
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillStyle = C.white; ctx.fillText("SP", p.x, p.y);
+      ctx.textBaseline = "alphabetic";
+    }
     return;
   }
 
@@ -5920,6 +6211,55 @@ const EAT_DUR = 2.6;
 const quadIdx = (t) => t < 0.25 ? 0 : t < 0.5 ? 1 : t < 0.75 ? 2 : 3;
 
 /* ------------------------------------------------------------------
+   SEASON PASS
+   Nine frames, tube-registered like duck/hurt/eat (measured off the alpha —
+   tools/season-pass-measure.js — same as every other set here; re-measure if
+   this art is re-exported). Reads seasonPassIntroT/seasonPassT directly
+   rather than its own timer, same reasoning as the speed-boost frames
+   reading boostT — the two phase clocks already drive the whole reveal/
+   effect, so the animation just rides them instead of needing a third clock
+   to stay in sync with either.
+
+   The arc: hyping up over the pass (01-03) and settling into the tube with
+   it (04-06) during the FROZEN reveal (seasonPassIntroT, paced to
+   SEASONPASS_INTRO_DUR — see its own comment for why that's tied to the
+   stinger's real length) — held on 06, blissed out, once the world resumes
+   and for the bulk of the resumed effect (seasonPassT) — then winding up and
+   tossing the card away (07-09) as seasonPassT runs out, landing on the last
+   frame at the exact instant it hits 0. */
+const SEASONPASS_REG = [
+  { tw: 0.9289, cx: 0.4920, by: 0.9979 },   // 01, reveals the pass
+  { tw: 0.9184, cx: 0.4864, by: 0.9979 },   // 02, pumped
+  { tw: 0.9385, cx: 0.4824, by: 0.9979 },   // 03, big celebration
+  { tw: 0.9065, cx: 0.4928, by: 0.9594 },   // 04, thumbs up
+  { tw: 0.9145, cx: 0.5143, by: 0.9785 },   // 05, settling in
+  { tw: 0.9560, cx: 0.4927, by: 0.9831 },   // 06, blissed out — the hold frame
+  { tw: 0.9391, cx: 0.5034, by: 0.9899 },   // 07, winding up to toss
+  { tw: 0.9429, cx: 0.4874, by: 0.9744 },   // 08, throwing it
+  { tw: 0.9125, cx: 0.5188, by: 0.9696 },   // 09, tossed
+];
+const SEASONPASS_INTRO_FRAMES    = 6;   // 01-06, played out over the freeze
+const SEASONPASS_INTRO_FRAME_DUR = SEASONPASS_INTRO_DUR / SEASONPASS_INTRO_FRAMES;
+const SEASONPASS_OUTRO_DUR       = 1.8;   // the last slice of SEASONPASS_DUR
+                                          // spent on 07-09, three frames —
+                                          // slower per frame than the intro
+                                          // (0.6s vs 0.5s), a deliberate,
+                                          // readable send-off, not a snap cut
+const SEASONPASS_OUTRO_FRAME_DUR = SEASONPASS_OUTRO_DUR / 3;
+function seasonPassFrame(){
+  if (seasonPassIntroT > 0){
+    const introElapsed = SEASONPASS_INTRO_DUR - seasonPassIntroT;
+    return Math.min(SEASONPASS_INTRO_FRAMES - 1,
+      Math.floor(introElapsed / SEASONPASS_INTRO_FRAME_DUR));
+  }
+  const elapsed = SEASONPASS_DUR - seasonPassT;
+  const outroStart = SEASONPASS_DUR - SEASONPASS_OUTRO_DUR;
+  if (elapsed > outroStart)
+    return Math.min(8, 6 + Math.floor((elapsed - outroStart) / SEASONPASS_OUTRO_FRAME_DUR));
+  return 5;   // held on season-pass_06 for the whole middle stretch
+}
+
+/* ------------------------------------------------------------------
    SPEED BOOST
    Four frames of the splash building around him and, in frame 4, a blue
    energy glow behind it. Reads boostT directly rather than its own timer:
@@ -5959,6 +6299,22 @@ const speedFrame = (boostT) => {
     return Math.min(3, Math.floor((boostT / SPEED_RAMP) * 4));    // 4 -> 1
   return Math.floor(elapsed / SPEED_HOLD_FRAME_DUR) % 2 === 0 ? 3 : 2;   // flicker 4/3
 };
+
+/* ------------------------------------------------------------------
+   IDLE
+   The two lightest speed-boost frames (splash barely built up, same resting
+   pose) reused as a standing loop for whenever nothing else is claiming the
+   pose — no lane lean, no jump/duck/eat, no power-up cue. Lowest priority
+   in drawRider's chain on purpose: every other animation is either a
+   deliberate player action or an auto-triggered cue, and idle is neither,
+   so it steps aside for all of them rather than the reverse.
+   Continuous, off wall-clock time like SPIN_FRAME_DUR's spin, not a
+   boostT-style countdown — there is no event that starts or ends it, it
+   just runs whenever it's on top.
+   ------------------------------------------------------------------ */
+const IDLE_FRAME_DUR = 0.6;   // seconds per frame — slow enough to read as a
+                               // breathing/hair-drift idle, not a flicker
+const idleFrame = (t) => Math.floor(t / IDLE_FRAME_DUR) % 2;
 
 /* Weighted so the inverted frame covers the apex of the lift arc rather
    than being split evenly — that is where the flip reads. */
@@ -6008,42 +6364,60 @@ function drawRider(){
   }
   const w = h * (img.width / img.height);
 
-  /* Priority: die > hurt > duck > eat > jump > whirlpool spin > speed boost
-     > lane move.
+  /* Priority: die > hurt > Season Pass > duck > eat > jump > whirlpool spin >
+     speed boost > lane move > idle.
+     Idle sits at the very bottom, below even the lane-move lean: it is the
+     default "nothing else is happening" pose, not an action or a cue, so
+     literally everything above it interrupts it and nothing it does can
+     ever pre-empt one of them.
      Damage outranks everything voluntary — if you are hit mid-jump the hit is
      the thing you need to see — and death outranks damage, since the wipeout
-     always begins from a hit. Eat is Adam's explicit call: duck is the only
-     thing that should ever cut the eating pose short (an obstacle you have
-     to visibly duck under is still more urgent than a pizza slice), but jump,
-     the whirlpool spin, speed boost and lane-lean all step aside and let it
-     play out uninterrupted instead of the reverse. That flips jump and duck's
-     OLD relative order (jump used to outrank duck) but not their actual
+     always begins from a hit. Season Pass outranks everything below it too,
+     deliberately: Adam's spec was for it to play "throughout the entirety of
+     the power-up," not step aside for a jump or duck the way the rarer
+     auto-triggered cues do below it — a hit can't happen during it anyway
+     (hitRider()'s own guard), so this can never actually collide with
+     die/hurt in practice; the ordering just says which would win if it could.
+     Eat is Adam's explicit call: duck is the only thing that should ever cut
+     the eating pose short (an obstacle you have to visibly duck under is
+     still more urgent than a pizza slice), but jump, the whirlpool spin,
+     speed boost and lane-lean all step aside and let it play out
+     uninterrupted instead of the reverse. That flips jump and duck's OLD
+     relative order (jump used to outrank duck) but not their actual
      on-screen behaviour: tuckT only ever gets set while jumpT < 0 (see
      update()), so flipImg and duckImg are already mutually exclusive by game
-     state, not by this check order. whirlpoolT/boostT themselves never pause
-     while their draw is skipped for eat/jump — same as they already did for
-     each other; see below. The spin still outranks speed boost and lane
-     moves, deliberately: it is the rarer of the two auto-triggered cues, so
-     boost (every tunnel plus every Fast Pass grab) is the one that steps
-     aside, same reasoning as eat over jump. */
+     state, not by this check order. whirlpoolT/boostT/seasonPassT themselves
+     never pause while their draw is skipped for eat/jump/Season Pass — same
+     as they already did for each other; see below. The spin still outranks
+     speed boost and lane moves, deliberately: it is the rarer of the two
+     auto-triggered cues, so boost (every tunnel plus every Fast Pass grab) is
+     the one that steps aside, same reasoning as eat over jump. */
   const dyi     = (state === "dying" || state === "over")
                     ? (state === "over" ? 2 : triIdx(1 - dieT / DIE_DUR)) : -1;
   const dieImg  = dyi >= 0 ? IMG["die" + dyi] : null;
   const hi      = (!dieImg && hurtT > 0) ? triIdx(1 - hurtT / HURT_DUR) : -1;
   const hurtImg = hi >= 0 ? IMG["hurt" + hi] : null;
 
-  const di      = (!dieImg && !hurtImg && duckA > 0.05) ? duckIdx(duckA) : -1;
+  const spi2    = (!dieImg && !hurtImg && (seasonPassIntroT > 0 || seasonPassT > 0))
+                    ? seasonPassFrame() : -1;
+  const seasonPassImg = spi2 >= 0 ? IMG["sp" + spi2] : null;
+
+  const di      = (!dieImg && !hurtImg && !seasonPassImg && duckA > 0.05) ? duckIdx(duckA) : -1;
   const duckImg = di >= 0 ? IMG["duck" + di] : null;
-  const ei      = (!dieImg && !hurtImg && !duckImg && eatT > 0) ? quadIdx(1 - eatT / EAT_DUR) : -1;
+  const ei      = (!dieImg && !hurtImg && !seasonPassImg && !duckImg && eatT > 0) ? quadIdx(1 - eatT / EAT_DUR) : -1;
   const eatImg  = ei >= 0 ? IMG["eat" + ei] : null;
-  const fi      = (!dieImg && !hurtImg && !duckImg && !eatImg && jumpT >= 0) ? flipFrame(jumpT / JUMP_DUR) : -1;
+  const fi      = (!dieImg && !hurtImg && !seasonPassImg && !duckImg && !eatImg && jumpT >= 0) ? flipFrame(jumpT / JUMP_DUR) : -1;
   const flipImg = fi >= 0 ? IMG["flip" + fi] : null;
-  const si      = (!dieImg && !hurtImg && !duckImg && !eatImg && !flipImg && whirlpoolT > 0) ? spinFrame(performance.now() * 0.001) : -1;
+  const si      = (!dieImg && !hurtImg && !seasonPassImg && !duckImg && !eatImg && !flipImg && whirlpoolT > 0) ? spinFrame(performance.now() * 0.001) : -1;
   const spinImg = si >= 0 ? IMG["spin" + si] : null;
-  const spi     = (!dieImg && !hurtImg && !duckImg && !eatImg && !flipImg && !spinImg && boostT > 0) ? speedFrame(boostT) : -1;
+  const spi     = (!dieImg && !hurtImg && !seasonPassImg && !duckImg && !eatImg && !flipImg && !spinImg && boostT > 0) ? speedFrame(boostT) : -1;
   const speedImg = spi >= 0 ? IMG["speed" + spi] : null;
-  const leaning = !dieImg && !hurtImg && !duckImg && !eatImg && !flipImg && !spinImg && !speedImg && moveT > 0 && moveDir;
+  const leaning = !dieImg && !hurtImg && !seasonPassImg && !duckImg && !eatImg && !flipImg && !spinImg && !speedImg && moveT > 0 && moveDir;
   const moveImg = leaning ? IMG[MOVE_KEY[moveDir]] : null;
+  const idling  = !dieImg && !hurtImg && !seasonPassImg && !duckImg && !eatImg && !flipImg && !spinImg && !speedImg && !moveImg
+                    && IMG.speed0 && IMG.speed1;
+  const ii      = idling ? idleFrame(performance.now() * 0.001) : -1;
+  const idleImg = ii >= 0 ? IMG["speed" + ii] : null;
 
   // wake, so he sits in the water rather than on it. Faded out on the wipeout
   // screen, where the water is stopped and he has been moved off the track.
@@ -6108,13 +6482,23 @@ function drawRider(){
     const ccx = (RIDER_CX - 0.5) * w;
     const ccy = (RIDER_CY - 0.88) * h;
     ctx.drawImage(speedImg, ccx - R.cx * dw, ccy - R.cy * dh, dw, dh);
-  } else if (dieImg || hurtImg || duckImg || eatImg || moveImg){
+  } else if (idleImg){
+    // Same art, same rotation-invariant registration as the speedImg branch
+    // above — SPEED_REG[ii] is just speed_01/02's own measured handles.
+    const R  = SPEED_REG[ii];
+    const k  = (h / img.height) * R.s;
+    const dw = idleImg.width * k, dh = idleImg.height * k;
+    const ccx = (RIDER_CX - 0.5) * w;
+    const ccy = (RIDER_CY - 0.88) * h;
+    ctx.drawImage(idleImg, ccx - R.cx * dw, ccy - R.cy * dh, dw, dh);
+  } else if (dieImg || hurtImg || seasonPassImg || duckImg || eatImg || moveImg){
     // All tube-pinned, so the ring stays planted in the water while he reacts.
     // No sy squash here: the duck art already flattens him, and squashing a
     // yawed spin frame would distort its tube.
     const R   = dieImg  ? DIE_REG[dyi]  : hurtImg ? HURT_REG[hi]
+              : seasonPassImg ? SEASONPASS_REG[spi2]
               : duckImg ? DUCK_REG[di]  : eatImg  ? EAT_REG[ei] : MOVE_REG[moveDir];
-    const im  = dieImg || hurtImg || duckImg || eatImg || moveImg;
+    const im  = dieImg || hurtImg || seasonPassImg || duckImg || eatImg || moveImg;
     const dw  = (w * RIDER_TUBE_W) / R.tw;
     const dh  = dw * (im.height / im.width);
     const tcx = (RIDER_TUBE_CX - 0.5) * w;         // resting tube's centre and
@@ -6144,7 +6528,7 @@ function deathWash(){
 
 function drawSpray(){
   for (const p of spray){
-    ctx.fillStyle = "rgba(252,246,240," + Math.max(0, p.life*1.6) + ")";
+    ctx.fillStyle = "rgba(" + (p.color || "252,246,240") + "," + Math.max(0, p.life*1.6) + ")";
     ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.284); ctx.fill();
   }
 }
@@ -6214,7 +6598,12 @@ function boostRush(){
 }
 
 function speedLines(){
-  const boost = Math.max(0, Math.min(1, boostT / 0.5));
+  // Season Pass genuinely pushes the rider past a plain boost's own top speed
+  // (see update()'s target formula), so it earns this same "going fast" read
+  // rather than a silent speed change with no visual to match — held at full
+  // intensity for the whole 10s rather than boostT's ramp, since there is no
+  // short window to ramp within.
+  const boost = seasonPassT > 0 ? 1 : Math.max(0, Math.min(1, boostT / 0.5));
   /* The vignette also carries the tunnel. Inside one, its clear centre shrinks
      and its edge deepens, so the frame closes in around you — which is what
      actually sells being enclosed, since the arch itself is overhead and mostly
@@ -6300,6 +6689,35 @@ function whirlpoolActive(){
   ctx.restore();
 }
 
+/* Season Pass's ACTIVE cue: a translucent white-to-gold overlay across the
+   WHOLE screen — Adam's explicit call, in place of a halo anchored to the
+   rider's own small footprint — so the cue reads as the screen itself
+   glowing while the effect runs, not a badge trailing him. This is what
+   rule 7 hangs on for the whole effect. Up for the frozen reveal AND the
+   resumed effect (seasonPassIntroT OR seasonPassT), so the cue covers the
+   entire presentation, pickup to power-down — drawn in fixed screen space
+   (see its render() call, alongside fastPassLabel()) since a screen tint has
+   no business banking with a camera turn the way a world object would. */
+function seasonPassScreenOverlay(){
+  if (seasonPassIntroT <= 0 && seasonPassT <= 0) return;
+  // Fades in over the reveal's first third-second, holds fully opaque
+  // through the rest of the reveal and effect, then fades out over the
+  // effect's last third-second — never pops in or vanishes mid-frame.
+  const k = seasonPassIntroT > 0
+    ? Math.min(1, (SEASONPASS_INTRO_DUR - seasonPassIntroT) / 0.3)
+    : Math.min(1, seasonPassT / 0.3);
+  if (k <= 0.01) return;
+  const t = performance.now() * 0.001;
+  const pulse = 0.5 + 0.5 * Math.sin(t * SEASONPASS_PULSE_HZ * 6.283);
+  const cx = W / 2, cy = horizon, r = Math.max(W, H) * 0.85;
+  const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+  g.addColorStop(0,    "rgba(" + SEASONPASS_WHITE + "," + ((0.16 + 0.06 * pulse) * k).toFixed(3) + ")");
+  g.addColorStop(0.45, "rgba(" + SEASONPASS_GOLD  + "," + ((0.14 + 0.06 * pulse) * k).toFixed(3) + ")");
+  g.addColorStop(1,    "rgba(" + SEASONPASS_GOLD  + ",0)");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+}
+
 function render(){
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   if (shake > 0 && state === "play")
@@ -6354,6 +6772,10 @@ function render(){
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     fastPassLabel();
   }
+  if (seasonPassIntroT > 0 || seasonPassT > 0){
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    seasonPassScreenOverlay();
+  }
 }
 
 /* ==================================================================
@@ -6395,7 +6817,7 @@ function frame(now){
                                     // can't hand update() one enormous dt
   if (state !== "paused"){
     skyT += dt;                     // sky drifts in every state, title included
-    rushPhase = (rushPhase + dt * (0.75 + (boostT > 0 ? 1.5 : 0))) % 1;
+    rushPhase = (rushPhase + dt * (0.75 + ((boostT > 0 || seasonPassT > 0) ? 1.5 : 0))) % 1;
     update(dt);
     danceTick(dt);
   }

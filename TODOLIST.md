@@ -95,9 +95,6 @@ open:
   (steep rib, crest lip, plunge pose, runout splash). A 45° version was
   built and reverted at the user's request. **Agree camera pitch as a
   standalone change before reopening.**
-- **Power-ups: one slot left.** 4 of the 4–5 cap (see
-  [AGENTS.md](AGENTS.md#power-ups)) are built. `Season Pass` has art dropped
-  in `assets/` but no mechanic defined — do not start on it unprompted.
 
 ## Mobile UI/UX audit (2026-08-20 findings, nothing changed yet)
 

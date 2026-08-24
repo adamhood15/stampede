@@ -96,10 +96,11 @@ Standing checklist — run every new power-up against all ten before building:
 9. Every power-up needs its own unique sound effect on pickup.
 10. Document each power-up in the README as it's added.
 
-4 of the 4–5 total are built; one slot remains. `Season Pass` has art
-dropped in `assets/` but no mechanic defined — **do not start on it
-unprompted.** Mechanics of what's built, and the shared spawn-clock rule
-behind rule 3, are in [ARCHITECTURE.md#power-ups](ARCHITECTURE.md#power-ups).
+All 5 of the 4–5 total are now built, `Season Pass` (added 2026-08-24) being
+the last — no slots remain; a new power-up idea needs the cap itself
+(re)negotiated with the user first. Mechanics of what's built, and the shared
+spawn-clock rule behind rule 3, are in
+[ARCHITECTURE.md#power-ups](ARCHITECTURE.md#power-ups).
 
 ## Don't re-raise
 

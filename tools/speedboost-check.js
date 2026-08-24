@@ -151,15 +151,24 @@ async function main() {
     `);
 
     // 5. A survived hit clears boostT (unlike whirlpool) -- confirm the
-    // animation actually stops, not just that the timer hit zero.
+    // animation actually stops, not just that the timer hit zero. Can't
+    // check this by asserting the drawn frame isn't named "speed*": idle
+    // deliberately reuses the speed0/speed1 art as its own standing loop
+    // (see the IDLE block above drawRider), so a "speed"-named frame is
+    // exactly what a correctly-stopped boost should show whenever idle's
+    // own wall-clock phase lands on it. Instead confirm the render matches
+    // idleFrame()'s own deterministic formula -- i.e. the idle branch is
+    // what actually fired, not boost's boostT-driven one coincidentally
+    // landing on the same sprite name.
     const clearedByHit = await evaluate(session, `
       (() => {
         boostSuper = true; boostT = BOOST_DUR; lives = 3; invuln = 0; hurtT = 0;
         hitRider();
         window.__lastRiderFrame = null;
         hurtT = 0;   // isolate the boost read from the hurt pose the hit itself starts
+        const expectedIdle = "speed" + idleFrame(performance.now() * 0.001);
         drawRider();
-        return { boostTAfterHit: boostT, frame: window.__lastRiderFrame };
+        return { boostTAfterHit: boostT, frame: window.__lastRiderFrame, expectedIdle };
       })()
     `);
 
@@ -197,7 +206,7 @@ async function main() {
       vsEat.frame && vsEat.frame.startsWith("eat") &&
       vsLean.frame && vsLean.frame.startsWith("speed") &&
       clearedByHit.boostTAfterHit === 0 &&
-      clearedByHit.frame !== null && !clearedByHit.frame.startsWith("speed") &&
+      clearedByHit.frame === clearedByHit.expectedIdle &&
       pageExceptions.length === 0;
 
     console.log(ok ? "\nPASS" : "\nFAIL");

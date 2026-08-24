@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 // Verifies the Whirlpool power-up end to end over the real DevTools protocol:
-// pickup starts the 6s magnet -> nearby coins ease toward the rider's own
-// lane/depth over several frames -> a coin close enough is collected through
-// the ordinary T.COIN branch (score bump, entity removed) -> a survived hit
-// does NOT cancel the effect (Adam's call, unlike Fast Pass's boost) -> a
-// fatal hit (gameOver) DOES stop it, so the loop sound can't outlive the run.
+// pickup starts the 6s magnet -> nearby coins AND letters ease toward the
+// rider's own lane/depth over several frames -> each is collected through
+// its ordinary T.COIN/T.LETTER branch (score/word progress, entity removed)
+// -> a survived hit does NOT cancel the effect (Adam's call, unlike Fast
+// Pass's boost) -> a fatal hit (gameOver) DOES stop it, so the loop sound
+// can't outlive the run.
 //
 // node tools/whirlpool-check.js
 
@@ -29,23 +30,28 @@ async function main() {
     `);
 
     // 1. Pickup starts the timer and the magnet begins pulling a nearby coin
-    // planted off to one side, several units ahead — outside the ordinary
-    // pickup window, which is the whole point of the magnet.
+    // AND a nearby letter, both planted off to one side, several units
+    // ahead — outside the ordinary pickup window, which is the whole point
+    // of the magnet.
     const pickup = await evaluate(session, `
       (() => {
-        const before = { whirlpoolT, coins };
+        const before = { whirlpoolT, coins, gotLetters };
         add(T.WHIRLPOOL, travelled + 0.05, 0);
-        const coinE = add(T.COIN, travelled + 4, 1);   // off-lane, 4 units ahead
+        const coinE = add(T.COIN, travelled + 4, 1);     // off-lane, 4 units ahead
+        const letterE = add(T.LETTER, travelled + 4, -1); // off-lane, opposite side
+        letterE.gi = gotLetters;                          // the next letter the word needs
         update(0.016);
         const afterPickup = {
           whirlpoolT, entLeft: ents.some(e => e.t === T.WHIRLPOOL && !e.dead),
         };
-        const coinTrack = [];
-        for (let i = 0; i < 240 && !coinE.dead; i++){
+        for (let i = 0; i < 240 && !(coinE.dead && letterE.dead); i++){
           update(0.016);
-          coinTrack.push({ z: coinE.z, i: coinE.i });
         }
-        return { before, afterPickup, frames: coinTrack.length, collected: coinE.dead, coinsAfter: coins };
+        return {
+          before, afterPickup,
+          coinCollected: coinE.dead, coinsAfter: coins,
+          letterCollected: letterE.dead, gotLettersAfter: gotLetters,
+        };
       })()
     `);
 
@@ -87,8 +93,10 @@ async function main() {
       pickup.before.whirlpoolT === 0 &&
       pickup.afterPickup.whirlpoolT === 6.0 &&   // granted THIS frame; decrement runs from the next frame on
       pickup.afterPickup.entLeft === false &&
-      pickup.collected === true &&                          // the planted coin swirled in and was collected
+      pickup.coinCollected === true &&                       // the planted coin swirled in and was collected
       pickup.coinsAfter > pickup.before.coins &&
+      pickup.letterCollected === true &&                     // the planted letter was pulled in too
+      pickup.gotLettersAfter > pickup.before.gotLetters &&
       survivedHit.after === survivedHit.before &&            // untouched by a survivable hit
       survivedHit.livesLeft === 2 &&                         // a normal hit still costs a life either way
       fatalHit.after === 0 &&                                // cleared once the run actually ends

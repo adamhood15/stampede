@@ -103,21 +103,33 @@ threshold, the hazard z-band (`e.z > travelled - 3`, wider for tunnels), and
 
 ## Rider animation & sprite registration
 
-**Priority (`drawRider`):** `die > hurt > jump(flip) > duck > eat > whirlpool
-spin > speed boost > move(lean)`. `eat` is the Extra Life pickup's
-pizza-eating pose (`eatT`/`EAT_DUR`/`quadIdx`, `EAT_REG`) — plays the instant
-the pickup is grabbed on the track, not once the flyer lands (see
+**Priority (`drawRider`, matching the actual check order in code — an earlier
+revision of this doc had jump outranking duck, which was never true on
+screen): `die > hurt > Season Pass > duck > eat > jump(flip) > whirlpool spin
+> speed boost > move(lean)`. `eat` is the Extra Life pickup's pizza-eating
+pose (`eatT`/`EAT_DUR`/`quadIdx`, `EAT_REG`) — plays the instant the pickup is
+grabbed on the track, not once the flyer lands (see
 [Power-ups](#power-ups)). `speed boost` (`boostT`/`SPEED_REG`/`speedFrame`) is
-ranked below the whirlpool spin and eat, and any future power-up animation
-belongs in that same cluster — it's the most frequent of the effects (every
-tunnel plus every Fast Pass grab), so it's the one that steps aside, same
-logic as the spin stepping aside for jump/duck.
+ranked below the whirlpool spin and eat, and any future *auto-triggered,
+interruptible* power-up animation belongs in that same low cluster — it's the
+most frequent of the effects (every tunnel plus every Fast Pass grab), so
+it's the one that steps aside, same logic as the spin stepping aside for
+jump/duck. Season Pass (`seasonPassT`/`SEASONPASS_REG`/`seasonPassFrame`) is
+the one exception, ranked just below hurt instead: Adam's spec was for it to
+play "throughout the entirety of the power-up," not step aside for a jump or
+duck — and since `hitRider()` fully no-ops while it's active, it can never
+actually collide with die/hurt in practice, so the ordering only matters as a
+statement of intent.
 
 **Sprite registration constants were measured off the PNG alpha channels**,
 not guessed — `RIDER_CX/CY`, `RIDER_TUBE_*`, `FLIP_REG`, `MOVE_REG`,
 `DUCK_REG`, `HURT_REG`, `DIE_REG`, `EAT_REG`, `SPIN_REG`, `SPEED_REG`,
-`PIG_RING_*`, `PIG_REG`. **If a sprite is replaced or re-encoded, re-measure
-them.** `FLIP_REG.s` and `MOVE_REG.tw` are `sqrt(area)` ratios against the
+`SEASONPASS_REG`, `PIG_RING_*`, `PIG_REG`. **If a sprite is replaced or
+re-encoded, re-measure them** — `tools/season-pass-measure.js` is the
+headless-canvas probe used for `SEASONPASS_REG` specifically (locates the
+tube by its orange color within each frame's own alpha bbox, same tw/cx/by
+shape as every other tube-registered set); adapt it rather than re-deriving
+the approach from scratch for the next animated power-up. `FLIP_REG.s` and `MOVE_REG.tw` are `sqrt(area)` ratios against the
 *resting* sprite, so re-exporting `typhoon-rider.png` alone invalidates the
 whole set.
 
@@ -214,8 +226,9 @@ entity type to `POWERUP_TYPES`, never a second spawn function, or rule 3
 ("not too often") quietly breaks as more types are added.
 
 Built: **Fast Pass** (`T.BOOST`), **Souvenir Bottle** (`T.SOUVENIR`),
-**Extra Life** (`T.EXTRALIFE`), **Whirlpool** (`T.WHIRLPOOL`) — see the
-README's power-up table for player-facing descriptions.
+**Extra Life** (`T.EXTRALIFE`), **Whirlpool** (`T.WHIRLPOOL`), **Season Pass**
+(`T.SEASONPASS`) — see the README's power-up table for player-facing
+descriptions. That's the full 4-5 (rule 1) — no slots left.
 
 **The speed-boost rider animation** (`SPEED_REG`, `speedFrame`, see
 [Rider animation](#rider-animation--sprite-registration)) covers BOTH ways
@@ -281,9 +294,113 @@ trail following the bottle to the HUD — the coins keep falling and fading
 after the bottle's own flyer entry is gone. Reuses the world coin sprites'
 alternating-face spin.
 
-**Season Pass** (`assets/sprites/power-ups/season-pass.png`) has art dropped
-in `assets/` but is not referenced anywhere in `index.html` — no mechanic
-defined. Do not start on it unprompted (see [AGENTS.md](AGENTS.md#power-ups)).
+**Season Pass** (`T.SEASONPASS`, `assets/sprites/power-ups/season-pass.png`)
+is the grand finale — deliberately the biggest power-up in the game (rule 2)
+and, per Adam's spec, capped at **one appearance per run**: `spawnPowerup()`
+drops it from `POWERUP_TYPES` for good (`seasonPassSpawned`, set the instant
+one is actually placed, reset in `reset()`) rather than temporarily like
+`extraLife`'s "not while one is held" filter.
+
+Grabbing it does NOT start the mechanical effect immediately — it starts a
+**3s frozen reveal** (`seasonPassIntroT`, `SEASONPASS_INTRO_DUR`) first.
+`update()` early-returns while `seasonPassIntroT > 0` (right after the
+`state === "title"` branch): travelled/speed/spawns/collisions all hold still
+— only cosmetic particle decay (the pickup's own `puff()`) keeps running, so
+it fades out naturally instead of freezing mid-burst. Gameplay music cuts out
+the instant it's grabbed (`Sound.musicStop(0.15)`) and stays silent through
+the whole reveal; `Sound.seasonPass()` plays the `season-pass.mp3` stinger
+over that silence. Once `seasonPassIntroT` ticks down to 0, the world resumes
+and the SAME clock hands off to the real effect: `seasonPassT = SEASONPASS_DUR`
+(9s) starts, and `Sound.music("seasonPass", null, 0.3)` fades in
+`season-pass-music.mp3` on the shared channel — timed off `SEASONPASS_INTRO_DUR`
+directly, not the stinger sample's own `onended`, so the freeze/reveal
+animation and the music switch stay in lockstep even if `seasonPass()` falls
+back to its synth tones. Total presentation is intro (3s) + effect (9s), not
+one flat 10s/12s number.
+
+Every mechanical effect starts together the instant `seasonPassT` takes over:
+- **Invincibility.** `hitRider()`'s very first line is
+  `if (seasonPassT > 0){ seasonPassBounce(); return; }` — ahead of the
+  ordinary `invuln` guard, so it's unconditional and cannot be interrupted by
+  a hit the way `boostT` is. `seasonPassBounce()` is the "this isn't hurting
+  you" tell Adam asked for: a gold-tinted `puff()` at the rider plus
+  `Sound.seasonPassSafe()` (a bright, rising synth chime — deliberately not a
+  softer version of `hurt()`'s tones) in place of the usual
+  shake/flash/hurt-sound. Every hazard (cow/yeti/wave/pig) already funnels
+  through `hitRider()`, so this one guard covers all four for free.
+- **+50% top speed.** `update()`'s target-speed formula takes
+  `Math.max(boostMult, seasonMult)` rather than stacking the two — Season
+  Pass's `SEASONPASS_SPEED_MULT` (1.5) simply wins over a concurrent Fast
+  Pass/tunnel boost's `BOOST_SUPER_MULT` (1.25) rather than compounding with
+  it. Gets the same accelerated ramp-to-target boost normally reserved for
+  `boostT > 0`, and the same "going fast" vignette/rush-line read in
+  `speedLines()`/`frame()`'s `rushPhase` update — both now check
+  `seasonPassT > 0` alongside `boostT > 0`, since the rider is genuinely
+  moving faster and the existing cue is generic, not Fast-Pass-specific.
+- **The magnet, widened.** The same pull loop Whirlpool uses now runs when
+  *either* `whirlpoolT` or `seasonPassT` is > 0, sharing one loop rather than
+  a second copy: whichever is active picks the rate/range
+  (`SEASONPASS_PULL`/`RANGE` vs `WHIRLPOOL_PULL`/`RANGE`), and the pullable-
+  type check only widens past `T.COIN` to `T.LETTER`/`SOUVENIR`/`EXTRALIFE`/
+  `BOOST`/`WHIRLPOOL` when Season Pass specifically is running. Hazards are
+  never pullable, invincible or not. Coins still get Whirlpool's cosmetic
+  `.swirl` orbit wobble under Season Pass too (that gate now also checks
+  `seasonPassT > 0`) — nothing else has an equivalent wobble wired up.
+- **The rider animation.** Nine frames
+  (`assets/sprites/typhoon-sprites/season-pass/`, `SEASONPASS_REG`,
+  tube-registered like duck/hurt/eat — measured via
+  `tools/season-pass-measure.js`, a headless-canvas alpha/color probe rather
+  than a guess, per the measure-before-coding rule) read `seasonPassIntroT`/
+  `seasonPassT` directly via `seasonPassFrame()` (no args, no independent
+  timer — same reasoning as the speed-boost frames reading `boostT`): frames
+  01-06 (`SEASONPASS_INTRO_FRAMES`) step through across the 3s frozen reveal
+  itself, paced by `SEASONPASS_INTRO_FRAME_DUR`, landing on `season-pass_06`
+  (index 5) right as the world resumes; the effect then **holds on that same
+  frame 6** for the whole middle stretch of `seasonPassT`, per Adam's spec;
+  the last `SEASONPASS_OUTRO_DUR` (1.8s) of `seasonPassT` ramps 07→09 as the
+  effect winds down, landing on the final frame at the exact instant
+  `seasonPassT` reaches 0. Ranked in `drawRider()`'s priority chain right
+  below hurt and above duck/eat/jump/spin/boost/lean — deliberately
+  outranking everything voluntary, per Adam's "throughout the entirety of the
+  power-up" spec, rather than stepping aside for a jump or duck the way the
+  rarer auto-triggered cues below it do. Gated on `seasonPassIntroT > 0 ||
+  seasonPassT > 0`, so it also covers the frozen reveal, not just the
+  resumed effect.
+- **The pickup glow.** `seasonPassGlow(x, y, h, scale)` is its own motif for
+  rule 5 — a bright white core, a golden halo, and slow concentric gold rings
+  expanding outward and fading (the literal "spreads out around it") —
+  neither Fast Pass's rotating spokes nor Whirlpool's diving motes/pinwheel
+  blur. Only draws the uncollected world pickup now (`scale = 1`) — see the
+  screen overlay below for the active cue, which replaced an earlier
+  rider-anchored version of this same glow at a larger scale. Pickup also
+  gets its own DOM `#flash` flash (white-to-gold radial gradient, longer and
+  brighter than a hit's plain orange blink) via `flash()`'s optional
+  `color`/`opacity`/`dur` params.
+- **The active cue: a full-screen overlay, not a rider halo.** Adam's
+  explicit call, after trying a halo anchored to the rider like Whirlpool's:
+  `seasonPassScreenOverlay()` washes a translucent white-to-gold radial
+  gradient across the WHOLE canvas (`ctx.fillRect(0, 0, W, H)`, drawn in
+  fixed screen space after the roll/camera transform is reset, alongside
+  `fastPassLabel()`), so the cue reads as the screen itself glowing rather
+  than a badge trailing him. Gated on `seasonPassIntroT > 0 || seasonPassT >
+  0` — up for the frozen reveal AND the resumed effect, pickup to
+  power-down — and fades in over the reveal's first 0.3s, holds fully
+  opaque, then fades out over the effect's last 0.3s rather than popping in
+  or vanishing mid-frame. This is what rule 7 hangs on for the whole
+  presentation now.
+
+**The music** is deliberately sequential, not layered, but timed off the
+INTRO CLOCK rather than the stinger sample's own end: `Sound.seasonPass()`
+plays the `season-pass.mp3` stinger the instant it's grabbed, into the
+silence left by `Sound.musicStop(0.15)` cutting the ride track. Only once
+`seasonPassIntroT` (measured against this clip's own ~3.03s length) ticks
+down to 0 in `update()` does `Sound.music("seasonPass", null, 0.3)` fade in
+`season-pass-music.mp3` on the shared channel — "reveal plays out in silence,
+then the music takes over," not "sound plays, then music" back to back off
+the sample's `onended`. `seasonPassMusicPlaying` is set the same instant, so
+the effect's own expiry code (`seasonPassT` reaching 0) knows Season Pass's
+track is actually what's playing before it fades out and hands the channel
+back to `"ride"`.
 
 ## Naming screen (leaderboard front end)
 
