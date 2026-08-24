@@ -1346,7 +1346,7 @@
       <button class="btn" id="howBack" type="button">Got It</button>
     </div>
     <!-- Same floating hudbtn as #lbBack, for the same reason: How to Play is
-         "one long scroll with no cue" (HANDOFF item 12) and Got It sits at the
+         "one long scroll with no cue" (see TODOLIST.md) and Got It sits at the
          bottom of it, so a quick exit shouldn't require reading to the end. -->
     <button id="howClose" class="hudbtn" type="button" aria-label="Close How to Play">
       <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -1576,6 +1576,10 @@ const ART = {
   flip1:    "assets/sprites/typhoon-sprites/jump/backflip_02.png",
   flip2:    "assets/sprites/typhoon-sprites/jump/backflip_03.png",
   flip3:    "assets/sprites/typhoon-sprites/jump/backflip_04.png",
+  spin0:    "assets/sprites/typhoon-sprites/spin/spin_01.png",
+  spin1:    "assets/sprites/typhoon-sprites/spin/spin_02.png",
+  spin2:    "assets/sprites/typhoon-sprites/spin/spin_03.png",
+  spin3:    "assets/sprites/typhoon-sprites/spin/spin_04.png",
   pig0:     "assets/sprites/obstacles/pig-0.png",
   pig1:     "assets/sprites/obstacles/pig-1.png",
   pig2:     "assets/sprites/obstacles/pig-2.png",
@@ -2509,7 +2513,29 @@ const LETTER_AHEAD = 20;    // spawn distance; inside DRAW_FAR (26) so it fades
    rather than one every corner. Tune this constant first if that read is
    wrong once it's actually played.
    ------------------------------------------------------------------ */
-const POWERUP_GAP   = 550 / CONFIG.metresPerUnit;   // ~550m between offers
+/* ?powerup=<name> / ?powerups — testing hooks, same idea as ?records/?fresh
+   above: playing ~550m of empty chute to see the one power-up you're actually
+   trying to look at is not a reasonable way to test on a real phone.
+   ?powerups alone just shortens the shared clock so every type cycles past
+   quickly; ?powerup=<name> additionally pins every offer to that one type
+   (e.g. ?powerup=whirlpool), still on the short gap. Neither touches
+   anything when absent — POWERUP_GAP and the random draw are the real,
+   tuned values otherwise.
+   <name> accepts every alias someone might reasonably type, including the
+   ART/asset file names themselves (extra-life.png, fast-pass.png,
+   souvenir-bottle.png) — the regex allows hyphens for exactly that reason;
+   an earlier version silently truncated ?powerup=extra-life to "extra" at
+   the hyphen, matched nothing, and fell back to the random draw with no
+   error at all, which is a bad way to find out a name didn't work. */
+const POWERUP_DEBUG_NAME = (location.search.match(/[?&]powerup=([a-z-]+)/i) || [])[1]?.toLowerCase();
+const POWERUP_DEBUG_TYPE = {
+  boost: T.BOOST, fastpass: T.BOOST, "fast-pass": T.BOOST, "speed-boost": T.BOOST,
+  souvenir: T.SOUVENIR, "souvenir-bottle": T.SOUVENIR,
+  extralife: T.EXTRALIFE, "extra-life": T.EXTRALIFE,
+  whirlpool: T.WHIRLPOOL,
+}[POWERUP_DEBUG_NAME];
+const POWERUP_DEBUG_FAST = POWERUP_DEBUG_NAME !== undefined || /[?&]powerups\b/.test(location.search);
+const POWERUP_GAP   = (POWERUP_DEBUG_FAST ? 50 : 550) / CONFIG.metresPerUnit;   // ~550m between offers
 const POWERUP_AHEAD = 20;   // same reasoning as LETTER_AHEAD
 /* Every power-up currently unlocked. spawnPowerup() draws one type from this
    set each time the shared clock fires — except T.EXTRALIFE, which it drops
@@ -2761,7 +2787,11 @@ function spawnPowerup(){
   // the shared clock still fires on schedule (rule 3 still holds) but only
   // ever offers Fast Pass/Souvenir until the held one is spent.
   const offered = extraLife ? POWERUP_TYPES.filter(t => t !== T.EXTRALIFE) : POWERUP_TYPES;
-  const type = offered[Math.random() * offered.length | 0];
+  // ?powerup=<name> pins every offer to one type for testing — see the note
+  // by POWERUP_DEBUG_TYPE above. Overrides the extraLife filter too, since a
+  // test session asking for it explicitly wants to SEE it, held one or not.
+  const type = POWERUP_DEBUG_TYPE !== undefined
+    ? POWERUP_DEBUG_TYPE : offered[Math.random() * offered.length | 0];
   const z = travelled + POWERUP_AHEAD;
   const start = Math.random() * 3 | 0;
   for (let k = 0; k < 3; k++){
@@ -5065,7 +5095,11 @@ function extraLifeSmellLines(x, y, h){
    ------------------------------------------------------------------ */
 const WHIRLPOOL_H     = 0.60;   // world height at full size, matching Fast Pass's tag
 const WHIRLPOOL_LIFT  = 0.44;   // hangs a little above the water, like the others
-const WHIRLPOOL_RING_COLOR = "70,190,225";   // teal-blue, off the art's own water tone
+// Sampled off the actual whirlpool.png pixels (headless-canvas colour count),
+// not eyeballed — the art was re-exported 2026-08-24 and the old guess
+// ("70,190,225", a teal that predates this art) no longer matched it.
+const WHIRLPOOL_RING_COLOR = "20,180,255";   // light cyan-blue, off the art's swirl wedges
+const WHIRLPOOL_DEEP_COLOR = "0,80,235";     // deep royal blue, off the art's outer ring
 const WHIRLPOOL_CORE_COLOR = "252,246,240";  // C.white, matching the other pickups' core
 const WHIRLPOOL_MOTES = 5;      // dive-in points spaced evenly around the ring
 const WHIRLPOOL_TURNS = 1.4;    // full turns a mote makes between the outer edge and the centre
@@ -5078,17 +5112,118 @@ const WHIRLPOOL_ORBIT = 0.82;   // outer radius the motes dive in from, as a
                                 // itself, so a tighter orbit hid every mote
                                 // behind them)
 
-// Static aura, drawn BEHIND the icon (same order as the other pickups'
-// glows) — just marks "something is here", not the swirl itself.
-function whirlpoolHalo(x, y, h){
+/* Swirl glow, drawn BEHIND the icon (same order as the other pickups'
+   glows). Adam wanted this to look like a peppermint-swirl reference image —
+   twisted colour rays winding out from the centre — recoloured blue.
+   A first version approximated the twist by stacking many thin concentric
+   rings, each stroked with a conic gradient rotated a little further than
+   the ring inside it. That reads as STEPPED rather than curved — a ring is
+   only ever a straight radial wedge, so the "curl" is really a staircase of
+   discrete jumps between rings, visible as blockiness (Adam's call, from
+   playing it). This instead walks each blade's own centreline continuously
+   — angle = spin + tt*TWIST for tt from 0 (centre) to 1 (rim) — and builds
+   ONE filled path per blade from that curve directly, so the twist is a true
+   curve, not a staircase quantised by ring count. The blade tapers to a
+   point at the centre (half-width scales with tt) and to a soft edge at the
+   rim, matching the reference's converging-spoke shape. `ctx.filter = blur`
+   is what turns the polyline into a genuine GLOW rather than a crisp cutout
+   — it also hides the polyline's own facets, so WHIRLPOOL_SWIRL_STEPS only
+   needs to be smooth enough to survive the blur, not smooth on its own.
+   Alternating blades are blue/WHITE, not blue/transparent — the reference's
+   punch comes from that hard color-vs-white contrast, and against this
+   game's own saturated-blue water a blue-vs-transparent ray nearly vanishes
+   (measured by screenshot: it read as a faint haze, not a swirl). */
+const WHIRLPOOL_SWIRL_BLADES = 8;      // matches the icon's own 8-wedge pinwheel
+/* TWIST is a full 2.6 rad (149 degrees) at 8 blades 45 degrees apart, each
+   blade's tip ends up rotated past THREE neighbouring blades' own territory —
+   they don't read as separate curved spokes any more, they smear into one
+   continuous wash (measured by screenshot: the individual rays disappeared
+   entirely). Under one sector-spacing keeps the curl visible without a blade
+   sweeping through where its neighbours started. */
+const WHIRLPOOL_SWIRL_TWIST  = 0.85;   // radians a blade winds between centre and
+                                       // outer edge — the curl amount; 0 would be
+                                       // a plain straight-spoked pinwheel
+const WHIRLPOOL_SWIRL_SPIN   = 0.6;    // rad/s the whole glow rotates, layered on
+                                       // top of the twist, so it visibly churns
+const WHIRLPOOL_SWIRL_STEPS  = 22;     // points along each blade's curve — only
+                                       // needs to survive the blur below, not
+                                       // look smooth unblurred
+const WHIRLPOOL_SWIRL_WIDTH  = 0.5;    // blade half-width at the rim, as a
+                                       // fraction of the half-gap between
+                                       // blade centres — keeps a visible gap
+                                       // between blades rather than them
+                                       // touching (1.0 would just meet)
+const WHIRLPOOL_SWIRL_BLUR   = 0.045;  // gaussian blur radius as a fraction of
+                                       // h — just enough to soften the
+                                       // polyline facets into a curve; 0.10
+                                       // was heavy enough to blur adjacent
+                                       // blades into each other
+const WHIRLPOOL_SWIRL_R      = 0.95;   // outer radius of the glow as a fraction
+                                       // of h — reaches past the icon like a
+                                       // flare, same idea as WHIRLPOOL_ORBIT
+function whirlpoolHalo(x, y, h, t){
   ctx.save();
   ctx.translate(x, y);
-  const halo = ctx.createRadialGradient(0, 0, 0, 0, 0, h * 0.62);
-  halo.addColorStop(0,    "rgba(" + WHIRLPOOL_CORE_COLOR + ",0.30)");
-  halo.addColorStop(0.55, "rgba(" + WHIRLPOOL_RING_COLOR + ",0.22)");
-  halo.addColorStop(1,    "rgba(" + WHIRLPOOL_RING_COLOR + ",0)");
-  ctx.fillStyle = halo;
-  ctx.beginPath(); ctx.arc(0, 0, h * 0.62, 0, 6.284); ctx.fill();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.filter = "blur(" + (h * WHIRLPOOL_SWIRL_BLUR).toFixed(2) + "px)";
+  const spin      = t * WHIRLPOOL_SWIRL_SPIN;
+  const outerR    = h * WHIRLPOOL_SWIRL_R;
+  const sectorHalf = Math.PI / WHIRLPOOL_SWIRL_BLADES;   // half the angle
+                                                          // between blade centres
+  // Brightest a quarter of the way out, fading toward both the centre (where
+  // the blade has tapered to nothing anyway) and the rim (a flare falling
+  // off from its source, not a flat-brightness cutout). One gradient per
+  // colour, reused for every blade of that colour — it's radially symmetric
+  // about the shared local origin, so it doesn't need to be rebuilt per blade.
+  const blueGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, outerR);
+  blueGrad.addColorStop(0,    "rgba(" + WHIRLPOOL_RING_COLOR + ",0)");
+  blueGrad.addColorStop(0.28, "rgba(" + WHIRLPOOL_RING_COLOR + ",0.62)");
+  blueGrad.addColorStop(1,    "rgba(" + WHIRLPOOL_RING_COLOR + ",0)");
+  const whiteGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, outerR);
+  whiteGrad.addColorStop(0,    "rgba(" + WHIRLPOOL_CORE_COLOR + ",0)");
+  whiteGrad.addColorStop(0.28, "rgba(" + WHIRLPOOL_CORE_COLOR + ",0.38)");
+  whiteGrad.addColorStop(1,    "rgba(" + WHIRLPOOL_CORE_COLOR + ",0)");
+  for (let i = 0; i < WHIRLPOOL_SWIRL_BLADES; i++){
+    const base = spin + i * (2 * Math.PI / WHIRLPOOL_SWIRL_BLADES);
+    ctx.beginPath();
+    // Walk out along one edge of the blade, centre to rim...
+    for (let k = 0; k <= WHIRLPOOL_SWIRL_STEPS; k++){
+      const tt   = k / WHIRLPOOL_SWIRL_STEPS;
+      const r    = outerR * tt;
+      const ang  = base + tt * WHIRLPOOL_SWIRL_TWIST - sectorHalf * WHIRLPOOL_SWIRL_WIDTH * tt;
+      const px = Math.cos(ang) * r, py = Math.sin(ang) * r * 0.55;   // *0.55
+                 // flattens to the floor plane's own perspective squash, same
+                 // as whirlpoolMotes
+      k === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+    }
+    // ...and back along the other edge, rim to centre, closing the shape.
+    for (let k = WHIRLPOOL_SWIRL_STEPS; k >= 0; k--){
+      const tt   = k / WHIRLPOOL_SWIRL_STEPS;
+      const r    = outerR * tt;
+      const ang  = base + tt * WHIRLPOOL_SWIRL_TWIST + sectorHalf * WHIRLPOOL_SWIRL_WIDTH * tt;
+      const px = Math.cos(ang) * r, py = Math.sin(ang) * r * 0.55;
+      ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fillStyle = i % 2 === 0 ? blueGrad : whiteGrad;
+    ctx.fill();
+  }
+  ctx.filter = "none";   // the deep/core gradients below are already soft —
+                         // blurring them too would just waste the pass
+  // Deep-blue underlay near the centre, off the art's own ring colour, so the
+  // vortex reads as having depth rather than every ray being one flat tint.
+  const deep = ctx.createRadialGradient(0, 0, 0, 0, 0, h * 0.34);
+  deep.addColorStop(0, "rgba(" + WHIRLPOOL_DEEP_COLOR + ",0.28)");
+  deep.addColorStop(1, "rgba(" + WHIRLPOOL_DEEP_COLOR + ",0)");
+  ctx.fillStyle = deep;
+  ctx.beginPath(); ctx.arc(0, 0, h * 0.34, 0, 6.284); ctx.fill();
+  // Hot white core, matching the other pickups', so the glow still reads as
+  // "something is here" even at a rotation angle where every blade is thin.
+  const core = ctx.createRadialGradient(0, 0, 0, 0, 0, h * 0.20);
+  core.addColorStop(0, "rgba(" + WHIRLPOOL_CORE_COLOR + ",0.35)");
+  core.addColorStop(1, "rgba(" + WHIRLPOOL_CORE_COLOR + ",0)");
+  ctx.fillStyle = core;
+  ctx.beginPath(); ctx.arc(0, 0, h * 0.20, 0, 6.284); ctx.fill();
   ctx.restore();
 }
 
@@ -5339,7 +5474,7 @@ function drawEntInner(e){
     const h = WHIRLPOOL_H * s * grow;
     if (h < 6) return;
     const t = performance.now() * 0.001;
-    whirlpoolHalo(p.x, p.y, h);
+    whirlpoolHalo(p.x, p.y, h, t);
     const img = IMG.whirlpool;
     if (img){
       const w = h * (img.width / img.height);
@@ -5617,6 +5752,32 @@ const FLIP_REG = [
 const RIDER_CX = 0.5271, RIDER_CY = 0.5669;   // resting sprite's centroid
 
 /* ------------------------------------------------------------------
+   WHIRLPOOL SPIN
+   Four hand-drawn frames turning the rider and his tube through a full
+   yaw: front, quarter-turn, back, quarter-turn. Loops continuously for
+   the whole WHIRLPOOL_DUR (Adam's call: the power-up's whole visual
+   point, so it overrides jump/duck rather than the other way around —
+   see drawRider's priority comment).
+   Same rotation-invariant handles as FLIP_REG, for the same reason: the
+   assembly turns as a whole, the four canvases differ in size (619x489
+   down to 601x488), and a profile frame's tube is genuinely narrower on
+   screen than the front frame's (foreshortening, not just cropping), so
+   tube-width registration (DUCK_REG's approach) would incorrectly stretch
+   it back out. sqrt(area) holds his SIZE steady since opaque area survives
+   rotation; the opaque centroid is the point he turns about. Measured off
+   the alpha; re-measure if this art is re-exported.
+   ------------------------------------------------------------------ */
+const SPIN_REG = [
+  { s: 2.4070, cx: 0.5315, cy: 0.5945 },   // spin_01, front
+  { s: 2.3724, cx: 0.5388, cy: 0.5865 },   // spin_02, quarter-turn
+  { s: 2.4880, cx: 0.5203, cy: 0.5775 },   // spin_03, back
+  { s: 2.5030, cx: 0.4724, cy: 0.5763 },   // spin_04, quarter-turn (other side)
+];
+const SPIN_FRAME_DUR = 0.12;   // seconds per frame — ~8.3fps, tuned by eye for
+                               // a lively continuous spin rather than a slow tumble
+const spinFrame = (t) => Math.floor(t / SPIN_FRAME_DUR) % SPIN_REG.length;
+
+/* ------------------------------------------------------------------
    LANE MOVE
    One hand-drawn pose per direction, held for the whole move. Deeper
    leans were drawn and tried as a 3-frame sequence, but at this size
@@ -5751,12 +5912,18 @@ function drawRider(){
   }
   const w = h * (img.width / img.height);
 
-  /* Priority: die > hurt > jump > duck > lane spin.
+  /* Priority: die > hurt > jump > duck > whirlpool spin > lane move.
      Damage outranks everything voluntary — if you are hit mid-jump the hit is
      the thing you need to see — and death outranks damage, since the wipeout
-     always begins from a hit. Below that, a jump is the biggest read, and a
-     duck beats the spin because it is a held state that decides whether the
-     pig's jet lands, while the spin is brief and purely cosmetic. */
+     always begins from a hit. Jump and duck outrank the whirlpool spin
+     (Adam's explicit call, revised from an earlier version where the spin
+     outranked them): they're voluntary actions the player needs to actually
+     SEE land, so the spin briefly steps aside for one and picks back up
+     afterward if WHIRLPOOL_DUR hasn't run out — whirlpoolT itself never
+     pauses either way, it just isn't what gets drawn for that stretch. The
+     spin still outranks lane moves and boost, deliberately: those aren't a
+     visual read the way a jump/duck is, so the spin plays through them
+     uninterrupted. */
   const dyi     = (state === "dying" || state === "over")
                     ? (state === "over" ? 2 : triIdx(1 - dieT / DIE_DUR)) : -1;
   const dieImg  = dyi >= 0 ? IMG["die" + dyi] : null;
@@ -5767,7 +5934,9 @@ function drawRider(){
   const flipImg = fi >= 0 ? IMG["flip" + fi] : null;
   const di      = (!dieImg && !hurtImg && !flipImg && duckA > 0.05) ? duckIdx(duckA) : -1;
   const duckImg = di >= 0 ? IMG["duck" + di] : null;
-  const leaning = !dieImg && !hurtImg && !flipImg && !duckImg && moveT > 0 && moveDir;
+  const si      = (!dieImg && !hurtImg && !flipImg && !duckImg && whirlpoolT > 0) ? spinFrame(performance.now() * 0.001) : -1;
+  const spinImg = si >= 0 ? IMG["spin" + si] : null;
+  const leaning = !dieImg && !hurtImg && !flipImg && !duckImg && !spinImg && moveT > 0 && moveDir;
   const moveImg = leaning ? IMG[MOVE_KEY[moveDir]] : null;
 
   // wake, so he sits in the water rather than on it. Faded out on the wipeout
@@ -5811,6 +5980,17 @@ function drawRider(){
     const ccx = (RIDER_CX - 0.5) * w;              // where the resting sprite's
     const ccy = (RIDER_CY - 0.88) * h;             // centroid sits, in local coords
     ctx.drawImage(flipImg, ccx - R.cx * dw, ccy - R.cy * dh, dw, dh);
+  } else if (spinImg){
+    // Same rotation-invariant registration as the flip frames just above,
+    // for the same reason: a yaw turn foreshortens the tube, so a
+    // tube-width fit (the dieImg/hurtImg/duckImg/moveImg branch) would
+    // stretch the profile frames back out to the front frame's width.
+    const R  = SPIN_REG[si];
+    const k  = (h / img.height) * R.s;
+    const dw = spinImg.width * k, dh = spinImg.height * k;
+    const ccx = (RIDER_CX - 0.5) * w;
+    const ccy = (RIDER_CY - 0.88) * h;
+    ctx.drawImage(spinImg, ccx - R.cx * dw, ccy - R.cy * dh, dw, dh);
   } else if (dieImg || hurtImg || duckImg || moveImg){
     // All tube-pinned, so the ring stays planted in the water while he reacts.
     // No sy squash here: the duck art already flattens him, and squashing a
@@ -5964,19 +6144,21 @@ function fastPassLabel(){
   ctx.restore();
 }
 
-/* Whirlpool's ACTIVE cue. This is what rule 7 actually hangs on: it is not a
-   generic vignette or particle trail the way boostRush/speedLines are for
-   Fast Pass — it is the power-up's own icon, sitting on the water right
-   under the rider for the whole WHIRLPOOL_DUR, so there is no ambiguity
-   about WHICH power-up fired. A first version floated it above his head, but
-   Adam's call was under him, ON the slide — a swirl in the water he's riding
-   over, not a badge trailing him. Drawn from floorPt(travelled, laneA, ...)
+/* Whirlpool's ACTIVE cue. This is what rule 7 actually hangs on, and rule 7
+   needs this readable as WHICH power-up for the whole WHIRLPOOL_DUR. It used
+   to be the power-up's own badge icon floating under the rider; Adam's call
+   was to drop the badge and have the swirl (halo + dive-in motes) surround
+   the rider directly instead, so the vortex reads as something happening TO
+   him rather than a collectible icon trailing him — paired with drawRider()
+   playing the SPIN turntable frames for the same duration, so both halves of
+   the cue read as one effect. Drawn from floorPt(travelled, laneA, ...)
    exactly like drawRider() itself, so it tracks his lean, but at a FIXED
    lift rather than riderLift() — it stays on the water surface even when he
-   jumps, rather than following him into the air. Called BEFORE drawRider()
-   in render() so his tube visibly sits on top of it. The icon itself holds
-   still — whirlpoolMotes' dive-in motes are the "this is pulling things in"
-   cue now, not the icon spinning. */
+   jumps, rather than following him into the air (Adam's earlier call, still
+   holds: a swirl in the water he's riding over, not something that trails
+   him into a jump). Called BEFORE drawRider() in render() so his tube
+   visibly sits on top of it — "surrounding" him means visible past his
+   silhouette on every side, not drawn over him. */
 const WHIRLPOOL_ACTIVE_LIFT = 0.16;   // just above the water, like a coin
                                       // (0.34) but lower — this reads as ON
                                       // the surface, not hovering over it
@@ -5984,11 +6166,11 @@ function whirlpoolActive(){
   if (whirlpoolT <= 0) return;
   const S = focal / CAM_DZ;
   const p = floorPt(travelled, laneA, WHIRLPOOL_ACTIVE_LIFT);
-  // Sized bigger than the tube on purpose — sitting under him at the tube's
-  // own footprint left almost nothing visible around its edge, and rule 7
-  // needs this readable as WHICH power-up, not just a sliver of colour
-  // peeking out from behind Typhoon.
-  const h = Math.max(0.34 * S, H * 0.08) * 1.6;
+  // Sized off the RIDER's own drawn height (drawRider's `h`), not the old
+  // tube-footprint base — the swirl now has to clear his whole silhouette on
+  // every side to read as surrounding him, not just peek out from behind him.
+  const riderH = Math.max(0.52 * S, H * 0.12);
+  const h = riderH * 1.35;
   // Fades in/out over its first/last quarter second rather than popping in or
   // vanishing mid-frame the moment the timer crosses zero.
   const k = Math.min(1, (WHIRLPOOL_DUR - whirlpoolT) / 0.25, whirlpoolT / 0.25);
@@ -5996,17 +6178,7 @@ function whirlpoolActive(){
   const t = performance.now() * 0.001;
   ctx.save();
   ctx.globalAlpha = k;
-  whirlpoolHalo(p.x, p.y, h);
-  const img = IMG.whirlpool;
-  if (img){
-    const w = h * (img.width / img.height);
-    ctx.drawImage(img, p.x - w / 2, p.y - h / 2, w, h);
-  } else {
-    ctx.beginPath(); ctx.arc(p.x, p.y, h * 0.42, 0, 6.284);
-    ctx.fillStyle = "rgb(" + WHIRLPOOL_RING_COLOR + ")"; ctx.fill();
-    ctx.strokeStyle = C.ink; ctx.lineWidth = Math.max(2, 0.04 * S); ctx.stroke();
-  }
-  // Motes drawn LAST, on top of the icon — see whirlpoolMotes's comment.
+  whirlpoolHalo(p.x, p.y, h, t);
   whirlpoolMotes(p.x, p.y, h, t);
   ctx.restore();
 }
@@ -6199,7 +6371,7 @@ window.addEventListener("keydown",     () => startTitleMusic(true));
 /* ==================================================================
    LEADERBOARD — FRONT END ONLY, STUBBED DATA
    Every read and write goes through Board, whose methods are shaped like the
-   REST routes that will replace them (HANDOFF item 3). Swapping the stub for
+   REST routes that will replace them (see DATABASE.md). Swapping the stub for
    fetch() should touch nothing outside this object.
    ================================================================== */
 
@@ -6207,8 +6379,8 @@ window.addEventListener("keydown",     () => startTitleMusic(true));
    structurally impossible instead of policed — no blocklist to maintain and
    nothing for leetspeak or homoglyphs to slip through. Grown to 100x100
    2026-08-20 (was 40x40) — every individual word is still readable in one
-   sitting, but the 10,000-pair cross product no longer is; see HANDOFF.md
-   "Word lists expanded" for the resulting audit gap. Mirrored in the plugin
+   sitting, but the 10,000-pair cross product no longer is; see TODOLIST.md
+   for the resulting audit gap. Mirrored in the plugin
    at waterpark-leaderboard/includes/class-name-pool.php — keep both in sync. */
 const NAME_A = ["Dusty","Rowdy","Soggy","Rusty","Lucky","Wild","Trusty","Sandy",
   "Muddy","Sunbaked","Splashy","Gritty","Speedy","Bouncy","Rugged","Breezy",

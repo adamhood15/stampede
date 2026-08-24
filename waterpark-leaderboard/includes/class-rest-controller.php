@@ -3,9 +3,9 @@ if (!defined('ABSPATH')) exit;
 
 /**
  * Public REST routes — no nonce, no rate limit, no shared secret, by
- * explicit decision (2026-08-20): matches the score-forgery risk HANDOFF.md
- * already accepts for this park-promo use case. Revisit only if the board
- * actually gets gamed.
+ * explicit decision (2026-08-20): matches the score-forgery risk
+ * DATABASE.md already accepts for this park-promo use case. Revisit only if
+ * the board actually gets gamed.
  *
  * game_key is always the plugin's own default, never taken from the client
  * — there is no multi-game UI yet, and accepting an arbitrary game_key would
@@ -98,7 +98,7 @@ class Waterpark_Leaderboard_REST_Controller {
         }
 
         // player_name is always the already-claimed name — submit can never
-        // rename a player. See "Player Name Storage" in database-plan.md.
+        // rename a player. See "Design decisions" in DATABASE.md.
         $repository->upsert_score(
             self::game_key(),
             $token,

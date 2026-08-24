@@ -88,14 +88,16 @@ assets/
                 obstacles (cow, pig, snowman, waves), coins, power-ups,
                 and backdrop art
 old-version/    Earlier prototype (claude-stampede.html), kept for reference
-HANDOFF.md      Engineering notes: architecture, known gotchas, and open work
+AGENTS.md       Operating rules; links to ARCHITECTURE.md, DATABASE.md, TODOLIST.md
 ```
 
 ## Architecture notes
 
 For a deep dive into how the renderer, camera, sprite registration, and audio
-system work — plus a list of hard-won lessons and open tasks — see
-[`HANDOFF.md`](HANDOFF.md). Highlights:
+system work — plus a list of hard-won lessons — see
+[`ARCHITECTURE.md`](ARCHITECTURE.md). Open tasks are tracked in
+[`TODOLIST.md`](TODOLIST.md), and the leaderboard's database schema is in
+[`DATABASE.md`](DATABASE.md). Highlights:
 
 - **Rendering** is a pseudo-3D painter's algorithm on Canvas 2D (no real
   z-buffer): a `project(wx, wy, dz)` function maps world coordinates to screen

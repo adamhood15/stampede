@@ -4,7 +4,7 @@ if (!defined('ABSPATH')) exit;
 /**
  * Storage-layer only. Name reservation, collision handling, token
  * generation, and score validation live in a later submission-layer phase —
- * see "Explicitly Out of Scope" in database-plan.md.
+ * see "Explicitly Out of Scope" in DATABASE.md.
  *
  * $wpdb->prepare() null-as-NULL support (used for optional session_id /
  * metadata below) requires WordPress 6.2+.
@@ -16,7 +16,7 @@ class Waterpark_Leaderboard_Score_Repository {
     }
 
     // Upserts the player's best score. Only moves score/created_at forward —
-    // see "Storage Model: One Row Per Player" in database-plan.md.
+    // see "Storage Model: One Row Per Player" in DATABASE.md.
     public function upsert_score($game_key, $token, $player_name, $score, $session_id = null, $metadata = null) {
         global $wpdb;
         $table = $this->table();

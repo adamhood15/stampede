@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name: Waterpark Leaderboard
- * Description: Custom table storage and REST submission layer for the Stampede waterpark game leaderboard. See database-plan.md for the schema design.
+ * Description: Custom table storage and REST submission layer for the Stampede waterpark game leaderboard. See DATABASE.md for the schema design.
  * Version: 1.0.0
  */
 

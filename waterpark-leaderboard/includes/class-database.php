@@ -14,7 +14,7 @@ class Waterpark_Leaderboard_DB {
         $table_name      = self::table_name();
         $charset_collate = $wpdb->get_charset_collate();
 
-        // Schema mirrors database-plan.md exactly — see that doc before
+        // Schema mirrors DATABASE.md exactly — see that doc before
         // changing a column or index here. Two spaces after "PRIMARY KEY" is
         // a dbDelta parsing requirement, not a style choice.
         $sql = "CREATE TABLE {$table_name} (
