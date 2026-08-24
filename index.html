@@ -584,6 +584,16 @@
     #lbLoading .spinner{animation:none;border-top-color:var(--orange)}}
 
   /* the rank row on the results card ------------------------------------- */
+  /* setRankFigures() awaits a fresh /rank lookup on every run; without a
+     cue, the PREVIOUS run's number just sits there looking final while the
+     fetch is in flight, which is what read as "shows the old rank". The
+     cue itself is JS-driven (see setRankFigures()'s RANK_CYCLE_MS interval,
+     which rapidly reassigns the figure's text until the real rank lands) —
+     .calculating exists here only so a color/weight tweak has somewhere to
+     hook in without touching the JS, not to drive an animation itself.
+     Skipped under reduced motion at the JS layer, not here, since the
+     cycling is content changing, not a CSS animation there'd be a rule to
+     turn off. */
   #statRank > div{cursor:pointer;pointer-events:auto}
   #statRank em{display:block;font-style:normal;font-size:9px;letter-spacing:.18em;line-height:1.5;
                text-transform:uppercase;color:var(--yellow);margin-top:5px}
@@ -1570,6 +1580,10 @@ const ART = {
   duck0:    "assets/sprites/typhoon-sprites/duck/duck_01.png",
   duck1:    "assets/sprites/typhoon-sprites/duck/duck_02.png",
   duck2:    "assets/sprites/typhoon-sprites/duck/duck_03.png",
+  eat0:     "assets/sprites/typhoon-sprites/extra-life/extra-life_01.png",
+  eat1:     "assets/sprites/typhoon-sprites/extra-life/extra-life_02.png",
+  eat2:     "assets/sprites/typhoon-sprites/extra-life/extra-life_03.png",
+  eat3:     "assets/sprites/typhoon-sprites/extra-life/extra-life_04.png",
   mvL:      "assets/sprites/typhoon-sprites/move/move-left_01.png",
   mvR:      "assets/sprites/typhoon-sprites/move/move-right_01.png",
   flip0:    "assets/sprites/typhoon-sprites/jump/backflip_01.png",
@@ -1580,6 +1594,10 @@ const ART = {
   spin1:    "assets/sprites/typhoon-sprites/spin/spin_02.png",
   spin2:    "assets/sprites/typhoon-sprites/spin/spin_03.png",
   spin3:    "assets/sprites/typhoon-sprites/spin/spin_04.png",
+  speed0:   "assets/sprites/typhoon-sprites/speed-boost/speed_01.png",
+  speed1:   "assets/sprites/typhoon-sprites/speed-boost/speed_02.png",
+  speed2:   "assets/sprites/typhoon-sprites/speed-boost/speed_03.png",
+  speed3:   "assets/sprites/typhoon-sprites/speed-boost/speed_04.png",
   pig0:     "assets/sprites/obstacles/pig-0.png",
   pig1:     "assets/sprites/obstacles/pig-1.png",
   pig2:     "assets/sprites/obstacles/pig-2.png",
@@ -1647,6 +1665,8 @@ const SFX = {
   boost: "assets/sound-effects/interactions/Speed%20Boost%2005.mp3",
   hurt:  "assets/sound-effects/player/typhoon-hurt.mp3",
   dead:  "assets/sound-effects/player/typhoon-dead.mp3",
+  eating:"assets/sound-effects/player/typhoon-eating.mp3",
+  slurp: "assets/sound-effects/player/typhoon-slurp.mp3",
   letter:"assets/sound-effects/letter-collect/Happy%20Game%20Notification.mp3",
   stampede:"assets/sound-effects/special/stampede-sound.mp3",
   souvenir:"assets/sound-effects/power-ups/souvenir-bottle.mp3",
@@ -2042,7 +2062,10 @@ const Sound = (function(){
       try { el.pause(); el.currentTime = 0; el.loop = false; } catch (e) {}
     }
   }
-  function sample(key, vol){
+  /* onEnded fires once the clip actually finishes playing — used to chain the
+     slurp sample directly onto the end of the eating one (see Sound.eating())
+     rather than guessing eating.mp3's length with a timer. */
+  function sample(key, vol, onEnded){
     if (!on) return false;
     const a = ctxr();
     if (a && buffers[key]){
@@ -2050,6 +2073,7 @@ const Sound = (function(){
       s.buffer = buffers[key];             // a source is single-use, so this re-triggers cleanly
       g.gain.value = vol == null ? 1 : vol;
       s.connect(g).connect(a.destination);
+      if (onEnded) s.onended = onEnded;
       s.start();
       note("web-audio");
       return true;
@@ -2059,6 +2083,7 @@ const Sound = (function(){
       try {
         const c = el.cloneNode();          // a clone per play, so jumps can overlap
         c.volume = vol == null ? 1 : vol;
+        if (onEnded) c.addEventListener("ended", onEnded, { once: true });
         const p = c.play();
         if (p && p.catch) p.catch(() => {});
         note("audio-element");
@@ -2199,7 +2224,12 @@ const Sound = (function(){
     souvenir(){ if (!sample("souvenir", 0.85)){ tone(500, 1800, 0.3, "triangle", 0.15);
                                                 tone(750, 2200, 0.22, "sine", 0.1); } },
     extraLife(){ if (!sample("extraLife", 0.85)){ tone(440, 880, 0.18, "triangle", 0.14);
-                                                  tone(660, 1320, 0.22, "sine", 0.12); } }
+                                                  tone(660, 1320, 0.22, "sine", 0.12); } },
+    // Chained rather than two independent calls: slurp has to start the instant
+    // eating ends, not on a guessed delay, so it rides eating's own onended.
+    eating(){ if (!sample("eating", 0.9, () => sample("slurp", 0.9))){
+                tone(220, 340, 0.16, "triangle", 0.13);
+                tone(180, 260, 0.14, "sine", 0.11); } }
   };
 })();
 
@@ -2449,6 +2479,7 @@ let lane = 0, laneA = 0;
 let jumpT = -1, tuckT = 0;
 let invuln = 0, boostT = 0, boostSuper = false, shake = 0;
 let hurtT = 0;              // drives the damage blink; see drawRider
+let eatT = 0;                // Extra Life pickup: drives the pizza-eating pose; see drawRider
 let moveT = 0, moveDir = 0;  // lane-change lean
 let leanV = 0;               // smoothed crossing speed, in lane units/s; picks
                              // the lean pose now that no discrete move does
@@ -2617,7 +2648,7 @@ function reset(){
   lane = 0; laneA = 0; jumpT = -1; tuckT = 0;
   touchId = null; steering = false;   // a thumb still down across a restart no
                                       // longer owns the wheel it anchored on
-  invuln = 0; boostT = 0; boostSuper = false; shake = 0; hurtT = 0; moveT = 0; moveDir = 0; leanV = 0; duckA = 0;
+  invuln = 0; boostT = 0; boostSuper = false; shake = 0; hurtT = 0; eatT = 0; moveT = 0; moveDir = 0; leanV = 0; duckA = 0;
   tunnelIn = 0; lastTunZ = -1e9; dieT = 0; fastPassLabelT = 0; extraLife = false;
   whirlpoolT = 0; Sound.loopStop();  // in case a run restarted mid-effect
   /* Give the canvas its rider back. The results card takes him OFF the canvas
@@ -3277,7 +3308,9 @@ function updateFlyers(dt){
       } else if (f.kind === "extralife"){
         // Unlike souvenir's coins, nothing was banked at pickup — the bonus
         // tube becomes real right here, the instant it's actually seen in
-        // the HUD (see flyExtraLife()'s comment).
+        // the HUD (see flyExtraLife()'s comment). The eating animation/sound
+        // fire earlier, right at the grab (see T.EXTRALIFE's collision
+        // branch) — this is just the HUD payoff, timed to the flight landing.
         extraLife = true; drawTubes(); Sound.extraLife();
       } else {
         shownLetters = Math.max(shownLetters, f.idx + 1);
@@ -4026,6 +4059,7 @@ function update(dt){
   duckA += ((tuckT > 0 ? 1 : 0) - duckA) * Math.min(1, dt * 14);
   if (invuln > 0) invuln -= dt;
   if (hurtT  > 0) hurtT  -= dt;
+  if (eatT   > 0) eatT   -= dt;
   if (moveT  > 0) moveT  -= dt;
   if (boostT > 0) boostT -= dt;
   if (whirlpoolT > 0){
@@ -4174,9 +4208,12 @@ function update(dt){
       // Nothing is banked here — unlike the souvenir bottle, extraLife itself
       // only flips true once the flyer actually lands in the HUD (see
       // flyExtraLife() and updateFlyers()), so a hit taken mid-flight is a
-      // normal hit, not a shield that was never visibly granted.
+      // normal hit, not a shield that was never visibly granted. The eating
+      // animation/sound are NOT deferred the same way, though — Adam's call:
+      // they're the pickup's own feedback, so they fire right on the grab,
+      // not a beat later once the flyer finishes its flight to the HUD.
       if (nearLane(e.i, LANE_PICK)){
-        e.dead = true; puff(16); flyExtraLife();
+        e.dead = true; puff(16); flyExtraLife(); eatT = EAT_DUR; Sound.eating();
       }
     } else if (e.t === T.WHIRLPOOL){
       // Starts the magnet the instant it's grabbed, same "banked on the grab"
@@ -5863,6 +5900,65 @@ const DIE_BRAKE = 4.0;     // units/s^2. The fatal hit already cuts speed to
                            // wipeout to stop rather than snapping to a halt.
 const triIdx = (t) => t < 0.34 ? 0 : t < 0.68 ? 1 : 2;
 
+/* ------------------------------------------------------------------
+   EXTRA LIFE EATING
+   Four frames of Typhoon working through a pizza slice, tube-registered
+   like hurt/die/duck — he digs in while the ring stays planted. Plays once
+   the flyer lands and the shield tube is actually granted (see
+   updateFlyers()'s "extralife" branch), riding the same
+   eatT-counts-down/quadIdx-picks-the-frame shape as HURT_DUR/triIdx.
+   EAT_DUR is the eating.mp3 + slurp.mp3 pair's combined runtime (1.70s +
+   0.89s), so the pose holds through both sounds instead of snapping back
+   to idle mid-chew. ------------------------------------------------------------------ */
+const EAT_REG = [
+  { tw: 0.9307, cx: 0.4990, by: 0.9980 },   // reaching for the slice
+  { tw: 0.9689, cx: 0.4886, by: 0.9960 },   // first bite
+  { tw: 0.9715, cx: 0.5020, by: 0.9961 },   // mid bite
+  { tw: 0.9717, cx: 0.4980, by: 0.9940 },   // savoring the last of it
+];
+const EAT_DUR = 2.6;
+const quadIdx = (t) => t < 0.25 ? 0 : t < 0.5 ? 1 : t < 0.75 ? 2 : 3;
+
+/* ------------------------------------------------------------------
+   SPEED BOOST
+   Four frames of the splash building around him and, in frame 4, a blue
+   energy glow behind it. Reads boostT directly rather than its own timer:
+   boostT/BOOST_DUR/boostSuper are already the single shared state for BOTH
+   triggers this animation has to cover — a tunnel and the Fast Pass pickup
+   set them identically — so no second clock was needed, and a future
+   third way to trigger the same boost gets this animation for free.
+   Adam's call: climb 1->2->3->4 as the boost kicks in, then for the
+   MIDDLE of the boost flicker between 3 and 4 rather than holding flat on
+   4 — a still frame read as frozen for a multi-second stretch, and 3/4 are
+   the two highest-energy frames, so the flicker keeps reading as "peak
+   speed" rather than introducing a lull. Ramps back down 4->3->2->1 as the
+   boost runs out. Both ramps are timed off SPEED_RAMP, a fixed slice of
+   BOOST_DUR, not a fixed wall-clock length independent of it, so a future
+   change to BOOST_DUR keeps the ramps proportionate automatically.
+   Same rotation-invariant handles as FLIP_REG/SPIN_REG, not a tube fit:
+   the splash billows outward a different amount each frame (597x477 up
+   to 662x505), not an in-plane turn, so a tube-width fit would stretch
+   frame 4's wider bloom to match frame 1's tighter one. Measured off the
+   alpha; re-measure if this art is re-exported.
+   ------------------------------------------------------------------ */
+const SPEED_REG = [
+  { s: 2.2777, cx: 0.5460, cy: 0.5773 },   // speed_01
+  { s: 2.2053, cx: 0.5425, cy: 0.5702 },   // speed_02
+  { s: 2.1779, cx: 0.5257, cy: 0.5825 },   // speed_03
+  { s: 2.1467, cx: 0.5499, cy: 0.5701 },   // speed_04, adds the energy glow
+];
+const SPEED_RAMP = 0.4;         // seconds to climb 1->4, and separately to
+                                // fall back 4->1 at the end
+const SPEED_HOLD_FRAME_DUR = 0.12;   // seconds per flicker step in the 3/4
+                                     // hold, same pace as SPIN_FRAME_DUR
+const speedFrame = (boostT) => {
+  const elapsed = BOOST_DUR - boostT;
+  if (elapsed < SPEED_RAMP)
+    return Math.min(3, Math.floor((elapsed / SPEED_RAMP) * 4));   // 1 -> 4
+  if (boostT < SPEED_RAMP)
+    return Math.min(3, Math.floor((boostT / SPEED_RAMP) * 4));    // 4 -> 1
+  return Math.floor(elapsed / SPEED_HOLD_FRAME_DUR) % 2 === 0 ? 3 : 2;   // flicker 4/3
+};
 
 /* Weighted so the inverted frame covers the apex of the lift arc rather
    than being split evenly — that is where the flip reads. */
@@ -5912,31 +6008,41 @@ function drawRider(){
   }
   const w = h * (img.width / img.height);
 
-  /* Priority: die > hurt > jump > duck > whirlpool spin > lane move.
+  /* Priority: die > hurt > duck > eat > jump > whirlpool spin > speed boost
+     > lane move.
      Damage outranks everything voluntary — if you are hit mid-jump the hit is
      the thing you need to see — and death outranks damage, since the wipeout
-     always begins from a hit. Jump and duck outrank the whirlpool spin
-     (Adam's explicit call, revised from an earlier version where the spin
-     outranked them): they're voluntary actions the player needs to actually
-     SEE land, so the spin briefly steps aside for one and picks back up
-     afterward if WHIRLPOOL_DUR hasn't run out — whirlpoolT itself never
-     pauses either way, it just isn't what gets drawn for that stretch. The
-     spin still outranks lane moves and boost, deliberately: those aren't a
-     visual read the way a jump/duck is, so the spin plays through them
-     uninterrupted. */
+     always begins from a hit. Eat is Adam's explicit call: duck is the only
+     thing that should ever cut the eating pose short (an obstacle you have
+     to visibly duck under is still more urgent than a pizza slice), but jump,
+     the whirlpool spin, speed boost and lane-lean all step aside and let it
+     play out uninterrupted instead of the reverse. That flips jump and duck's
+     OLD relative order (jump used to outrank duck) but not their actual
+     on-screen behaviour: tuckT only ever gets set while jumpT < 0 (see
+     update()), so flipImg and duckImg are already mutually exclusive by game
+     state, not by this check order. whirlpoolT/boostT themselves never pause
+     while their draw is skipped for eat/jump — same as they already did for
+     each other; see below. The spin still outranks speed boost and lane
+     moves, deliberately: it is the rarer of the two auto-triggered cues, so
+     boost (every tunnel plus every Fast Pass grab) is the one that steps
+     aside, same reasoning as eat over jump. */
   const dyi     = (state === "dying" || state === "over")
                     ? (state === "over" ? 2 : triIdx(1 - dieT / DIE_DUR)) : -1;
   const dieImg  = dyi >= 0 ? IMG["die" + dyi] : null;
   const hi      = (!dieImg && hurtT > 0) ? triIdx(1 - hurtT / HURT_DUR) : -1;
   const hurtImg = hi >= 0 ? IMG["hurt" + hi] : null;
 
-  const fi      = (!dieImg && !hurtImg && jumpT >= 0) ? flipFrame(jumpT / JUMP_DUR) : -1;
-  const flipImg = fi >= 0 ? IMG["flip" + fi] : null;
-  const di      = (!dieImg && !hurtImg && !flipImg && duckA > 0.05) ? duckIdx(duckA) : -1;
+  const di      = (!dieImg && !hurtImg && duckA > 0.05) ? duckIdx(duckA) : -1;
   const duckImg = di >= 0 ? IMG["duck" + di] : null;
-  const si      = (!dieImg && !hurtImg && !flipImg && !duckImg && whirlpoolT > 0) ? spinFrame(performance.now() * 0.001) : -1;
+  const ei      = (!dieImg && !hurtImg && !duckImg && eatT > 0) ? quadIdx(1 - eatT / EAT_DUR) : -1;
+  const eatImg  = ei >= 0 ? IMG["eat" + ei] : null;
+  const fi      = (!dieImg && !hurtImg && !duckImg && !eatImg && jumpT >= 0) ? flipFrame(jumpT / JUMP_DUR) : -1;
+  const flipImg = fi >= 0 ? IMG["flip" + fi] : null;
+  const si      = (!dieImg && !hurtImg && !duckImg && !eatImg && !flipImg && whirlpoolT > 0) ? spinFrame(performance.now() * 0.001) : -1;
   const spinImg = si >= 0 ? IMG["spin" + si] : null;
-  const leaning = !dieImg && !hurtImg && !flipImg && !duckImg && !spinImg && moveT > 0 && moveDir;
+  const spi     = (!dieImg && !hurtImg && !duckImg && !eatImg && !flipImg && !spinImg && boostT > 0) ? speedFrame(boostT) : -1;
+  const speedImg = spi >= 0 ? IMG["speed" + spi] : null;
+  const leaning = !dieImg && !hurtImg && !duckImg && !eatImg && !flipImg && !spinImg && !speedImg && moveT > 0 && moveDir;
   const moveImg = leaning ? IMG[MOVE_KEY[moveDir]] : null;
 
   // wake, so he sits in the water rather than on it. Faded out on the wipeout
@@ -5991,13 +6097,24 @@ function drawRider(){
     const ccx = (RIDER_CX - 0.5) * w;
     const ccy = (RIDER_CY - 0.88) * h;
     ctx.drawImage(spinImg, ccx - R.cx * dw, ccy - R.cy * dh, dw, dh);
-  } else if (dieImg || hurtImg || duckImg || moveImg){
+  } else if (speedImg){
+    // Same rotation-invariant registration as the spin/flip frames above —
+    // the splash bloom grows a different amount each frame, so a tube fit
+    // would stretch the frame to match the others' footprint instead of
+    // letting it actually grow.
+    const R  = SPEED_REG[spi];
+    const k  = (h / img.height) * R.s;
+    const dw = speedImg.width * k, dh = speedImg.height * k;
+    const ccx = (RIDER_CX - 0.5) * w;
+    const ccy = (RIDER_CY - 0.88) * h;
+    ctx.drawImage(speedImg, ccx - R.cx * dw, ccy - R.cy * dh, dw, dh);
+  } else if (dieImg || hurtImg || duckImg || eatImg || moveImg){
     // All tube-pinned, so the ring stays planted in the water while he reacts.
     // No sy squash here: the duck art already flattens him, and squashing a
     // yawed spin frame would distort its tube.
     const R   = dieImg  ? DIE_REG[dyi]  : hurtImg ? HURT_REG[hi]
-              : duckImg ? DUCK_REG[di]  : MOVE_REG[moveDir];
-    const im  = dieImg || hurtImg || duckImg || moveImg;
+              : duckImg ? DUCK_REG[di]  : eatImg  ? EAT_REG[ei] : MOVE_REG[moveDir];
+    const im  = dieImg || hurtImg || duckImg || eatImg || moveImg;
     const dw  = (w * RIDER_TUBE_W) / R.tw;
     const dh  = dw * (im.height / im.width);
     const tcx = (RIDER_TUBE_CX - 0.5) * w;         // resting tube's centre and
@@ -6498,7 +6615,12 @@ const Board = (() => {
        can't have improved, so repeat lookups (results card, then the board,
        then the results card again next run) are served from storage instead
        of re-hitting the API. submit() clears the cached rank the moment a
-       new high score lands, which is the only time the real rank can move. */
+       new high score lands, which is the only time the real rank can move.
+       The write-back re-reads storage rather than reusing the snapshot taken
+       above the await: two runs played back-to-back overlap their lookups,
+       and writing the pre-await snapshot back after a newer run's submit()
+       already moved score forward would stomp that newer score/rank with
+       this stale one. */
     async rankOf(score){
       const r = readJSON(ME, null);
       if (r && r.score === score && r.rank != null) return r.rank;
@@ -6506,7 +6628,8 @@ const Board = (() => {
         const res = await timeoutFetch(API + "/rank?score=" + Math.max(0, Math.floor(score)), {}, 8000);
         if (!res.ok) return null;
         const data = await res.json();
-        if (r && r.score === score){ r.rank = data.rank; writeJSON(ME, r); }
+        const fresh = readJSON(ME, null);
+        if (fresh && fresh.score === score){ fresh.rank = data.rank; writeJSON(ME, fresh); }
         return data.rank;
       } catch (e) { return null; }
     },
@@ -6742,9 +6865,32 @@ $("statRank").addEventListener("click", () => openBoard(true));
 /* ---------- the rank row on the results card ----------
    Rank is a STAT, not a destination: after a run the question is "how did I
    do", and a number answers it inline without a navigation step. */
+/* Two runs played back-to-back fire two overlapping lookups; whichever
+   resolves LAST used to win regardless of which run it was for, so a slow
+   response for run 1 could land after run 2's and overwrite the better rank
+   with the stale one. requestId makes the newest call the only one allowed
+   to paint or keep cycling — RANK_CYCLE_MS's setInterval checks it on every
+   tick, not just once at the end, so a superseded call's own cycle goes
+   inert immediately rather than fighting the newer one for the DOM until it
+   happens to resolve. */
+let rankRequestId = 0;
+const RANK_CYCLE_MS = 70;   // fast enough to read as "still counting", not laggy
 async function setRankFigures(score){
+  const requestId = ++rankRequestId;
+  const el = $("fRank");
+  el.classList.add("calculating");
+  const reduceMotion = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // The cycling IS the loading cue, so reduced motion just skips it and
+  // leaves the previous run's figure sitting still until the real one lands.
+  const cycle = reduceMotion ? null : setInterval(() => {
+    if (requestId !== rankRequestId) return;
+    setFigure(el, "#" + (1 + Math.floor(Math.random() * 999)).toLocaleString(), 26);
+  }, RANK_CYCLE_MS);
   const rank = await Board.rankOf(score);
-  setFigure($("fRank"), rank != null ? ("#" + rank.toLocaleString()) : "—", 26);
+  if (cycle) clearInterval(cycle);
+  if (requestId !== rankRequestId) return;
+  el.classList.remove("calculating");
+  setFigure(el, rank != null ? ("#" + rank.toLocaleString()) : "—", 26);
 }
 function syncRankRow(){
   const me = Board.me();

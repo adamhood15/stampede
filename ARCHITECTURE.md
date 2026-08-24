@@ -103,14 +103,23 @@ threshold, the hazard z-band (`e.z > travelled - 3`, wider for tunnels), and
 
 ## Rider animation & sprite registration
 
-**Priority (`drawRider`):** `die > hurt > jump(flip) > duck > move(lean)`.
+**Priority (`drawRider`):** `die > hurt > jump(flip) > duck > eat > whirlpool
+spin > speed boost > move(lean)`. `eat` is the Extra Life pickup's
+pizza-eating pose (`eatT`/`EAT_DUR`/`quadIdx`, `EAT_REG`) — plays the instant
+the pickup is grabbed on the track, not once the flyer lands (see
+[Power-ups](#power-ups)). `speed boost` (`boostT`/`SPEED_REG`/`speedFrame`) is
+ranked below the whirlpool spin and eat, and any future power-up animation
+belongs in that same cluster — it's the most frequent of the effects (every
+tunnel plus every Fast Pass grab), so it's the one that steps aside, same
+logic as the spin stepping aside for jump/duck.
 
 **Sprite registration constants were measured off the PNG alpha channels**,
 not guessed — `RIDER_CX/CY`, `RIDER_TUBE_*`, `FLIP_REG`, `MOVE_REG`,
-`DUCK_REG`, `HURT_REG`, `DIE_REG`, `PIG_RING_*`, `PIG_REG`. **If a sprite is
-replaced or re-encoded, re-measure them.** `FLIP_REG.s` and `MOVE_REG.tw` are
-`sqrt(area)` ratios against the *resting* sprite, so re-exporting
-`typhoon-rider.png` alone invalidates the whole set.
+`DUCK_REG`, `HURT_REG`, `DIE_REG`, `EAT_REG`, `SPIN_REG`, `SPEED_REG`,
+`PIG_RING_*`, `PIG_REG`. **If a sprite is replaced or re-encoded, re-measure
+them.** `FLIP_REG.s` and `MOVE_REG.tw` are `sqrt(area)` ratios against the
+*resting* sprite, so re-exporting `typhoon-rider.png` alone invalidates the
+whole set.
 
 Pick the handle to match the motion: √area + centroid for in-plane rotation
 (rotation-invariant), tube-based for yaw/squash (area is **not** invariant
@@ -208,6 +217,20 @@ Built: **Fast Pass** (`T.BOOST`), **Souvenir Bottle** (`T.SOUVENIR`),
 **Extra Life** (`T.EXTRALIFE`), **Whirlpool** (`T.WHIRLPOOL`) — see the
 README's power-up table for player-facing descriptions.
 
+**The speed-boost rider animation** (`SPEED_REG`, `speedFrame`, see
+[Rider animation](#rider-animation--sprite-registration)) covers BOTH ways
+the boost is granted — a tunnel and the Fast Pass pickup — because both
+already set the same `boostT`/`boostSuper` pair, so the animation just reads
+`boostT` rather than needing a trigger-specific flag. It climbs
+`speed_01`→`speed_04` as the boost kicks in, flickers between `speed_03` and
+`speed_04` (the two highest-splash frames) for the middle of `BOOST_DUR`
+rather than holding flat on one frame, then ramps back down to `speed_01` as
+the boost runs out — all timed off `SPEED_RAMP`, a fixed slice of `BOOST_DUR`,
+so it stays proportionate if `BOOST_DUR` ever changes. `speedFrame` is a pure
+function of `boostT` (no independent timer), so retriggering the boost
+mid-ride (grabbing a second Fast Pass, or a second tunnel, before the first
+runs out) resets the whole ramp cleanly along with `boostT` itself.
+
 **Whirlpool** grants a 6s magnet (`WHIRLPOOL_DUR`), pulling every live coin
 within `WHIRLPOOL_RANGE` (8 world units ahead) toward the rider's own
 depth/lane every frame (`update()`'s magnet pass, before the main collision
@@ -240,6 +263,16 @@ is a normal hit. `hitRider()` runs the same shake/flash/speed-penalty/hurt-
 pose/`Sound.hurt()` as every other hit whether or not `extraLife` is set — the
 only difference is `lives` is never touched and the bonus tube plays its own
 explosion keyframe instead of the normal tube dimming.
+
+Unlike `extraLife` itself, the eating flourish is NOT deferred to the flyer
+landing — `eatT = EAT_DUR` and `Sound.eating()` fire right in the grab branch,
+same instant as `flyExtraLife()`. Adam's call: the pickup needs its own
+immediate feedback rather than a beat of delay while the flyer is still in
+the air. The rider plays a 4-frame pizza-eating pose
+(`assets/sprites/typhoon-sprites/extra-life/`, `EAT_REG`) while
+`typhoon-eating.mp3` plays, chained directly into `typhoon-slurp.mp3` on its
+`onended` (see `Sound.eating()` / `sample()`'s `onEnded` param) rather than
+guessed with a timer.
 
 **Souvenir Bottle** fires a one-shot radial burst of coins the instant it's
 grabbed (`burstCoins()`, from `flySouvenir()`) into a separate `coinSpill`
