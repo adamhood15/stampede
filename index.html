@@ -186,7 +186,7 @@
     /* The card's copy still WAITS for Typhoon — that is sequencing, not motion,
        and it is the whole point of the beat. It just fades in place instead of
        rising, keeping the same stagger so the order still reads. */
-    #overPanel.textIn > :not(#overRider):not(#overHat){animation-name:overFade}
+    #overPanel.textIn > :not(#overRider){animation-name:overFade}
     @keyframes overFade{from{opacity:0} to{opacity:1}}
   }
 
@@ -259,24 +259,6 @@
      him. He is only ever about a tenth of the viewport wide, so there is nothing
      for it to save. */
   #overRider{flex:none;display:block;margin-top:20px}
-  /* The win variant of the same slot. Mutually exclusive with #overRider via
-     .won on #overPanel (set in showOver) rather than both ever being flex
-     items at once — either would reserve its own box and the column would
-     carry a second, empty gap for whichever one isn't showing.
-     Same background-sheet technique as #revealHat (same PNG, same HAT_SRC
-     windowing), just its own --hh — this slot's box has no reason to share
-     #overRider's die2-registered aspect ratio, and hat-tilt is a standing
-     pose, not a tube-registered one. */
-  #overPanel.won > #overRider{display:none}
-  #overPanel:not(.won) > #overHat{display:none}
-  #overHat{flex:none;display:block;margin-top:20px;
-    --hh:clamp(64px,17vh,150px);
-    height:var(--hh);width:calc(var(--hh) * .6765);
-    background-image:url("assets/sprites/typhoon-sprites/hat-tilt/typhoon-hat-tilt.png");
-    background-repeat:no-repeat;
-    background-size:calc(var(--hh) * 3.7647) auto;
-    background-position:calc(var(--hh) * var(--fx) * -1) calc(var(--hh) * var(--fy) * -1);
-    filter:drop-shadow(0 8px 0 rgba(10,10,10,.25))}
 
   /* The copy WAITS for Typhoon. He settles into #overRider — the slot at the
      FOOT of this card — over about a second after the wipeout, and the card used
@@ -296,11 +278,9 @@
      into place, and this img must not show or there would be two of him.
      No fade: it is a swap between two identical rectangles inside one frame, and
      any transition would show the seam it is there to hide. */
-  #overPanel:not(.riderIn) > #overRider,
-  #overPanel:not(.riderIn) > #overHat{opacity:0}
-  /* Everything EXCEPT him (or, on a win, his hat-tilt stand-in) gets the
-     staggered entrance. */
-  #overPanel.textIn > :not(#overRider):not(#overHat){
+  #overPanel:not(.riderIn) > #overRider{opacity:0}
+  /* Everything EXCEPT him gets the staggered entrance. */
+  #overPanel.textIn > :not(#overRider){
     animation:overIn .46s cubic-bezier(.16,1.25,.4,1) both;
     animation-delay:calc(var(--d,0) * 1ms)}
   /* `translate`, not `transform`: .ride and .btn are permanently skewed, and a
@@ -790,7 +770,7 @@
      showed up at real worst-case figures (9-digit score/coins/distance);
      .statRow > div's min-width:0 alone was verified against smaller ones
      (see its comment) and looked sufficient until then. */
-  #stats{display:flex;flex-direction:column;flex-shrink:0;margin-top:20px;width:100%;
+  #stats{display:flex;flex-direction:column;flex-shrink:0;margin-top:20px;width:100%;max-width:600px;
          border:3px solid var(--ink);border-radius:6px;
          overflow:hidden;box-shadow:5px 5px 0 var(--ink)}
   .statRow{display:flex}
@@ -1463,10 +1443,6 @@
          ~60px of where he already is, so the move reads as him picking himself
          up and settling, and the card fills in above him. -->
     <img id="overRider" alt="" aria-hidden="true">
-    <!-- The win variant of the same slot — see the CSS on #overHat and
-         overHatTick(). Only one of this and #overRider is ever a flex item
-         at a time (#overPanel.won), so the card never reserves both boxes. -->
-    <div id="overHat" aria-hidden="true"></div>
     <!-- Same floating hudbtn as #lbBack/#howClose, for the same reason: a way
          off this card that doesn't require reading Ride Again / Get Season
          Passes and deciding neither is what you want. -->
@@ -2699,12 +2675,7 @@ const HAT_SRC = {
 };
 const HAT_FPS = 10;         // one tip of the hat a second
 let revealOpen = false, hatT = 0, hatI = -1;
-/* Same sheet, same FPS, on the results card's win variant (#overHat) — see
-   overHatTick(). A separate clock/index from hatT/hatI rather than reusing
-   them: the reveal card is parked for now (see endRun()) but its globals
-   stay live, and two screens sharing one frame index would desync the
-   instant both were ever driven from the same tick. */
-let overHatT = 0, overHatI = -1, overWon = false;
+let overWon = false;
 const FLY_DUR  = 0.72;      // pickup -> its slot in the HUD word
 const FLY_LAND = 0.85;      // when the slot takes over from the badge
 /* Invulnerable from the last pickup until the card is up. Timed off the two
@@ -2822,8 +2793,8 @@ function reset(){
      drawRider's guard is scoped to the "over" state as well, so even a flag
      left set somewhere cannot take him off the water again. */
   overRiderDom = false; overTextIn = false; overTextT = 0; overTilt = 0;
-  overHatT = 0; overHatI = -1; overWon = false;
-  $("overPanel").classList.remove("textIn", "riderIn", "won");
+  overWon = false;
+  $("overPanel").classList.remove("textIn", "riderIn");
   revealed = false;
   ents = []; spray = []; nextZ = 8; comboFree = 0;
   gotLetters = 0; shownLetters = 0; letterZ = LETTER_GAP * 0.55; stampedeT = -1;
@@ -3577,9 +3548,7 @@ function runStampede(){
 /* The results card is now the only screen a run ends on, win or lose —
    showReveal() (the "Coming Summer 2027" ride-name poster) is parked, not
    deleted: it stays reachable from the window global for whenever it comes
-   back. A win instead swaps the results card's own #overRider slot for the
-   hat-tilt animation (#overHat) — see showOver()'s .won toggle and
-   overHatTick(). */
+   back. */
 function endRun(){
   showOver();
 }
@@ -3633,20 +3602,6 @@ function closeReveal(){
   $("reveal").classList.remove("on");
 }
 
-/* Same technique as hatTick(), driving #overHat instead — the results card's
-   win variant. Gated on overWon rather than on #overHat's own visibility
-   (opacity/.riderIn) so the sheet is already on the right frame the instant
-   handOverRider() reveals it, instead of popping in on frame 0. */
-function overHatTick(dt){
-  if (state !== "over" || !overWon) return;
-  overHatT += dt;
-  const i = Math.floor(overHatT * HAT_FPS) % HAT_SRC.x.length;
-  if (i === overHatI) return;
-  overHatI = i;
-  const el = $("overHat");
-  el.style.setProperty("--fx", (HAT_SRC.x[i] / HAT_SRC.h).toFixed(4));
-  el.style.setProperty("--fy", (HAT_SRC.y[i] / HAT_SRC.h).toFixed(4));
-}
 /* Back into the same run, which is what makes it an endless mode rather than a
    level: nothing is reset, so the distance and the buckaroos carry on. */
 /* Score has no ceiling — coins are the only uncapped term in runScore() — so no
@@ -3987,11 +3942,9 @@ function showOver(){
      far up the wall the crash lane was, which the DOM img cannot be, so he
      straightens as he settles and the two poses agree by the time they swap. */
   overTextIn = false; overTextT = 0; overRiderDom = false; overTilt = 1;
-  overHatT = 0; overHatI = -1;
   // Same bar as the (parked) reveal card: a run "won" if it spelled the word.
   overWon = gotLetters >= WORD.length;
   $("overPanel").classList.remove("textIn", "riderIn");
-  $("overPanel").classList.toggle("won", overWon);
 
   const dist = Math.floor(metres), score = runScore();
   setFigure($("fDist"),  dist,  26);
@@ -6559,14 +6512,8 @@ function drawRider(){
      The state test is not redundant with the flag: it is what guarantees this
      can only ever silence him on the screen that replaced him. A flag that
      outlived its screen once already, and an invisible rider is a far worse
-     failure than a double-drawn one.
-     A win never hands him over at all — #overRider stays empty and #overHat
-     takes the slot instead (see showOver()'s .won toggle) — so overRiderDom
-     alone would never flip and the die-pose blit would keep drifting toward
-     that slot for the whole settle beat with nothing to hand off to. Silence
-     him the instant "over" starts on a win, same as the moment he'd
-     otherwise be handed over on a loss. */
-  if (state === "over" && (overRiderDom || overWon)) return;
+     failure than a double-drawn one. */
+  if (state === "over" && overRiderDom) return;
 
   const img = IMG.rider;
   const lift = riderLift();
@@ -7143,7 +7090,6 @@ function frame(now){
   }
   hatTick(dt);                      // outside the guard: the card is only ever
                                     // up while the run is paused
-  overHatTick(dt);                  // same reasoning — the results card too
   render();                         // still drawn, so the frozen frame stays up
   requestAnimationFrame(frame);
 }
