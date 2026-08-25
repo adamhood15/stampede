@@ -195,19 +195,18 @@
      before the bar even starts, then it shrinks with the icons rather than
      overlapping the buttons on a narrow phone. */
   #speedbar{position:absolute;left:50%;box-sizing:border-box;
-            /* .hudbtn's vertical centre sits 14px + half its 48px height above
-               the safe-area line; translateY(50%) re-centres THIS box on that
-               same line using its own (shorter, width-dependent) height, so it
-               lines up with #mute/#pause regardless of how wide the bar is. */
-            bottom:calc(env(safe-area-inset-bottom,0px) + 14px + 24px);
-            transform:translate(-50%, 50%);
+            /* Same 48px height and bottom offset as .hudbtn, so the two line
+               up exactly instead of being centred against each other. */
+            bottom:calc(env(safe-area-inset-bottom,0px) + 14px);
+            height:48px;
+            transform:translateX(-50%);
             display:flex;align-items:center;gap:4px;
             padding:6px 10px;background:rgba(30,48,72,.8);
             border:3px solid var(--ink);border-radius:6px;
             box-shadow:3px 3px 0 var(--ink);
             width:min(320px,calc(100% - (env(safe-area-inset-left,0px) +
               env(safe-area-inset-right,0px) + 144px)))}
-  #speedbar i{flex:1 1 0;min-width:0;aspect-ratio:200/127;
+  #speedbar i{flex:1 1 0;min-width:0;height:100%;
     background:no-repeat center/contain url("assets/sprites/hud/horse-grey.png")}
   #speedbar i.lit{background-image:url("assets/sprites/hud/horse-yellow.png")}
   /* Over top speed: filled horses jitter in place to read as "past the
@@ -1344,7 +1343,7 @@
 
           <div class="hgItem hgWide">
             <div class="hgSpeedbar">
-              <i></i><i></i><i class="lit"></i><i class="lit"></i><i class="lit"></i>
+              <i></i><i class="lit"></i><i class="lit"></i>
               <i class="lit boosted"></i><i class="lit boosted"></i>
             </div>
             <b>Speed</b><span>More horses means more speed!</span>
@@ -3279,7 +3278,7 @@ if (!("ontouchstart" in window)) $("hint").textContent = "hold \u2190 \u2192 ste
 /* ==================================================================
    HUD
    ================================================================== */
-const SPEED_HORSES = 7;
+const SPEED_HORSES = 5;
 const speedbar = $("speedbar");
 for (let i = 0; i < SPEED_HORSES; i++) speedbar.appendChild(document.createElement("i"));
 const speedHorseEls = speedbar.querySelectorAll("i");
@@ -4265,6 +4264,29 @@ function update(dt){
       // (see the T.SEASONPASS branch above) and it's stayed that way through
       // the whole reveal, so this only needs to fade IN.
       Sound.music("seasonPass", null, 0.3);
+    }
+    camX = curveX(travelled); camY = curveY(travelled) - CAM_UP;
+    for (const p of spray){ p.life -= dt; p.x += p.vx*dt; p.y += p.vy*dt; p.vy += 900*dt; }
+    spray = spray.filter(p => p.life > 0);
+    return;
+  }
+
+  /* Season Pass's frozen exit — the same "action pauses" treatment as the
+     intro reveal, for the last SEASONPASS_OUTRO_DUR of seasonPassT while the
+     rider winds up and tosses the card away (frames 07-09). Unlike the intro
+     block, seasonPassT itself keeps ticking down IN HERE rather than being
+     left to the block below, so the outro's own length and the music handoff
+     when it hits 0 land at the exact same instant they did before this froze
+     — only travel/spawns/collisions changed, not timing. */
+  if (seasonPassT > 0 && seasonPassT <= SEASONPASS_OUTRO_DUR){
+    seasonPassT -= dt;
+    if (seasonPassT <= 0){
+      seasonPassT = 0;
+      if (seasonPassMusicPlaying){
+        seasonPassMusicPlaying = false;
+        Sound.musicStop(0.4);
+        Sound.music("ride", null, 0.5);
+      }
     }
     camX = curveX(travelled); camY = curveY(travelled) - CAM_UP;
     for (const p of spray){ p.life -= dt; p.x += p.vx*dt; p.y += p.vy*dt; p.vy += 900*dt; }
@@ -5661,12 +5683,20 @@ function whirlpoolMotes(x, y, h, t){
    instead (seasonPassScreenOverlay()), reusing this motif's white/gold
    palette and pulse but not the function itself.
    ------------------------------------------------------------------ */
-const SEASONPASS_H     = LETTER_H;   // same size as every other pickup now —
-                                     // was 0.72, "the largest of every
-                                     // pickup's footprint, on purpose"; that
-                                     // rarity hierarchy was flattened at
-                                     // Adam's explicit request (see
-                                     // LETTER_H's comment)
+/* Was LETTER_H (0.53) straight, matching every other pickup's DRAWN HEIGHT —
+   but tools/powerup-letter-size-audit.js's footprintArea metric (bboxW x
+   bboxH, not just height) caught what a height-only match missed: season-
+   pass.png's native canvas is 200x126, over 50% wider-than-tall relative to
+   the other icons' own canvases (whirlpool 200x197, extraLife 200x188,
+   fastPass 200x233), so matching HEIGHT alone let the badge's WIDTH balloon
+   out unchecked — +66.7% footprintArea deviation from the other four icons'
+   mean, read on screen as "considerably bigger" despite an identical h.
+   0.393 solves footprintArea = the other four icons' own mean
+   (0.245, vs. their -38% to +10% spread) rather than matching height, since
+   height-matching is what caused this in the first place. Was 0.72 before
+   that flattening pass, for context — see LETTER_H's comment. Re-solve if
+   season-pass.png is re-exported. */
+const SEASONPASS_H     = 0.393;
 const SEASONPASS_LIFT  = 0.46;   // hangs a little above the water, like the others
 const SEASONPASS_WHITE = "252,246,240";   // C.white
 const SEASONPASS_GOLD  = "246,186,0";     // C.gold
@@ -5839,19 +5869,22 @@ function drawEntInner(e){
     const grow = Math.max(0.25, Math.min(1, 1 - (dist - 2) / 14));
     const h = FASTPASS_H * s * grow;
     if (h < 6) return;
-    fastPassGlow(p.x, p.y, h);
+    // Same bob as a letter (LETTER_H's block) — every pickup now bounces the
+    // same way, not just the letters.
+    const by = p.y + Math.sin(performance.now() * 0.005 + e.spin) * h * 0.08;
+    fastPassGlow(p.x, by, h);
     const img = IMG.fastPass;
     if (img){
       const w = h * (img.width / img.height);
-      ctx.drawImage(img, p.x - w / 2, p.y - h / 2, w, h);
+      ctx.drawImage(img, p.x - w / 2, by - h / 2, w, h);
     } else {                          // file still loading, or failed
       const r = h * 0.42;
-      ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 6.284);
+      ctx.beginPath(); ctx.arc(p.x, by, r, 0, 6.284);
       ctx.fillStyle = C.blue; ctx.fill();
       ctx.strokeStyle = C.ink; ctx.lineWidth = Math.max(2, 0.04 * s); ctx.stroke();
       ctx.font = "700 " + (r * 0.9).toFixed(1) + "px " + MONO;
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillStyle = C.yellow; ctx.fillText("FP", p.x, p.y);
+      ctx.fillStyle = C.yellow; ctx.fillText("FP", p.x, by);
       ctx.textBaseline = "alphabetic";
     }
     return;
@@ -5865,19 +5898,21 @@ function drawEntInner(e){
     const grow = Math.max(0.25, Math.min(1, 1 - (dist - 2) / 14));
     const h = SOUVENIR_H * s * grow;
     if (h < 6) return;
-    souvenirGlow(p.x, p.y, h);
+    // Same bob as a letter — see FastPass's block above.
+    const by = p.y + Math.sin(performance.now() * 0.005 + e.spin) * h * 0.08;
+    souvenirGlow(p.x, by, h);
     const img = IMG.souvenir;
     if (img){
       const w = h * (img.width / img.height);
-      ctx.drawImage(img, p.x - w / 2, p.y - h / 2, w, h);
+      ctx.drawImage(img, p.x - w / 2, by - h / 2, w, h);
     } else {                          // file still loading, or failed
       const r = h * 0.42;
-      ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 6.284);
+      ctx.beginPath(); ctx.arc(p.x, by, r, 0, 6.284);
       ctx.fillStyle = C.yellow; ctx.fill();
       ctx.strokeStyle = C.ink; ctx.lineWidth = Math.max(2, 0.04 * s); ctx.stroke();
       ctx.font = "700 " + (r * 0.55).toFixed(1) + "px " + MONO;
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillStyle = C.ink; ctx.fillText("+100", p.x, p.y);
+      ctx.fillStyle = C.ink; ctx.fillText("+100", p.x, by);
       ctx.textBaseline = "alphabetic";
     }
     return;
@@ -5891,24 +5926,26 @@ function drawEntInner(e){
     const grow = Math.max(0.25, Math.min(1, 1 - (dist - 2) / 14));
     const h = EXTRALIFE_H * s * grow;
     if (h < 6) return;
+    // Same bob as a letter — see FastPass's block above.
+    const by = p.y + Math.sin(performance.now() * 0.005 + e.spin) * h * 0.08;
     // Drawn BEFORE the smell lines, unlike Fast Pass/Souvenir's glow-then-
     // sprite order — smell lines rise off the food and read wrong if the tray
     // art draws on top of them and clips their base.
     const img = IMG.extraLife;
     if (img){
       const w = h * (img.width / img.height);
-      ctx.drawImage(img, p.x - w / 2, p.y - h / 2, w, h);
+      ctx.drawImage(img, p.x - w / 2, by - h / 2, w, h);
     } else {                          // file still loading, or failed
       const r = h * 0.42;
-      ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 6.284);
+      ctx.beginPath(); ctx.arc(p.x, by, r, 0, 6.284);
       ctx.fillStyle = "rgb(" + EXTRALIFE_COLOR + ")"; ctx.fill();
       ctx.strokeStyle = C.ink; ctx.lineWidth = Math.max(2, 0.04 * s); ctx.stroke();
       ctx.font = "700 " + (r * 0.9).toFixed(1) + "px " + MONO;
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillStyle = C.white; ctx.fillText("+1", p.x, p.y);
+      ctx.fillStyle = C.white; ctx.fillText("+1", p.x, by);
       ctx.textBaseline = "alphabetic";
     }
-    extraLifeSmellLines(p.x, p.y, h);
+    extraLifeSmellLines(p.x, by, h);
     return;
   }
 
@@ -5924,19 +5961,23 @@ function drawEntInner(e){
     const h = WHIRLPOOL_H * s * grow;
     if (h < 6) return;
     const t = performance.now() * 0.001;
-    whirlpoolHalo(p.x, p.y, h, t);
+    // Same bob as a letter — see FastPass's block above. Purely vertical, so
+    // it doesn't reintroduce the icon rotation Adam had removed (see
+    // whirlpoolMotes's comment) — the badge still holds its own orientation.
+    const by = p.y + Math.sin(performance.now() * 0.005 + e.spin) * h * 0.08;
+    whirlpoolHalo(p.x, by, h, t);
     const img = IMG.whirlpool;
     if (img){
       const w = h * (img.width / img.height);
-      ctx.drawImage(img, p.x - w / 2, p.y - h / 2, w, h);
+      ctx.drawImage(img, p.x - w / 2, by - h / 2, w, h);
     } else {                          // file still loading, or failed
       const r = h * 0.42;
-      ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 6.284);
+      ctx.beginPath(); ctx.arc(p.x, by, r, 0, 6.284);
       ctx.fillStyle = "rgb(" + WHIRLPOOL_RING_COLOR + ")"; ctx.fill();
       ctx.strokeStyle = C.ink; ctx.lineWidth = Math.max(2, 0.04 * s); ctx.stroke();
     }
     // Motes drawn LAST, on top of the icon — see whirlpoolMotes's comment.
-    whirlpoolMotes(p.x, p.y, h, t);
+    whirlpoolMotes(p.x, by, h, t);
     return;
   }
 
@@ -5949,19 +5990,21 @@ function drawEntInner(e){
     const grow = Math.max(0.25, Math.min(1, 1 - (dist - 2) / 14));
     const h = SEASONPASS_H * s * grow;
     if (h < 6) return;
-    seasonPassGlow(p.x, p.y, h, 1);
+    // Same bob as a letter — see FastPass's block above.
+    const by = p.y + Math.sin(performance.now() * 0.005 + e.spin) * h * 0.08;
+    seasonPassGlow(p.x, by, h, 1);
     const img = IMG.seasonPass;
     if (img){
       const w = h * (img.width / img.height);
-      ctx.drawImage(img, p.x - w / 2, p.y - h / 2, w, h);
+      ctx.drawImage(img, p.x - w / 2, by - h / 2, w, h);
     } else {                          // file still loading, or failed
       const r = h * 0.42;
-      ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 6.284);
+      ctx.beginPath(); ctx.arc(p.x, by, r, 0, 6.284);
       ctx.fillStyle = "rgb(" + SEASONPASS_GOLD + ")"; ctx.fill();
       ctx.strokeStyle = C.ink; ctx.lineWidth = Math.max(2, 0.04 * s); ctx.stroke();
       ctx.font = "700 " + (r * 0.62).toFixed(1) + "px " + MONO;
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillStyle = C.white; ctx.fillText("SP", p.x, p.y);
+      ctx.fillStyle = C.white; ctx.fillText("SP", p.x, by);
       ctx.textBaseline = "alphabetic";
     }
     return;
@@ -6553,7 +6596,12 @@ function drawRider(){
   // clock that only pauses in states this branch already excludes, rather
   // than to invuln/seasonPassT themselves, so the flash phase stays
   // continuous across a hit landing mid-reveal instead of resetting.
-  if ((invuln > 0 || seasonPassT > 0) && lives > 0 && Math.floor(runT * 12) % 2 === 0) return;
+  // Excluded once seasonPassT drops into its own frozen exit window
+  // (SEASONPASS_OUTRO_DUR) — no hit can land there (update() is frozen, same
+  // as the intro reveal), and runT itself stops advancing through it, so
+  // without this the rider would just get stuck on whichever flash phase it
+  // entered on instead of reading as a clean, un-flashed send-off.
+  if ((invuln > 0 || seasonPassT > SEASONPASS_OUTRO_DUR) && lives > 0 && Math.floor(runT * 12) % 2 === 0) return;
 
   const h = Math.max(0.52 * S, H * 0.12);
   if (!img){                                     // stand-in rider
@@ -6863,20 +6911,20 @@ function fastPassLabel(){
    him rather than a collectible icon trailing him — paired with drawRider()
    playing the SPIN turntable frames for the same duration, so both halves of
    the cue read as one effect. Drawn from floorPt(travelled, laneA, ...)
-   exactly like drawRider() itself, so it tracks his lean, but at a FIXED
-   lift rather than riderLift() — it stays on the water surface even when he
-   jumps, rather than following him into the air (Adam's earlier call, still
-   holds: a swirl in the water he's riding over, not something that trails
-   him into a jump). Called BEFORE drawRider() in render() so his tube
-   visibly sits on top of it — "surrounding" him means visible past his
-   silhouette on every side, not drawn over him. */
-const WHIRLPOOL_ACTIVE_LIFT = 0.16;   // just above the water, like a coin
-                                      // (0.34) but lower — this reads as ON
-                                      // the surface, not hovering over it
+   exactly like drawRider() itself, so it tracks his lean. Called BEFORE
+   drawRider() in render() so his tube visibly sits on top of it —
+   "surrounding" him means visible past his silhouette on every side, not
+   drawn over him.
+   Lift was originally a FIXED value rather than riderLift(), so the swirl
+   stayed on the water surface through a jump instead of following him up —
+   Adam's call at the time. Reversed 2026-08-25: it now reads as centred on
+   the RIDER at every moment, same "the power radiates from you" reasoning
+   as Season Pass's screen overlay, so it uses riderLift() directly and
+   rises with him through a jump like the rest of his own silhouette does. */
 function whirlpoolActive(){
   if (whirlpoolT <= 0) return;
   const S = focal / CAM_DZ;
-  const p = floorPt(travelled, laneA, WHIRLPOOL_ACTIVE_LIFT);
+  const p = floorPt(travelled, laneA, riderLift());
   // Sized off the RIDER's own drawn height (drawRider's `h`), not the old
   // tube-footprint base — the swirl now has to clear his whole silhouette on
   // every side to read as surrounding him, not just peek out from behind him.
@@ -6903,6 +6951,21 @@ function whirlpoolActive(){
    entire presentation, pickup to power-down — drawn in fixed screen space
    (see its render() call, alongside fastPassLabel()) since a screen tint has
    no business banking with a camera turn the way a world object would. */
+// Screen-scale companions to the wash above, added for "epic" flair
+// (Adam: gold-only read as flat) without adding a SINGLE animated element —
+// every draw below is a gradient fill or a fixed wedge fan, the same
+// complexity class as the wash itself and as letterSun()'s icon-scale rays,
+// just re-tuned for full-screen cost:
+//  - ray count is under letterSun's SUN_RAYS (13) because a full-screen
+//    wedge covers far more raster area per ray than a small pickup icon's —
+//    the count is what's kept cheap, not the technique itself.
+//  - the spin is a fraction of SUN_SPIN — a slow searchlight sweep reads as
+//    "epic", a fast one reads as a pinwheel and fights the pulse.
+const SEASONPASS_OVERLAY_RAY_N    = 8;
+const SEASONPASS_OVERLAY_RAY_SPIN = 0.12;   // rad/s
+const SEASONPASS_VIGNETTE = "10,8,2";       // near-black, warmed slightly so
+                                             // the darkened edge doesn't read
+                                             // cold against the gold wash
 function seasonPassScreenOverlay(){
   if (seasonPassIntroT <= 0 && seasonPassT <= 0) return;
   // Fades in over the reveal's first third-second, holds fully opaque
@@ -6914,12 +6977,64 @@ function seasonPassScreenOverlay(){
   if (k <= 0.01) return;
   const t = performance.now() * 0.001;
   const pulse = 0.5 + 0.5 * Math.sin(t * SEASONPASS_PULSE_HZ * 6.283);
-  const cx = W / 2, cy = horizon, r = Math.max(W, H) * 0.85;
+  const r = Math.max(W, H) * 0.85;
+
+  /* Centred on the rider, not the vanishing point — "the power radiates from
+     YOU" reads more epic than a fixed sky-high origin, and it's what Adam
+     asked for after seeing the first pass. drawRider() computes this same
+     point (floorPt(travelled, laneA, riderLift())) but draws it INSIDE the
+     rolled camera transform; this function runs AFTER that transform is
+     reset to fixed screen space (see its render() call), so the point has to
+     be un-rolled by hand — the exact same "un-roll a world point for a
+     fixed-screen draw" shape flyLetter()/flySouvenir() already use for the
+     same reason. h*0.38 lifts the anchor from his tube up to the sprite's
+     own visual centre (see drawRider()'s die-pose comment for that same
+     0.38h constant). */
+  const riderP = floorPt(travelled, laneA, riderLift());
+  const riderH = Math.max(0.52 * (focal / CAM_DZ), H * 0.12);
+  const roll = rollAngle(), rcs = Math.cos(roll), rsn = Math.sin(roll);
+  const rdx = riderP.x - W / 2, rdy = (riderP.y - riderH * 0.38) - horizon;
+  const cx = W / 2 + rdx * rcs - rdy * rsn, cy = horizon + rdx * rsn + rdy * rcs;
+
+  /* Rays UNDER the wash — letterSun()'s own "one shared gradient, N wedges"
+     fan (the park's own visual language), reused rather than a new motif
+     invented from scratch, at screen scale and a slow, searchlight-speed
+     spin. Drawn first so the wash and vignette below settle over it, the
+     same back-to-front order letterSun's core-then-rays uses. */
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(t * SEASONPASS_OVERLAY_RAY_SPIN);
+  const rayA = (0.11 + 0.05 * pulse) * k;
+  const ray = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
+  ray.addColorStop(0,   "rgba(" + SEASONPASS_WHITE + "," + rayA.toFixed(3) + ")");
+  ray.addColorStop(0.6, "rgba(" + SEASONPASS_GOLD  + "," + (rayA * 0.7).toFixed(3) + ")");
+  ray.addColorStop(1,   "rgba(" + SEASONPASS_GOLD  + ",0)");
+  ctx.fillStyle = ray;
+  const step = Math.PI / SEASONPASS_OVERLAY_RAY_N;
+  for (let i = 0; i < SEASONPASS_OVERLAY_RAY_N; i++){
+    const a0 = i * 2 * step;
+    ctx.beginPath(); ctx.moveTo(0, 0);
+    ctx.arc(0, 0, r, a0, a0 + step);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+
   const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
   g.addColorStop(0,    "rgba(" + SEASONPASS_WHITE + "," + ((0.16 + 0.06 * pulse) * k).toFixed(3) + ")");
   g.addColorStop(0.45, "rgba(" + SEASONPASS_GOLD  + "," + ((0.14 + 0.06 * pulse) * k).toFixed(3) + ")");
   g.addColorStop(1,    "rgba(" + SEASONPASS_GOLD  + ",0)");
   ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+
+  /* Vignette: darkens the corners rather than brightening the middle further
+     — the wash above is already close to as bright as it can go before
+     washing out the HUD, so the "epic" push comes from raising CONTRAST at
+     the edges instead. One more radial gradient fill, same cost as the wash
+     it sits on top of. */
+  const vg = ctx.createRadialGradient(cx, cy, r * 0.5, cx, cy, r * 1.05);
+  vg.addColorStop(0, "rgba(" + SEASONPASS_VIGNETTE + ",0)");
+  vg.addColorStop(1, "rgba(" + SEASONPASS_VIGNETTE + "," + (0.30 * k).toFixed(3) + ")");
+  ctx.fillStyle = vg;
   ctx.fillRect(0, 0, W, H);
 }
 
