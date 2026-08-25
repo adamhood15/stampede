@@ -84,10 +84,19 @@ in [DATABASE.md](DATABASE.md).
   hierarchy — Season Pass documented as "the biggest power-up... by design")
   which read as visibly inconsistent sizes; flattened at Adam's explicit
   request (2026-08-25) so every pickup (letters, Fast Pass, Souvenir, Extra
-  Life, Whirlpool, Season Pass) now renders at the same height (`LETTER_H`),
-  and every pickup's own glow now reaches the same fraction of its icon's
-  height (`SUN_R` = 0.85, shared by every glow's own reach constant). See
-  `LETTER_H`'s comment in `index.html` for the full rationale.
+  Life, Whirlpool, Season Pass) now renders at roughly the same on-screen
+  footprint, and every pickup's own glow now reaches the same fraction of
+  its icon's height (`SUN_R` = 0.85, shared by every glow's own reach
+  constant). Matching every `*_H` to the same literal (`LETTER_H`) got the
+  first four right but missed Season Pass: season-pass.png's native canvas
+  is unusually wide-and-flat (200x126, vs. the others' roughly square-to-tall
+  canvases), so matching HEIGHT alone let its WIDTH balloon out unchecked —
+  read as "considerably bigger" on a real device despite an identical `H`.
+  Caught after the fact by re-running the same audit's `footprintArea`
+  metric (bounding-box area, not just height) against a live screenshot;
+  fixed by solving `SEASONPASS_H` (0.393, not `LETTER_H`) for the footprint
+  the other four icons actually average, not for a matching height. See
+  `SEASONPASS_H`'s own comment in `index.html` for the full rationale.
 - 
 
 

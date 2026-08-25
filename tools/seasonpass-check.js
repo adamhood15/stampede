@@ -13,6 +13,13 @@
 // - it only ever spawns once per run
 // - the outro (sp6-sp8) plays in the last SEASONPASS_OUTRO_DUR of seasonPassT
 //   and the whole effect + its music end together
+// - the outro is ALSO frozen, same as the intro reveal -- travelled/collisions
+//   hold still through it, but seasonPassT keeps ticking down inside the
+//   freeze so the "ride" music handoff lands at exactly the same instant it
+//   always did
+// - the invuln/Season-Pass flash on the rider sprite is suppressed once
+//   inside that frozen outro window, so the send-off reads clean instead of
+//   getting stuck on whatever flash phase it entered on
 //
 // node tools/seasonpass-check.js
 
@@ -106,17 +113,82 @@ async function main() {
     allPass &= ok("cow hit during the active effect costs no life", afterHit.lives === beforeLives, { beforeLives, afterHit });
     allPass &= ok("cow hit during the active effect fires the safe cue", afterHit.safeCount >= 1, afterHit);
 
-    // --- Run the effect out: outro frames, then everything ends together ---
+    // --- Run down to the frozen outro's threshold, then verify the freeze ---
+    const atOutro = await evaluate(session, `
+      (() => {
+        while (seasonPassT > SEASONPASS_OUTRO_DUR) update(0.016);
+        return { seasonPassT, frame: seasonPassFrame() };
+      })()
+    `);
+    allPass &= ok("crossed into the outro window", atOutro.seasonPassT <= 1.8 && atOutro.seasonPassT > 1.0, atOutro);
+
+    const outroFrozen = await evaluate(session, `
+      (() => {
+        const before = travelled;
+        for (let i = 0; i < 20; i++) update(0.016);   // well inside the 1.8s outro
+        return { before, after: travelled, seasonPassT };
+      })()
+    `);
+    allPass &= ok("travelled does not advance during the frozen outro", outroFrozen.after === outroFrozen.before, outroFrozen);
+
+    const duringOutroFreeze = await evaluate(session, `
+      (() => {
+        const livesBefore = lives;
+        add(T.COW, travelled + 0.05, 0);
+        for (let i = 0; i < 10; i++) update(0.016);
+        return { livesBefore, livesAfter: lives, seasonPassT };
+      })()
+    `);
+    allPass &= ok("no life lost during the frozen outro (collision loop doesn't run)", duringOutroFreeze.livesAfter === duringOutroFreeze.livesBefore, duringOutroFreeze);
+
+    // --- The invuln/Season-Pass flash must be OFF for the whole frozen outro ---
+    const flashDuringOutro = await evaluate(session, `
+      (() => { window.__saves = 0; const orig = ctx.save.bind(ctx);
+        ctx.save = function(){ window.__saves++; return orig(); };
+        const drawsAt = [];
+        for (let i = 0; i < 24; i++){ window.__saves = 0; drawRider(); drawsAt.push(window.__saves); runT += 1/12; }
+        ctx.save = orig;
+        return { drawsAt, allDrawn: drawsAt.every(n => n > 0) };
+      })()
+    `);
+    allPass &= ok("rider is drawn every frame through the frozen outro (flash suppressed)", flashDuringOutro.allDrawn, flashDuringOutro);
+
+    // --- Sanity: the SAME flash mechanism DOES skip frames outside the outro window ---
+    const flashOutsideOutro = await evaluate(session, `
+      (() => {
+        const savedT = seasonPassT; seasonPassT = SEASONPASS_DUR;   // deep into the effect, well before the outro
+        window.__saves = 0; const orig = ctx.save.bind(ctx);
+        ctx.save = function(){ window.__saves++; return orig(); };
+        const drawsAt = [];
+        for (let i = 0; i < 24; i++){ window.__saves = 0; drawRider(); drawsAt.push(window.__saves); runT += 1/12; }
+        ctx.save = orig; seasonPassT = savedT;
+        return { drawsAt, someSkipped: drawsAt.some(n => n === 0) };
+      })()
+    `);
+    allPass &= ok("flash mechanism still skips frames well before the outro (sanity check)", flashOutsideOutro.someSkipped, flashOutsideOutro);
+
+    // --- Run the outro out: everything (timer, music handoff) ends at the same instant ---
+    const musicSpy = await evaluate(session, `
+      (() => {
+        window.__musicCalls = [];
+        const orig = Sound.music.bind(Sound);
+        Sound.music = function(name, cb, vol){ window.__musicCalls.push(name); return orig(name, cb, vol); };
+        return true;
+      })()
+    `);
     const expiry = await evaluate(session, `
       (() => {
+        const beforeTravelled = travelled;
         while (seasonPassT > 0.02) update(0.016);
         const frameJustBefore = seasonPassFrame();
         update(0.05);
-        return { frameJustBefore, seasonPassT };
+        return { frameJustBefore, seasonPassT, travelledAdvanced: travelled > beforeTravelled, musicCalls: window.__musicCalls };
       })()
     `);
     allPass &= ok("animation reaches the last frame (index 8) as the effect ends", expiry.frameJustBefore === 8, expiry);
     allPass &= ok("seasonPassT reaches exactly 0", expiry.seasonPassT === 0, expiry);
+    allPass &= ok("travelled still frozen for the run-out of the outro", !expiry.travelledAdvanced, expiry);
+    allPass &= ok("music hands back to \"ride\" exactly once, at the same instant as before", expiry.musicCalls.filter(n => n === "ride").length === 1, expiry);
 
     // --- One-per-run ---
     const onceState = await evaluate(session, `

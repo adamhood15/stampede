@@ -258,9 +258,16 @@ The active-cue icon is **static**, not rotating — rotation read as "the badge
 is spinning," not "things are being pulled in." The vortex motion lives in
 `whirlpoolMotes()` (dots spiraling outer-ring-to-centre, drawn in front of the
 icon — behind it, the icon's own sparkle art hides most motes). The cue is
-drawn **under** the rider at a small fixed lift (`WHIRLPOOL_ACTIVE_LIFT =
-0.16`, not tied to `riderLift()`) — a vortex he's riding over, not a badge
-trailing him — called before `drawRider()` so his tube sits on top of it.
+drawn **under** the rider, called before `drawRider()` so his tube sits on top
+of it. It originally sat at a small fixed lift regardless of `riderLift()` —
+a vortex he's riding over, not a badge trailing him — but that read as
+disconnected from the rider through a jump (the swirl stayed on the water
+while he rose), so it was switched to `riderLift()` directly (2026-08-25),
+same lift `drawRider()` itself uses, so the swirl now rises with him.
+`whirlpoolActive()` runs inside the same rolled camera transform `drawRider()`
+does, so no extra un-roll math was needed for this change — see Season Pass's
+screen overlay below for a case where that WAS needed (it draws in fixed
+screen space instead).
 `floorPt(z, a, lift)`'s `lift` argument is **not safe above ~1** — its
 vertical term is `cos(a) * (1 - lift)`, which flips sign past `lift=1` and
 sends the point rocketing up-screen.
@@ -317,6 +324,22 @@ directly, not the stinger sample's own `onended`, so the freeze/reveal
 animation and the music switch stay in lockstep even if `seasonPass()` falls
 back to its synth tones. Total presentation is intro (3s) + effect (9s), not
 one flat 10s/12s number.
+
+The exit gets the same "action pauses" treatment as the intro, not just a
+cosmetic wind-up: `update()` early-returns again once `seasonPassT` drops to
+`SEASONPASS_OUTRO_DUR` (1.8s) or below — travelled/speed/spawns/collisions
+hold still exactly as they do during the intro reveal, only cosmetic particle
+decay keeps running. Unlike the intro clock, `seasonPassT` itself still ticks
+down inside this frozen block (it has to — it's what the rest of the effect
+is timed off), so `SEASONPASS_OUTRO_DUR`'s own length and the music handoff to
+`"ride"` when it reaches 0 land at the exact same instant they always did;
+freezing the world changed nothing about the music timing. The post-hit/
+Season-Pass invulnerability flash (`drawRider()`, keyed to `seasonPassT > 0`)
+is deliberately excluded once inside this window — checks
+`seasonPassT > SEASONPASS_OUTRO_DUR` instead — since `runT` (the flash's own
+clock) stops advancing through the freeze too, and without the exclusion the
+rider would just get stuck on whichever flash phase it entered on rather than
+reading as a clean send-off.
 
 Every mechanical effect starts together the instant `seasonPassT` takes over:
 - **Invincibility.** `hitRider()`'s very first line is
@@ -392,6 +415,34 @@ Every mechanical effect starts together the instant `seasonPassT` takes over:
   opaque, then fades out over the effect's last 0.3s rather than popping in
   or vanishing mid-frame. This is what rule 7 hangs on for the whole
   presentation now.
+
+  Two more layers were added on top of the wash (2026-08-25, "make it feel
+  more epic" without adding perf-intensive animation): a slow-rotating
+  sunburst ray fan reusing `letterSun()`'s own "one shared gradient, N
+  wedges" technique — the park's existing visual language — just re-tuned
+  for screen scale (`SEASONPASS_OVERLAY_RAY_N` = 8, well under `SUN_RAYS`'
+  13, since a full-screen wedge covers far more raster area per ray than a
+  small pickup icon's; `SEASONPASS_OVERLAY_RAY_SPIN` = 0.12 rad/s, a
+  fraction of `SUN_SPIN`'s 0.95, so it reads as a searchlight sweep rather
+  than a pinwheel); and a radial vignette that darkens the corners rather
+  than brightening the centre further, for contrast instead of intensity.
+  Both are draw calls only — gradient fills and a fixed 8-wedge fan, no
+  particles, no per-frame arrays, same complexity class as the wash they sit
+  alongside.
+
+  All three layers (rays, wash, vignette) are centred on the RIDER, not the
+  vanishing point — Adam's follow-up after seeing the first pass, "the power
+  radiates from you" rather than from a fixed point high in the sky. The
+  centre is computed by hand rather than drawn inside the rolled camera
+  transform `drawRider()` itself uses: this function runs in fixed screen
+  space, after that transform has already been reset (see its `render()`
+  call, alongside `fastPassLabel()`), so `floorPt(travelled, laneA,
+  riderLift())` is un-rolled by `rollAngle()`'s cos/sin the same way
+  `flyLetter()`/`flySouvenir()` already un-roll a world point for a
+  fixed-screen draw — same shape, reused rather than re-derived. `riderH *
+  0.38` lifts the anchor from the tube up to the sprite's own visual centre
+  (the constant `drawRider()`'s die-pose placement comment already
+  documents).
 
 **The music** is deliberately sequential, not layered, but timed off the
 INTRO CLOCK rather than the stinger sample's own end: `Sound.seasonPass()`
