@@ -101,13 +101,22 @@
   #letters.gone{display:none}
   /* Below the boards on narrow screens: at full size the word plus both boards
      overrun a phone's width and the letters end up underneath them. */
-  /* 78px clears a single row of boards. The left column went to two boards
-     (Descent over Score) during the leaderboard work, which pushed this to
-     150px; item 5 dropped Descent from the HUD (distance still lives on the
-     results card), so the left column is one board again and this reverts —
-     re-measured, not assumed, since the collision before only showed up once
-     the score had enough digits to widen the board. */
-  @media (max-width:560px){ #letters{top:calc(env(safe-area-inset-top,0px) + 90px)} 
+  /* 90px cleared a single row of boards, but not #tubes underneath the
+     Buckaroos board — #hudRight's own content runs 14px (hud's padding-top)
+     + 61px (board) + 10px (#tubes margin-top) + ~18px (.tube's own height,
+     19px wide at its 30/28 aspect ratio) = ~103px past the safe-area line,
+     and #tubes is right-aligned while #letters is centred, so the two only
+     ever collided once #tubes' row grew wide enough to reach under the
+     centre — which normally only happens with Extra Life's bonus tube
+     pushing the row to 4 (3 lives + 1), never with the base 3. 112px clears
+     that full row with a small margin instead of just the board, so the
+     letters sit below #tubes at every tube count. The left column went to
+     two boards (Descent over Score) during the leaderboard work, which
+     pushed this to 150px; item 5 dropped Descent from the HUD (distance
+     still lives on the results card), so the left column is one board again
+     — re-measured, not assumed, since the collision before only showed up
+     once the score had enough digits to widen the board. */
+  @media (max-width:560px){ #letters{top:calc(env(safe-area-inset-top,0px) + 112px)}
 .board .val {font-size:20px} }
   .word{display:flex;justify-content:center}
   /* Each letter is a window onto its own artwork file rather than type: the
@@ -177,7 +186,7 @@
     /* The card's copy still WAITS for Typhoon — that is sequencing, not motion,
        and it is the whole point of the beat. It just fades in place instead of
        rising, keeping the same stagger so the order still reads. */
-    #overPanel.textIn > :not(#overRider){animation-name:overFade}
+    #overPanel.textIn > :not(#overRider):not(#overHat){animation-name:overFade}
     @keyframes overFade{from{opacity:0} to{opacity:1}}
   }
 
@@ -251,6 +260,24 @@
      him. He is only ever about a tenth of the viewport wide, so there is nothing
      for it to save. */
   #overRider{flex:none;display:block;margin-top:20px}
+  /* The win variant of the same slot. Mutually exclusive with #overRider via
+     .won on #overPanel (set in showOver) rather than both ever being flex
+     items at once — either would reserve its own box and the column would
+     carry a second, empty gap for whichever one isn't showing.
+     Same background-sheet technique as #revealHat (same PNG, same HAT_SRC
+     windowing), just its own --hh — this slot's box has no reason to share
+     #overRider's die2-registered aspect ratio, and hat-tilt is a standing
+     pose, not a tube-registered one. */
+  #overPanel.won > #overRider{display:none}
+  #overPanel:not(.won) > #overHat{display:none}
+  #overHat{flex:none;display:block;margin-top:20px;
+    --hh:clamp(64px,17vh,150px);
+    height:var(--hh);width:calc(var(--hh) * .6765);
+    background-image:url("assets/sprites/typhoon-sprites/hat-tilt/typhoon-hat-tilt.png");
+    background-repeat:no-repeat;
+    background-size:calc(var(--hh) * 3.7647) auto;
+    background-position:calc(var(--hh) * var(--fx) * -1) calc(var(--hh) * var(--fy) * -1);
+    filter:drop-shadow(0 8px 0 rgba(10,10,10,.25))}
 
   /* The copy WAITS for Typhoon. He settles into #overRider — the slot at the
      FOOT of this card — over about a second after the wipeout, and the card used
@@ -270,9 +297,11 @@
      into place, and this img must not show or there would be two of him.
      No fade: it is a swap between two identical rectangles inside one frame, and
      any transition would show the seam it is there to hide. */
-  #overPanel:not(.riderIn) > #overRider{opacity:0}
-  /* Everything EXCEPT him gets the staggered entrance. */
-  #overPanel.textIn > :not(#overRider){
+  #overPanel:not(.riderIn) > #overRider,
+  #overPanel:not(.riderIn) > #overHat{opacity:0}
+  /* Everything EXCEPT him (or, on a win, his hat-tilt stand-in) gets the
+     staggered entrance. */
+  #overPanel.textIn > :not(#overRider):not(#overHat){
     animation:overIn .46s cubic-bezier(.16,1.25,.4,1) both;
     animation-delay:calc(var(--d,0) * 1ms)}
   /* `translate`, not `transform`: .ride and .btn are permanently skewed, and a
@@ -353,16 +382,19 @@
   .controls{margin-top:18px;display:flex;gap:10px;justify-content:center;
             width:100%;max-width:560px}
   .ctl{flex:1 1 0;min-width:0;max-width:180px;display:flex;flex-direction:column;
-       align-items:center;gap:5px;padding:12px 8px 11px;border-radius:8px;
+       align-items:center;gap:6px;padding:14px 8px 12px;border-radius:8px;
        background:rgba(30,48,72,.55);border:3px solid var(--ink);
        box-shadow:4px 4px 0 var(--ink)}
   .ctl .cap{display:flex;align-items:center;justify-content:center;
             min-width:52px;height:40px;padding:0 10px;border-radius:6px;
             background:var(--white);color:var(--ink);border:3px solid var(--ink);
             box-shadow:0 4px 0 var(--ink);font-size:19px;line-height:1}
+  /* Title/caption type shared verbatim with .haz b/span and .hgItem b/span —
+     one card vocabulary for every section on the how-to-play card, not three
+     near-identical ones drifting apart a property at a time. */
   .ctl b{font-family:var(--display);text-transform:uppercase;transform:skewX(-7deg);
-         font-size:18px;letter-spacing:.04em;color:var(--white);margin-top:2px}
-  .ctl span{font-size:9px;line-height:1.6;letter-spacing:.08em;text-transform:uppercase;
+         font-size:17px;letter-spacing:.04em;color:var(--white)}
+  .ctl span{font-size:9px;line-height:1.6;letter-spacing:.1em;
             color:rgba(252,246,240,.72)}
   /* Slide/Jump/Duck stay in one row on the how-to card too, same compact
      vertical .ctl the title screen uses — the paragraph-length explanation
@@ -650,7 +682,7 @@
 
   #hazards,#powerups{margin-top:16px;display:grid;gap:12px;
            grid-template-columns:repeat(auto-fit,minmax(132px,1fr))}
-  .haz{display:flex;flex-direction:column;align-items:center;gap:5px;
+  .haz{display:flex;flex-direction:column;align-items:center;gap:6px;
        padding:14px 8px 12px;border-radius:8px;background:rgba(30,48,72,.55);
        border:3px solid var(--ink);box-shadow:4px 4px 0 var(--ink)}
   .haz img,.haz svg{width:100%;max-width:88px;height:62px;object-fit:contain;
@@ -660,8 +692,11 @@
   /* One card style for every entry, tunnel included. It used to take a green
      background, a green accent line and the whole row to itself, which made it
      read as a different KIND of thing — a banner sitting under the grid rather
-     than the fifth card in it. */
-  .haz span{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:rgba(252,246,240,.72)}
+     than the fifth card in it.
+     Sentence case, not uppercase — matches .hgItem span. The captions here are
+     now full sentences ("Ride through for a speed boost!"), and shouting a
+     whole sentence reads worse than shouting a two-word label did. */
+  .haz span{font-size:9px;line-height:1.6;letter-spacing:.1em;color:rgba(252,246,240,.72)}
 
   /* ---------- HUD guide ----------
      Same one-card-per-entry grid as #hazards, but the tiles are not all the
@@ -672,7 +707,7 @@
      sections each get their own instance of this grid. */
   .hudGuide{margin-top:16px;display:grid;gap:12px;
             grid-template-columns:repeat(auto-fit,minmax(132px,1fr))}
-  .hgItem{display:flex;flex-direction:column;align-items:center;gap:7px;
+  .hgItem{display:flex;flex-direction:column;align-items:center;gap:6px;
           padding:14px 8px 12px;border-radius:8px;background:rgba(30,48,72,.55);
           border:3px solid var(--ink);box-shadow:4px 4px 0 var(--ink)}
   .hgItem b{font-family:var(--display);text-transform:uppercase;transform:skewX(-7deg);
@@ -749,7 +784,14 @@
      clipped #statRank (the last row) almost entirely out of existence and
      out of reach. Verified on a Samsung S23-realistic 360x650 viewport with
      every stat at once triggering "New best". */
-  #stats{display:flex;flex-direction:column;flex-shrink:0;margin-top:20px;
+  /* width:100% is load-bearing, same trap as .statRow > div below but one
+     level up: #overPanel is align-items:center, not stretch, so without an
+     explicit width #stats sizes to its own content instead of the panel's
+     available width — and centers the overflow evenly past both edges. Only
+     showed up at real worst-case figures (9-digit score/coins/distance);
+     .statRow > div's min-width:0 alone was verified against smaller ones
+     (see its comment) and looked sufficient until then. */
+  #stats{display:flex;flex-direction:column;flex-shrink:0;margin-top:20px;width:100%;
          border:3px solid var(--ink);border-radius:6px;
          overflow:hidden;box-shadow:5px 5px 0 var(--ink)}
   .statRow{display:flex}
@@ -1087,6 +1129,7 @@
   /* Waiting on the tap that buys us audio. The percentage has done its job by
      now, so it steps aside and the prompt takes the eye. */
   #load.gate{cursor:pointer}
+  #load.gate #loadTrack{display:none}
   #load.gate #loadPct{display:none}
   #load.gate #loadMsg{color:var(--yellow);font-size:13px;
                       animation:pulse 1.5s ease-in-out infinite}
@@ -1189,87 +1232,129 @@
       <h2 class="ride howHead">Stampede</h2>
 
       <section class="howSec">
-        <h3>Complete the word</h3>
+        <h3>Complete the Word</h3>
         <div id="howWord" class="word"></div>
-        <p>Eight letters are scattered down the flume, offered one at a time.
-           Bank all eight in a single run to finish the ride and unlock the
-           reveal. Miss one and it comes back around — but the run has to last.</p>
+        <p>Round up all 8 STAMPEDE letters before your run ends!</p>
       </section>
 
       <section class="howSec">
         <h3>Grab Buckaroos</h3>
         <img class="howCoin" id="howCoin" alt="">
-        <p>Coins are pure score. They cost you nothing to take and nothing to
-           miss, so chase them for the leaderboard.</p>
+        <p>Grab Buckaroos along the way to boost your score!</p>
       </section>
 
       <section class="howSec">
-        <h3>Dodge, jump, duck</h3>
-        <p class="howLead">Every hazard has one right answer. Hit one and it
-           costs a life — three and the run is over.</p>
+        <h3>Controls</h3>
+        <p class="howLead">Steer, jump, and duck your way down the slide!</p>
+        <div class="controls">
+          <div class="ctl">
+            <div class="cap">&larr;&nbsp;&rarr;</div>
+            <b>Slide</b>
+            <span class="kb">Hold &larr; or &rarr; to steer.</span>
+            <span class="tc">Hold and move left or right.</span>
+          </div>
+          <div class="ctl">
+            <div class="cap">&uarr;</div>
+            <b>Jump</b>
+            <span class="kb">Press &uarr;, W, or Space.</span>
+            <span class="tc">Tap or flick up.</span>
+          </div>
+          <div class="ctl">
+            <div class="cap">&darr;</div>
+            <b>Duck</b>
+            <span class="kb">Press &darr; or S.</span>
+            <span class="tc">Flick down and hold.</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="howSec">
+        <h3>Dodge, Jump &amp; Duck</h3>
+        <p class="howLead">Dodge the hazards and hang on to your 3 lives!</p>
         <div id="hazards">
-          <div class="haz"><img id="hazCow" alt=""><b>Cow tube</b><span>Slide around</span></div>
-          <div class="haz"><img id="hazYeti" alt=""><b>Snowman tube</b><span>Slide around</span></div>
-          <div class="haz"><img id="hazWave" alt=""><b>Wave</b><span>Jump it</span></div>
-          <div class="haz"><img id="hazPig" alt=""><b>Pig jet</b><span>Duck under</span></div>
-          <div class="haz good">
+          <div class="haz"><img id="hazCow" alt=""><b>Cow Tube</b><span>Slide around it!</span></div>
+          <div class="haz"><img id="hazYeti" alt=""><b>Snowman Tube</b><span>Slide around it!</span></div>
+          <div class="haz"><img id="hazWave" alt=""><b>Wave</b><span>Jump over it!</span></div>
+          <div class="haz"><img id="hazPig" alt=""><b>Pig Jet</b><span>Duck under it!</span></div>
+          <div class="haz">
             <!-- style, not fill/stroke attributes: var() is not substituted in
-                 SVG presentation attributes, only in CSS declarations. -->
+                 SVG presentation attributes, only in CSS declarations. Matches
+                 the real T.TUNNEL draw (index.html's render loop): a golden
+                 ribbed arch over a dark bore, with water visible at its
+                 mouth, rather than the flat two-tone horseshoe this replaced. -->
             <svg viewBox="0 0 60 44" aria-hidden="true">
-              <path d="M4 42V24a26 26 0 0 1 52 0v18"
-                    style="fill:var(--yellow);stroke:var(--ink);stroke-width:5;stroke-linejoin:round"/>
-              <path d="M18 42V25a12 12 0 0 1 24 0v17"
-                    style="fill:var(--navy);stroke:var(--ink);stroke-width:5;stroke-linejoin:round"/>
+              <defs>
+                <linearGradient id="tunGold" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stop-color="#fff6a8"/>
+                  <stop offset=".35" stop-color="#fcea00"/>
+                  <stop offset=".7" stop-color="#f6ba00"/>
+                  <stop offset="1" stop-color="#a86e00"/>
+                </linearGradient>
+              </defs>
+              <path d="M6 40V28a24 24 0 0 1 48 0v12"
+                    style="fill:url(#tunGold);stroke:var(--ink);stroke-width:4;stroke-linejoin:round"/>
+              <path d="M17 40V29a13 13 0 0 1 26 0v11"
+                    style="fill:var(--navy);stroke:var(--ink);stroke-width:3;stroke-linejoin:round"/>
+              <path d="M23 40V32a7 7 0 0 1 14 0v8"
+                    style="fill:none;stroke:#7a5200;stroke-width:2"/>
+              <path d="M25 40Q30 35 35 40Z"
+                    style="fill:var(--blue);stroke:var(--blue-dp);stroke-width:1"/>
             </svg>
-            <b>Tunnel</b><span>Ride through &mdash; free speed</span>
+            <b>Tunnel</b><span>Ride through for a speed boost!</span>
           </div>
         </div>
       </section>
 
       <section class="howSec">
         <h3>Power-Ups</h3>
-        <p class="howLead">Rare pickups riding down the flume — grab one before
-           it passes you by.</p>
+        <p class="howLead">Snag Power-Ups for a little extra help on the trail!</p>
         <div id="powerups">
-          <div class="haz good"><img id="hazFastPass" alt=""><b>Fast Pass</b><span>Surges you past top speed</span></div>
-          <div class="haz good"><img id="hazSouvenir" alt=""><b>Souvenir Bottle</b><span>Instant 100 Buckaroos</span></div>
-          <div class="haz good"><img id="hazExtraLife" alt=""><b>Extra Life</b><span>A bonus pizza slice, spent before your real ones</span></div>
-          <div class="haz good"><img id="hazWhirlpool" alt=""><b>Whirlpool</b><span>Sucks nearby Buckaroos and letters to you for 6 seconds</span></div>
-          <div class="haz good"><img id="hazSeasonPass" alt=""><b>Season Pass</b><span>9 seconds of total invincibility, +50% speed, and every pickup pulled straight to you</span></div>
+          <div class="haz"><img id="hazFastPass" alt=""><b>Fast Pass</b><span>Blast past top speed!</span></div>
+          <div class="haz"><img id="hazSouvenir" alt=""><b>Souvenir Bottle</b><span>Score 100 Buckaroos!</span></div>
+          <div class="haz"><img id="hazExtraLife" alt=""><b>Extra Life</b><span>Grab one extra life!</span></div>
+          <div class="haz"><img id="hazWhirlpool" alt=""><b>Whirlpool</b><span>Pull nearby pickups to you!</span></div>
+          <div class="haz"><img id="hazSeasonPass" alt=""><b>Season Pass</b><span>Go faster and become invincible!</span></div>
         </div>
       </section>
 
       <section class="howSec">
-        <h3>Controls</h3>
-        <div class="controls">
-          <div class="ctl">
-            <div class="cap">&larr;&nbsp;&rarr;</div>
-            <b>Slide</b>
-            <span class="kb">Hold an arrow key and he keeps sliding that way —
-                             tap it for a nudge.</span>
-            <span class="tc">Press and HOLD anywhere, then move your thumb left
-                             and right. He follows it like a dial, so you can sit
-                             between lanes instead of snapping between them.</span>
+        <h3>Gameplay HUD</h3>
+        <p class="howLead">Keep an eye on these while you ride.</p>
+        <div class="hudGuide">
+          <div class="hgRow3 hgWide">
+            <div class="hgItem">
+              <div class="board"><span class="lbl">Score</span><span class="val">24,180</span></div>
+              <b>Score</b><span>Your total score for this run.</span>
+            </div>
+
+            <div class="hgItem">
+              <div class="board"><span class="lbl">Buckaroos</span>
+                <div class="hgCoinRow"><img id="hudCoin" alt=""><span class="val">42</span></div>
+              </div>
+              <b>Buckaroos</b><span>Buckaroos you've rounded up.</span>
+            </div>
+
+            <div class="hgItem">
+              <div class="hgTubes">
+                <span class="tube"></span><span class="tube"></span><span class="tube spent"></span>
+              </div>
+              <b>Lives</b><span>Three lives — don't lose 'em all!</span>
+            </div>
           </div>
-          <div class="ctl">
-            <div class="cap">&uarr;</div>
-            <b>Jump</b>
-            <span class="kb">Up arrow, W or Space.</span>
-            <span class="tc">Flick up, or tap — you can do it mid-slide without
-                             letting go.</span>
-          </div>
-          <div class="ctl">
-            <div class="cap">&darr;</div>
-            <b>Duck</b>
-            <span class="kb">Down arrow or S. Hold it to stay flat.</span>
-            <span class="tc">Flick down. Holding your thumb low keeps you tucked.</span>
+
+          <div class="hgItem hgWide">
+            <div class="hgSpeedbar">
+              <i></i><i></i><i class="lit"></i><i class="lit"></i><i class="lit"></i>
+              <i class="lit boosted"></i><i class="lit boosted"></i>
+            </div>
+            <b>Speed</b><span>More horses means more speed!</span>
           </div>
         </div>
       </section>
 
       <section class="howSec">
         <h3>The Buttons</h3>
-        <p class="howLead">The controls tucked around the edge of the screen.</p>
+        <p class="howLead">Use these buttons to control your game.</p>
         <div class="hudGuide">
           <div class="hgItem">
             <div class="hgIcon">
@@ -1281,7 +1366,7 @@
                 </g>
               </svg>
             </div>
-            <b>Mute</b><span>Kills the music and effects — tap again to bring them back.</span>
+            <b>Mute</b><span>Turn game sounds on or off.</span>
           </div>
 
           <div class="hgItem">
@@ -1291,7 +1376,7 @@
                       stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
             </div>
-            <b>Back</b><span>Leaves whatever screen you're on without touching the run.</span>
+            <b>Back</b><span>Head back one screen.</span>
           </div>
 
           <div class="hgItem">
@@ -1300,7 +1385,7 @@
                 <path d="M7 4.2 19.5 12 7 19.8 Z" fill="currentColor"/>
               </svg>
             </div>
-            <b>Play</b><span>Drops you back into a paused run.</span>
+            <b>Play</b><span>Get back in the action.</span>
           </div>
 
           <div class="hgItem">
@@ -1310,7 +1395,7 @@
                 <rect x="13.5" y="4" width="4.5" height="16" rx="1.2" fill="currentColor"/>
               </svg>
             </div>
-            <b>Pause</b><span>Holds the run right where it is.</span>
+            <b>Pause</b><span>Hold your run right there.</span>
           </div>
 
           <div class="hgItem">
@@ -1322,42 +1407,7 @@
                       stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
             </div>
-            <b>Home</b><span>Heads back to the title from your results.</span>
-          </div>
-        </div>
-      </section>
-
-      <section class="howSec">
-        <h3>Gameplay Hud</h3>
-        <p class="howLead">What the boards and bars are telling you mid-ride.</p>
-        <div class="hudGuide">
-          <div class="hgRow3 hgWide">
-            <div class="hgItem">
-              <div class="board"><span class="lbl">Score</span><span class="val">24,180</span></div>
-              <b>Score</b><span>Your running total for the ride.</span>
-            </div>
-
-            <div class="hgItem">
-              <div class="board"><span class="lbl">Buckaroos</span>
-                <div class="hgCoinRow"><img id="hudCoin" alt=""><span class="val">42</span></div>
-              </div>
-              <b>Buckaroos</b><span>Coins banked so far this run.</span>
-            </div>
-
-            <div class="hgItem">
-              <div class="hgTubes">
-                <span class="tube"></span><span class="tube"></span><span class="tube spent"></span>
-              </div>
-              <b>Lives</b><span>Three to start — lose one every hit.</span>
-            </div>
-          </div>
-
-          <div class="hgItem hgWide">
-            <div class="hgSpeedbar">
-              <i></i><i></i><i class="lit"></i><i class="lit"></i><i class="lit"></i>
-              <i class="lit boosted"></i><i class="lit boosted"></i>
-            </div>
-            <b>Speed</b><span>Horses fill in gold as you speed up — they shake once you're past top speed.</span>
+            <b>Home</b><span>Head back to the title.</span>
           </div>
         </div>
       </section>
@@ -1414,6 +1464,10 @@
          ~60px of where he already is, so the move reads as him picking himself
          up and settling, and the card fills in above him. -->
     <img id="overRider" alt="" aria-hidden="true">
+    <!-- The win variant of the same slot — see the CSS on #overHat and
+         overHatTick(). Only one of this and #overRider is ever a flex item
+         at a time (#overPanel.won), so the card never reserves both boxes. -->
+    <div id="overHat" aria-hidden="true"></div>
     <!-- Same floating hudbtn as #lbBack/#howClose, for the same reason: a way
          off this card that doesn't require reading Ride Again / Get Season
          Passes and deciding neither is what you want. -->
@@ -2646,6 +2700,12 @@ const HAT_SRC = {
 };
 const HAT_FPS = 10;         // one tip of the hat a second
 let revealOpen = false, hatT = 0, hatI = -1;
+/* Same sheet, same FPS, on the results card's win variant (#overHat) — see
+   overHatTick(). A separate clock/index from hatT/hatI rather than reusing
+   them: the reveal card is parked for now (see endRun()) but its globals
+   stay live, and two screens sharing one frame index would desync the
+   instant both were ever driven from the same tick. */
+let overHatT = 0, overHatI = -1, overWon = false;
 const FLY_DUR  = 0.72;      // pickup -> its slot in the HUD word
 const FLY_LAND = 0.85;      // when the slot takes over from the badge
 /* Invulnerable from the last pickup until the card is up. Timed off the two
@@ -2713,8 +2773,11 @@ const WHIRLPOOL_SPIN  = 4.2;   // rad/s the real, physically-pulled coins orbit
                                // below. The icon's own glow runs on a
                                // separate clock (see whirlpoolGlow).
 
-/* Season Pass: the biggest power-up in the game by design (rule 2). Grabbing
-   it freezes the world for a beat while the reveal animation plays, then
+/* Season Pass: the biggest power-up in the game by design (rule 2) — biggest
+   EFFECT (invincibility, the top speed bump below, the widened magnet), not
+   biggest render size any more; SEASONPASS_H renders at the same size as
+   every other pickup now (see its own comment). Grabbing it freezes the
+   world for a beat while the reveal animation plays, then
    resumes into a window of invincibility, +50% top speed, and Whirlpool's
    magnet widened to every collectible, not just coins. One per run (see
    seasonPassSpawned).
@@ -2760,7 +2823,8 @@ function reset(){
      drawRider's guard is scoped to the "over" state as well, so even a flag
      left set somewhere cannot take him off the water again. */
   overRiderDom = false; overTextIn = false; overTextT = 0; overTilt = 0;
-  $("overPanel").classList.remove("textIn", "riderIn");
+  overHatT = 0; overHatI = -1; overWon = false;
+  $("overPanel").classList.remove("textIn", "riderIn", "won");
   revealed = false;
   ents = []; spray = []; nextZ = 8; comboFree = 0;
   gotLetters = 0; shownLetters = 0; letterZ = LETTER_GAP * 0.55; stampedeT = -1;
@@ -3511,16 +3575,14 @@ function runStampede(){
   Sound.stampede(); puff(22);
 }
 
-/* The ride-name card. Earned by spelling the word rather than by a coin count —
-   the letters ARE the ride name, so finishing it is what should announce it.
-   It now plays at the END of the run rather than on the last letter: the player
-   rides on until the final life is gone, and the card is what greets them.
-   That removes the old awkwardness of a modal interrupting a live run, and it
-   means the reveal is the last thing before the score rather than a detour in
-   the middle of one. */
+/* The results card is now the only screen a run ends on, win or lose —
+   showReveal() (the "Coming Summer 2027" ride-name poster) is parked, not
+   deleted: it stays reachable from the window global for whenever it comes
+   back. A win instead swaps the results card's own #overRider slot for the
+   hat-tilt animation (#overHat) — see showOver()'s .won toggle and
+   overHatTick(). */
 function endRun(){
-  if (gotLetters >= WORD.length && !revealed) showReveal();
-  else showOver();
+  showOver();
 }
 
 function showReveal(){
@@ -3570,6 +3632,21 @@ function hatTick(dt){
 function closeReveal(){
   revealOpen = false;
   $("reveal").classList.remove("on");
+}
+
+/* Same technique as hatTick(), driving #overHat instead — the results card's
+   win variant. Gated on overWon rather than on #overHat's own visibility
+   (opacity/.riderIn) so the sheet is already on the right frame the instant
+   handOverRider() reveals it, instead of popping in on frame 0. */
+function overHatTick(dt){
+  if (state !== "over" || !overWon) return;
+  overHatT += dt;
+  const i = Math.floor(overHatT * HAT_FPS) % HAT_SRC.x.length;
+  if (i === overHatI) return;
+  overHatI = i;
+  const el = $("overHat");
+  el.style.setProperty("--fx", (HAT_SRC.x[i] / HAT_SRC.h).toFixed(4));
+  el.style.setProperty("--fy", (HAT_SRC.y[i] / HAT_SRC.h).toFixed(4));
 }
 /* Back into the same run, which is what makes it an endless mode rather than a
    level: nothing is reset, so the distance and the buckaroos carry on. */
@@ -3911,7 +3988,11 @@ function showOver(){
      far up the wall the crash lane was, which the DOM img cannot be, so he
      straightens as he settles and the two poses agree by the time they swap. */
   overTextIn = false; overTextT = 0; overRiderDom = false; overTilt = 1;
+  overHatT = 0; overHatI = -1;
+  // Same bar as the (parked) reveal card: a run "won" if it spelled the word.
+  overWon = gotLetters >= WORD.length;
   $("overPanel").classList.remove("textIn", "riderIn");
+  $("overPanel").classList.toggle("won", overWon);
 
   const dist = Math.floor(metres), score = runScore();
   setFigure($("fDist"),  dist,  26);
@@ -3948,10 +4029,8 @@ function showOver(){
     { dist, coins, score, letters: gotLetters },
     "vs best", { dist: BEST.dist, coins: BEST.coins, score: BEST.score, letters: BEST.letters },
     bestStored ? "(records persist)" : "(SESSION ONLY — storage blocked, likely file://)");
-  // Same bar as the reveal: a run "won" if it spelled the word.
-  const won = gotLetters >= WORD.length;
-  $("overTitle").textContent  = won ? "Nice Ride, Partner" : "Wipeout";
-  $("overKicker").textContent = won ? CONFIG.rideName : "Typhoon wiped out";
+  $("overTitle").textContent  = overWon ? "Nice Ride, Partner" : "Wipeout";
+  $("overKicker").textContent = overWon ? CONFIG.rideName : "Typhoon wiped out";
   $("overPanel").classList.add("on");
   settleOverRider();          // only measurable once the panel is displayed
   /* Crossfade rather than a hand-off. The ride track is 1.6s into a 2.4s linear
@@ -5003,10 +5082,33 @@ function sprite(img, e, hUnits, lift, fbTube, fbBody){
 /* Drawn height of a letter at full size, as a fraction of the projection scale
    at its depth. It is the one number that sizes the pickup, and the sunburst
    below is written in multiples of it, so the two can never drift apart. */
+/* This is the ONE size every pickup in the game now renders at — every
+   *_H below (FASTPASS_H, SOUVENIR_H, EXTRALIFE_H, WHIRLPOOL_H,
+   SEASONPASS_H) is defined as LETTER_H rather than its own tuned literal,
+   per tools/powerup-letter-size-audit.js: the PNGs' own bounding boxes
+   fill 98-100% of their native canvas height (measured, not assumed —
+   fastPass 229/233, souvenir 335/336, extraLife 186/188, whirlpool
+   197/197, seasonPass 126/126), so pinning every *_H to this one constant
+   makes every pickup's own ink the SAME on-screen height, the same
+   invariant WORD_SRC already enforces across the 8 letters (see its own
+   comment above). Previously each pickup had its own hand-tuned height —
+   a deliberate rarity hierarchy (Season Pass documented as "the biggest
+   power-up in the game by design") — flattened at Adam's explicit
+   request (2026-08-25): every pickup should read as the same size, no
+   rarity-driven scaling. Each glow's own outer-reach constant
+   (FASTPASS_GLOW_R/SOUVENIR_GLOW_R/WHIRLPOOL_SWIRL_R/
+   SEASONPASS_HALO_R/SUN_R) is likewise unified below, so the glow doesn't
+   reintroduce a size hierarchy the icon itself no longer has. Re-run that
+   audit tool after any pickup art is re-exported — a re-export changing
+   the bbox/canvas ratio is exactly the class of bug it exists to catch. */
 const LETTER_H = 0.53;
 const SUN_RAYS = 13;                 // wedges; an odd count keeps the fan from
                                      // reading as a symmetrical cross
-const SUN_R    = 1.06;               // outer radius, in letter heights
+/* 0.85 — the shared glow-reach constant every pickup's own outer radius is
+   now defined from (see LETTER_H's comment above); was 1.06 when letters
+   were the only pickup with a rotating-fan glow and nothing else needed to
+   match it. */
+const SUN_R    = 0.85;               // outer radius, in letter heights
 /* radians per second. 0.2 was the first setting and it was a rotation only on
    paper: at 13 wedges a ray takes its neighbour's place every 2pi/13 radians,
    so that speed needed 2.4s to advance the fan by a single ray and read as a
@@ -5174,8 +5276,8 @@ function letterBadge(x, y, h, idx, alpha, shineK){
    letters share one rotation phase: two different-looking spins in frame
    together would read as a glitch rather than as two distinct things.
    ------------------------------------------------------------------ */
-const FASTPASS_H       = 0.60;    // world height at full size — bigger than a
-                                  // letter (0.53), since this is the rarer get
+const FASTPASS_H       = LETTER_H;   // same size as every other pickup — see
+                                     // LETTER_H's comment
 const FASTPASS_LIFT     = 0.44;   // hangs a little above the water, like a letter
 const FASTPASS_PULSE_HZ = 1.3;    // breaths per second — visible as a strobe
                                   // without landing on a strict multiple of the
@@ -5184,11 +5286,13 @@ const FASTPASS_SPOKES   = 8;
 const FASTPASS_SPIN     = -0.6;   // rad/s; opposite sign and slower than SUN_SPIN
 const FASTPASS_RING     = "252,234,0";      // the tag art's own yellow border
 const FASTPASS_CORE     = "252,246,240";    // C.white, matching the letters' core
+const FASTPASS_GLOW_R   = SUN_R;   // same glow reach as every other pickup —
+                                   // was 0.62 (this halo's own hand-tuned base)
 
 function fastPassGlow(x, y, h){
   const t = performance.now() * 0.001;
   const pulse = 0.5 + 0.5 * Math.sin(t * FASTPASS_PULSE_HZ * 6.283);
-  const R = h * 0.62 * (0.92 + 0.16 * pulse);
+  const R = h * FASTPASS_GLOW_R * (0.92 + 0.16 * pulse);
   ctx.save();
   ctx.translate(x, y);
 
@@ -5226,18 +5330,20 @@ function fastPassGlow(x, y, h){
    halo is the pulse rate (slower, SOUVENIR_PULSE_HZ vs FASTPASS_PULSE_HZ) and
    the color itself — same "third silhouette" goal, simpler execution.
    ------------------------------------------------------------------ */
-const SOUVENIR_H       = 0.64;   // world height at full size — the art's own
-                                 // aspect is taller than Fast Pass's tag
+const SOUVENIR_H       = LETTER_H;   // same size as every other pickup — see
+                                     // LETTER_H's comment
 const SOUVENIR_LIFT     = 0.46;
 const SOUVENIR_COLOR    = "20,180,40";       // green, measured off the bottle's
                                              // own lid/straw art
 const SOUVENIR_PULSE_HZ = 0.6;   // slower than Fast Pass's 1.3, so the two
                                  // halos don't read as the same breathing rate
+const SOUVENIR_GLOW_R   = SUN_R;   // same glow reach as every other pickup —
+                                   // was 0.75 (this halo's own hand-tuned base)
 
 function souvenirGlow(x, y, h){
   const t = performance.now() * 0.001;
   const pulse = 0.5 + 0.5 * Math.sin(t * SOUVENIR_PULSE_HZ * 6.283);
-  const R = h * 0.75 * (0.94 + 0.12 * pulse);
+  const R = h * SOUVENIR_GLOW_R * (0.94 + 0.12 * pulse);
   ctx.save();
   ctx.translate(x, y);
   const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, R);
@@ -5268,11 +5374,13 @@ function souvenirGlow(x, y, h){
    rather than ending in a flat-capped ribbon, the way a real wisp thins out
    as it rises and disperses.
    ------------------------------------------------------------------ */
-const EXTRALIFE_H     = 0.32;   // matches the other pickups' on-screen footprint —
-                                // extra-life.png is a wide 200x124 tray, so at
-                                // Fast Pass's own 0.60 height it rendered nearly
-                                // twice as wide. Sized instead so its WIDTH lands
-                                // close to Fast Pass's (h * 200/124 ~= 0.52).
+/* Was 0.32, hand-tuned against a stale assumption about this file's own
+   shape (the old comment here claimed a 200x124 canvas so its WIDTH would
+   land near Fast Pass's — extra-life.png actually measures 200x188 now,
+   per tools/powerup-letter-size-audit.js, so that math was already off
+   against the current art even before the pickups were unified to one
+   size). Same size as every other pickup now — see LETTER_H's comment. */
+const EXTRALIFE_H     = LETTER_H;
 const EXTRALIFE_LIFT  = 0.44;
 const EXTRALIFE_COLOR = "250,60,50";        // measured off extra-life.png's tray
                                             // edge — used for the HUD tube only
@@ -5338,7 +5446,8 @@ function extraLifeSmellLines(x, y, h){
    below, so the world pickup and the post-collection cue visibly look like
    the same mechanism.
    ------------------------------------------------------------------ */
-const WHIRLPOOL_H     = 0.60;   // world height at full size, matching Fast Pass's tag
+const WHIRLPOOL_H     = LETTER_H;   // same size as every other pickup — see
+                                    // LETTER_H's comment
 const WHIRLPOOL_LIFT  = 0.44;   // hangs a little above the water, like the others
 // Sampled off the actual whirlpool.png pixels (headless-canvas colour count),
 // not eyeballed — the art was re-exported 2026-08-24 and the old guess
@@ -5350,12 +5459,16 @@ const WHIRLPOOL_MOTES = 5;      // dive-in points spaced evenly around the ring
 const WHIRLPOOL_TURNS = 1.4;    // full turns a mote makes between the outer edge and the centre
 const WHIRLPOOL_CYCLE = 1.3;    // seconds for one mote's outer-to-centre dive
 const WHIRLPOOL_TAIL  = 4;      // trailing echoes per mote, tracing its own spiral path
-const WHIRLPOOL_ORBIT = 0.82;   // outer radius the motes dive in from, as a
+const WHIRLPOOL_ORBIT = 0.73;   // outer radius the motes dive in from, as a
                                 // fraction of h — well past the icon's OWN
                                 // decorative sparkles (measured by screenshot:
                                 // those reach further out than the disc art
                                 // itself, so a tighter orbit hid every mote
-                                // behind them)
+                                // behind them). Scaled down with
+                                // WHIRLPOOL_SWIRL_R below (same ratio,
+                                // 0.82/0.95 -> 0.73/0.85) when the glow reach
+                                // was unified across pickups — see LETTER_H's
+                                // comment.
 
 /* Swirl glow, drawn BEHIND the icon (same order as the other pickups'
    glows). Adam wanted this to look like a peppermint-swirl reference image —
@@ -5403,58 +5516,82 @@ const WHIRLPOOL_SWIRL_BLUR   = 0.045;  // gaussian blur radius as a fraction of
                                        // polyline facets into a curve; 0.10
                                        // was heavy enough to blur adjacent
                                        // blades into each other
-const WHIRLPOOL_SWIRL_R      = 0.95;   // outer radius of the glow as a fraction
+const WHIRLPOOL_SWIRL_R      = SUN_R;  // outer radius of the glow as a fraction
                                        // of h — reaches past the icon like a
-                                       // flare, same idea as WHIRLPOOL_ORBIT
-function whirlpoolHalo(x, y, h, t){
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.globalCompositeOperation = "lighter";
-  ctx.filter = "blur(" + (h * WHIRLPOOL_SWIRL_BLUR).toFixed(2) + "px)";
-  const spin      = t * WHIRLPOOL_SWIRL_SPIN;
-  const outerR    = h * WHIRLPOOL_SWIRL_R;
-  const sectorHalf = Math.PI / WHIRLPOOL_SWIRL_BLADES;   // half the angle
-                                                          // between blade centres
-  // Brightest a quarter of the way out, fading toward both the centre (where
-  // the blade has tapered to nothing anyway) and the rim (a flare falling
-  // off from its source, not a flat-brightness cutout). One gradient per
-  // colour, reused for every blade of that colour — it's radially symmetric
-  // about the shared local origin, so it doesn't need to be rebuilt per blade.
-  const blueGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, outerR);
+                                       // flare, same idea as WHIRLPOOL_ORBIT.
+                                       // Same reach as every other pickup's own
+                                       // glow now (was 0.95) — see LETTER_H's
+                                       // comment.
+/* The blade fan is baked to a texture ONCE instead of rebuilt every frame —
+   `ctx.filter` blur is the single most expensive draw the game makes, and
+   this used to pay that cost every frame for the whole 6s effect (stutter
+   report, 2026-08-25). Baked WITHOUT spin and WITHOUT the *0.55 floor-plane
+   squash: rotating an already-squashed ellipse via ctx.rotate() is not the
+   same as rotating the angle before squashing (rotation and non-uniform
+   scale don't commute), so whirlpoolHalo() re-applies spin then squash, in
+   that order, via ctx.rotate()/ctx.scale() — algebraically identical to the
+   original per-point `cos(base+spin+twist)*r, sin(...)*r*0.55` math, just
+   computed once at build time instead of every frame. Baked at a fixed
+   texture-space radius rather than the real on-screen `h`: drawImage scales
+   the whole (already-blurred) bitmap to `outerR`, which scales the baked
+   blur radius right along with it, so the blur-to-size ratio still matches
+   WHIRLPOOL_SWIRL_BLUR at any size. */
+const WHIRLPOOL_TEX_R = 220;
+let _whirlpoolSwirlTex = null;
+function whirlpoolSwirlTexture(){
+  if (_whirlpoolSwirlTex) return _whirlpoolSwirlTex;
+  const R = WHIRLPOOL_TEX_R;
+  const off = document.createElement("canvas");
+  off.width = off.height = R * 2;
+  const octx = off.getContext("2d");
+  octx.translate(R, R);
+  octx.filter = "blur(" + (R * WHIRLPOOL_SWIRL_BLUR).toFixed(2) + "px)";
+  const sectorHalf = Math.PI / WHIRLPOOL_SWIRL_BLADES;
+  const blueGrad = octx.createRadialGradient(0, 0, 0, 0, 0, R);
   blueGrad.addColorStop(0,    "rgba(" + WHIRLPOOL_RING_COLOR + ",0)");
   blueGrad.addColorStop(0.28, "rgba(" + WHIRLPOOL_RING_COLOR + ",0.62)");
   blueGrad.addColorStop(1,    "rgba(" + WHIRLPOOL_RING_COLOR + ",0)");
-  const whiteGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, outerR);
+  const whiteGrad = octx.createRadialGradient(0, 0, 0, 0, 0, R);
   whiteGrad.addColorStop(0,    "rgba(" + WHIRLPOOL_CORE_COLOR + ",0)");
   whiteGrad.addColorStop(0.28, "rgba(" + WHIRLPOOL_CORE_COLOR + ",0.38)");
   whiteGrad.addColorStop(1,    "rgba(" + WHIRLPOOL_CORE_COLOR + ",0)");
   for (let i = 0; i < WHIRLPOOL_SWIRL_BLADES; i++){
-    const base = spin + i * (2 * Math.PI / WHIRLPOOL_SWIRL_BLADES);
-    ctx.beginPath();
-    // Walk out along one edge of the blade, centre to rim...
+    const base = i * (2 * Math.PI / WHIRLPOOL_SWIRL_BLADES);   // spin re-applied per frame, not baked in
+    octx.beginPath();
     for (let k = 0; k <= WHIRLPOOL_SWIRL_STEPS; k++){
-      const tt   = k / WHIRLPOOL_SWIRL_STEPS;
-      const r    = outerR * tt;
-      const ang  = base + tt * WHIRLPOOL_SWIRL_TWIST - sectorHalf * WHIRLPOOL_SWIRL_WIDTH * tt;
-      const px = Math.cos(ang) * r, py = Math.sin(ang) * r * 0.55;   // *0.55
-                 // flattens to the floor plane's own perspective squash, same
-                 // as whirlpoolMotes
-      k === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+      const tt  = k / WHIRLPOOL_SWIRL_STEPS;
+      const r   = R * tt;
+      const ang = base + tt * WHIRLPOOL_SWIRL_TWIST - sectorHalf * WHIRLPOOL_SWIRL_WIDTH * tt;
+      const px = Math.cos(ang) * r, py = Math.sin(ang) * r;   // unsquashed — squash re-applied per frame
+      k === 0 ? octx.moveTo(px, py) : octx.lineTo(px, py);
     }
-    // ...and back along the other edge, rim to centre, closing the shape.
     for (let k = WHIRLPOOL_SWIRL_STEPS; k >= 0; k--){
-      const tt   = k / WHIRLPOOL_SWIRL_STEPS;
-      const r    = outerR * tt;
-      const ang  = base + tt * WHIRLPOOL_SWIRL_TWIST + sectorHalf * WHIRLPOOL_SWIRL_WIDTH * tt;
-      const px = Math.cos(ang) * r, py = Math.sin(ang) * r * 0.55;
-      ctx.lineTo(px, py);
+      const tt  = k / WHIRLPOOL_SWIRL_STEPS;
+      const r   = R * tt;
+      const ang = base + tt * WHIRLPOOL_SWIRL_TWIST + sectorHalf * WHIRLPOOL_SWIRL_WIDTH * tt;
+      const px = Math.cos(ang) * r, py = Math.sin(ang) * r;
+      octx.lineTo(px, py);
     }
-    ctx.closePath();
-    ctx.fillStyle = i % 2 === 0 ? blueGrad : whiteGrad;
-    ctx.fill();
+    octx.closePath();
+    octx.fillStyle = i % 2 === 0 ? blueGrad : whiteGrad;
+    octx.fill();
   }
-  ctx.filter = "none";   // the deep/core gradients below are already soft —
-                         // blurring them too would just waste the pass
+  _whirlpoolSwirlTex = off;
+  return off;
+}
+function whirlpoolHalo(x, y, h, t){
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.globalCompositeOperation = "lighter";
+  const spin   = t * WHIRLPOOL_SWIRL_SPIN;
+  const outerR = h * WHIRLPOOL_SWIRL_R;
+  ctx.save();
+  ctx.rotate(spin);
+  ctx.scale(1, 0.55);   // floor-plane squash, same as whirlpoolMotes — see
+                        // whirlpoolSwirlTexture's comment for why this has
+                        // to come after rotate, not baked into the texture
+  ctx.drawImage(whirlpoolSwirlTexture(), -outerR, -outerR, outerR * 2, outerR * 2);
+  ctx.restore();
   // Deep-blue underlay near the centre, off the art's own ring colour, so the
   // vortex reads as having depth rather than every ray being one flat tint.
   const deep = ctx.createRadialGradient(0, 0, 0, 0, 0, h * 0.34);
@@ -5524,32 +5661,44 @@ function whirlpoolMotes(x, y, h, t){
    instead (seasonPassScreenOverlay()), reusing this motif's white/gold
    palette and pulse but not the function itself.
    ------------------------------------------------------------------ */
-const SEASONPASS_H     = 0.72;   // world height at full size — the largest of
-                                 // every pickup's footprint, on purpose
+const SEASONPASS_H     = LETTER_H;   // same size as every other pickup now —
+                                     // was 0.72, "the largest of every
+                                     // pickup's footprint, on purpose"; that
+                                     // rarity hierarchy was flattened at
+                                     // Adam's explicit request (see
+                                     // LETTER_H's comment)
 const SEASONPASS_LIFT  = 0.46;   // hangs a little above the water, like the others
 const SEASONPASS_WHITE = "252,246,240";   // C.white
 const SEASONPASS_GOLD  = "246,186,0";     // C.gold
 const SEASONPASS_PULSE_HZ  = 0.9;    // core/halo breathing rate
 const SEASONPASS_RING_N    = 3;      // concurrent expanding rings, staggered
 const SEASONPASS_RING_CYCLE = 1.6;   // seconds for one ring's full expand-fade lap
+/* Core/halo/ring reach all scaled down by the same ratio (0.85/1.15) that
+   brought this glow's outer edge in line with every other pickup's own
+   glow reach (SUN_R) — see LETTER_H's comment. Was CORE_R 0.55, HALO_R
+   1.15, RING_BASE 0.5, RING_RANGE 1.1. */
+const SEASONPASS_CORE_R      = 0.41;
+const SEASONPASS_HALO_R      = SUN_R;
+const SEASONPASS_RING_BASE   = 0.37;
+const SEASONPASS_RING_RANGE  = 0.81;
 
 function seasonPassGlow(x, y, h, scale){
   const t = performance.now() * 0.001;
   const pulse = 0.5 + 0.5 * Math.sin(t * SEASONPASS_PULSE_HZ * 6.283);
   ctx.save();
-  const core = ctx.createRadialGradient(x, y, 0, x, y, h * 0.55 * scale);
+  const core = ctx.createRadialGradient(x, y, 0, x, y, h * SEASONPASS_CORE_R * scale);
   core.addColorStop(0,   "rgba(" + SEASONPASS_WHITE + "," + (0.85 + 0.12 * pulse).toFixed(3) + ")");
   core.addColorStop(0.5, "rgba(" + SEASONPASS_WHITE + "," + (0.40 + 0.15 * pulse).toFixed(3) + ")");
   core.addColorStop(1,   "rgba(" + SEASONPASS_WHITE + ",0)");
   ctx.fillStyle = core;
-  ctx.beginPath(); ctx.arc(x, y, h * 0.55 * scale, 0, 6.284); ctx.fill();
+  ctx.beginPath(); ctx.arc(x, y, h * SEASONPASS_CORE_R * scale, 0, 6.284); ctx.fill();
 
-  const halo = ctx.createRadialGradient(x, y, 0, x, y, h * 1.15 * scale);
+  const halo = ctx.createRadialGradient(x, y, 0, x, y, h * SEASONPASS_HALO_R * scale);
   halo.addColorStop(0,    "rgba(" + SEASONPASS_GOLD + ",0)");
   halo.addColorStop(0.35, "rgba(" + SEASONPASS_GOLD + "," + (0.30 + 0.22 * pulse).toFixed(3) + ")");
   halo.addColorStop(1,    "rgba(" + SEASONPASS_GOLD + ",0)");
   ctx.fillStyle = halo;
-  ctx.beginPath(); ctx.arc(x, y, h * 1.15 * scale, 0, 6.284); ctx.fill();
+  ctx.beginPath(); ctx.arc(x, y, h * SEASONPASS_HALO_R * scale, 0, 6.284); ctx.fill();
 
   // Expanding gold shockwave rings — three staggered laps, not one, so a ring
   // is always mid-flight rather than the motif popping once per cycle.
@@ -5558,7 +5707,7 @@ function seasonPassGlow(x, y, h, scale){
     const phase = ((t / SEASONPASS_RING_CYCLE) + i / SEASONPASS_RING_N) % 1;
     const a = (1 - phase) * 0.5;
     if (a <= 0.01) continue;
-    const r = h * scale * (0.5 + phase * 1.1);
+    const r = h * scale * (SEASONPASS_RING_BASE + phase * SEASONPASS_RING_RANGE);
     ctx.beginPath(); ctx.arc(x, y, r, 0, 6.284);
     ctx.strokeStyle = "rgba(" + SEASONPASS_GOLD + "," + a.toFixed(3) + ")";
     ctx.stroke();
@@ -5793,8 +5942,8 @@ function drawEntInner(e){
 
   if (e.t === T.SEASONPASS){
     // Season Pass. Same "ride higher, read as its own thing" reasoning as the
-    // other pickups, but the biggest footprint of any of them (rule 2) — see
-    // SEASONPASS_H.
+    // other pickups, and same footprint as every one of them now too — see
+    // SEASONPASS_H / LETTER_H's comment.
     const p = floorPt(e.z, e.a, SEASONPASS_LIFT);
     const dist = e.z - travelled;
     const grow = Math.max(0.25, Math.min(1, 1 - (dist - 2) / 14));
@@ -6071,11 +6220,22 @@ const MONO = "ui-monospace,Menlo,Consolas,monospace";
    invalidates all four. It reaches the draw as (h / img.height) * s, so a
    rider export at a different pixel height silently rescales the whole set.
    ------------------------------------------------------------------ */
+/* backflip_03/04's `s` were flagged by tools/sprite-size-audit.js: their
+   on-screen apparent area (opaque-pixel count scaled by the same k this
+   draw call uses) swung +18%/-12% against backflip_01/02, which the audit
+   did NOT flag. Re-solved both against backflip_01/02's own (unflagged)
+   apparent area, holding cx/cy as measured — same "trust the pair the
+   audit didn't flag" approach used for die_03 below and season-pass_09 (see
+   SEASONPASS_REG). Re-run that tool after any re-export of this set, and
+   re-check by eye — unlike season-pass_09's canvas padding, the cause here
+   wasn't visually as clear-cut (a yaw turn can genuinely widen the tube's
+   own silhouette), so this is a best-effort correction, not a confirmed
+   root cause. */
 const FLIP_REG = [
   { s: 2.3528, cx: 0.5403, cy: 0.4706 },
   { s: 2.4377, cx: 0.4089, cy: 0.5821 },
-  { s: 2.5378, cx: 0.5226, cy: 0.4291 },   // inverted
-  { s: 2.4351, cx: 0.5599, cy: 0.4977 },
+  { s: 2.3046, cx: 0.5226, cy: 0.4291 },   // inverted
+  { s: 2.5569, cx: 0.5599, cy: 0.4977 },
 ];
 const RIDER_CX = 0.5271, RIDER_CY = 0.5669;   // resting sprite's centroid
 
@@ -6177,10 +6337,18 @@ const HURT_REG = [
   { tw: 0.9227, cx: 0.4871, by: 0.9912 },   // wincing
   { tw: 0.9242, cx: 0.5024, by: 0.9869 },   // shaking it off
 ];
+/* die_03's tw is corrected, not measured directly: tools/sprite-size-audit.js
+   flagged it ~12% smaller in apparent on-screen area than die_01/02 (which
+   the audit did not flag) — his sprawled-out "out cold" pose widens the
+   tube's raw pixel width without his body actually shrinking, the same
+   width-isn't-size-invariant trap MOVE_REG's own tw already works around.
+   Re-solved against die_01/02's own apparent area, holding cx/by as
+   measured. This is the frame the wipeout screen holds on, so it is worth
+   rechecking by eye after any re-export. */
 const DIE_REG = [
   { tw: 0.9613, cx: 0.4903, by: 0.9941 },
   { tw: 0.9298, cx: 0.4868, by: 0.9961 },
-  { tw: 0.9488, cx: 0.4833, by: 0.9936 },   // out cold
+  { tw: 0.8865, cx: 0.4833, by: 0.9936 },   // out cold
 ];
 const HURT_DUR = 1.4;      // matches hurtT, set by hitRider
 const DIE_DUR  = 1.6;      // how long the wipeout plays before the panel
@@ -6231,12 +6399,32 @@ const SEASONPASS_REG = [
   { tw: 0.9289, cx: 0.4920, by: 0.9979 },   // 01, reveals the pass
   { tw: 0.9184, cx: 0.4864, by: 0.9979 },   // 02, pumped
   { tw: 0.9385, cx: 0.4824, by: 0.9979 },   // 03, big celebration
-  { tw: 0.9065, cx: 0.4928, by: 0.9594 },   // 04, thumbs up
+  /* 04's tw is corrected the same way 09's is below: its radiating
+     star/streak burst pads this canvas (556x517) noticeably wider than 03
+     (455x481) or 05 (491x511) without him actually growing, so matching
+     tube WIDTH alone shrank his rendered HEIGHT — visibly smaller on
+     screen than 01-03/05, per Adam. Re-solved from tools/
+     sprite-size-audit.js's opaque-pixel apparent-area metric against the
+     other 8 frames' own average, holding cx/by as measured. Re-measure if
+     this frame is re-exported. */
+  { tw: 0.8594, cx: 0.4928, by: 0.9594 },   // 04, thumbs up
   { tw: 0.9145, cx: 0.5143, by: 0.9785 },   // 05, settling in
   { tw: 0.9560, cx: 0.4927, by: 0.9831 },   // 06, blissed out — the hold frame
   { tw: 0.9391, cx: 0.5034, by: 0.9899 },   // 07, winding up to toss
   { tw: 0.9429, cx: 0.4874, by: 0.9744 },   // 08, throwing it
-  { tw: 0.9125, cx: 0.5188, by: 0.9696 },   // 09, tossed
+  /* 09's tw is corrected, not measured directly (0.9125 was the genuine
+     tube-pixel-width measurement, from tools/season-pass-measure.js). The
+     thrown card's swoosh trail pads this canvas ~1.28x wider than 07/08's
+     without him actually growing, so matching tube WIDTH alone shrinks his
+     rendered HEIGHT ~20% via dh = dw * (img.height/img.width) — visually
+     confirmed live via tools/seasonpass-outro-shrink-check.js's drawImage()
+     capture: dw held ~111-115px across 07/08/09 but dh dropped from
+     ~124-129px to ~101px on 09 alone. Re-solved from tools/
+     sprite-size-audit.js's opaque-pixel apparent-area metric against the
+     other 8 frames' own average (none of which the audit flagged this
+     strongly), holding cx/by as measured so he stays planted on the tube.
+     Re-measure if this frame is re-exported. */
+  { tw: 0.7854, cx: 0.5188, by: 0.9696 },   // 09, tossed
 ];
 const SEASONPASS_INTRO_FRAMES    = 6;   // 01-06, played out over the freeze
 const SEASONPASS_INTRO_FRAME_DUR = SEASONPASS_INTRO_DUR / SEASONPASS_INTRO_FRAMES;
@@ -6328,8 +6516,14 @@ function drawRider(){
      The state test is not redundant with the flag: it is what guarantees this
      can only ever silence him on the screen that replaced him. A flag that
      outlived its screen once already, and an invisible rider is a far worse
-     failure than a double-drawn one. */
-  if (overRiderDom && state === "over") return;
+     failure than a double-drawn one.
+     A win never hands him over at all — #overRider stays empty and #overHat
+     takes the slot instead (see showOver()'s .won toggle) — so overRiderDom
+     alone would never flip and the die-pose blit would keep drifting toward
+     that slot for the whole settle beat with nothing to hand off to. Silence
+     him the instant "over" starts on a win, same as the moment he'd
+     otherwise be handed over on a loss. */
+  if (state === "over" && (overRiderDom || overWon)) return;
 
   const img = IMG.rider;
   const lift = riderLift();
@@ -6352,10 +6546,14 @@ function drawRider(){
   const air  = jumpT >= 0 ? Math.sin(Math.PI * (jumpT / JUMP_DUR)) : 0;
   const duck = tuckT > 0;
 
-  // Blink while hurt. Keyed to hurtT rather than invuln on purpose: invuln is
-  // also granted by the ride-name reveal, and strobing through that scripted
-  // moment would read as a fault rather than as damage.
-  if (hurtT > 0 && lives > 0 && Math.floor(hurtT * 12) % 2 === 0) return;
+  // Flash while invulnerable, so every window a hit can't land in reads the
+  // same way: post-hit i-frames and the win-reveal hold (both just `invuln`),
+  // plus Season Pass's unconditional invincibility (`seasonPassT`, checked
+  // ahead of `invuln` in hitRider() so it never sets it). Keyed to runT, a
+  // clock that only pauses in states this branch already excludes, rather
+  // than to invuln/seasonPassT themselves, so the flash phase stays
+  // continuous across a hit landing mid-reveal instead of resetting.
+  if ((invuln > 0 || seasonPassT > 0) && lives > 0 && Math.floor(runT * 12) % 2 === 0) return;
 
   const h = Math.max(0.52 * S, H * 0.12);
   if (!img){                                     // stand-in rider
@@ -6608,15 +6806,22 @@ function speedLines(){
      and its edge deepens, so the frame closes in around you — which is what
      actually sells being enclosed, since the arch itself is overhead and mostly
      out of shot once you are under it. */
+  /* Centred on W/2,horizon -- the exact point the camera roll rotates about --
+     so rolling this gradient is a no-op: every screen pixel sits at a
+     roll-invariant distance from that centre. Created AND filled outside the
+     rolled transform on purpose, in plain W x H, rather than overdrawn by
+     OVER like the backdrop: there is no diagonal seam to cover since nothing
+     here actually moves when the camera banks, and a plain rect is one more
+     full rotated oversized gradient fill this doesn't need to pay for. */
+  ctx.save();
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   const g = ctx.createRadialGradient(
     W/2, horizon, H * (0.30 - tunnelIn * 0.15),
     W/2, horizon, H * (0.95 - tunnelIn * 0.20));
   g.addColorStop(0, "rgba(30,48,72,0)");
   g.addColorStop(1, "rgba(30,48,72," + (0.3 + boost*0.26 + tunnelIn*0.30).toFixed(3) + ")");
-  // Overdrawn like the backdrop: this is painted inside the rolled frame, so a
-  // plain W x H rect would cut a hard diagonal across the screen in a bank,
-  // with everything past it left un-vignetted.
-  ctx.fillStyle = g; ctx.fillRect(-OVER, -OVER, W + OVER*2, H + OVER*2);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  ctx.restore();
   boostRush();
 }
 
@@ -6823,6 +7028,7 @@ function frame(now){
   }
   hatTick(dt);                      // outside the guard: the card is only ever
                                     // up while the run is paused
+  overHatTick(dt);                  // same reasoning — the results card too
   render();                         // still drawn, so the frozen frame stays up
   requestAnimationFrame(frame);
 }

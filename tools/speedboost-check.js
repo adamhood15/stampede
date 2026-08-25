@@ -165,7 +165,15 @@ async function main() {
         boostSuper = true; boostT = BOOST_DUR; lives = 3; invuln = 0; hurtT = 0;
         hitRider();
         window.__lastRiderFrame = null;
-        hurtT = 0;   // isolate the boost read from the hurt pose the hit itself starts
+        // isolate the boost read from the post-hit state the hit itself starts:
+        // hurtT is the hurt POSE, invuln is the i-frame BLINK -- drawRider()
+        // skips the draw call entirely on alternating beats of a 12Hz flash
+        // while invuln > 0 (see its "Flash while invulnerable" block), so
+        // leaving invuln set makes this step's pass/fail a coin flip on
+        // whatever wall-clock instant it happens to run at (caught when an
+        // unrelated render-cost change elsewhere shifted the ambient rAF
+        // loop's timing just enough to flip which beat this landed on).
+        hurtT = 0; invuln = 0;
         const expectedIdle = "speed" + idleFrame(performance.now() * 0.001);
         drawRider();
         return { boostTAfterHit: boostT, frame: window.__lastRiderFrame, expectedIdle };

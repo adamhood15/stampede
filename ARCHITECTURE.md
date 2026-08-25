@@ -326,7 +326,11 @@ Every mechanical effect starts together the instant `seasonPassT` takes over:
   you" tell Adam asked for: a gold-tinted `puff()` at the rider plus
   `Sound.seasonPassSafe()` (a bright, rising synth chime — deliberately not a
   softer version of `hurt()`'s tones) in place of the usual
-  shake/flash/hurt-sound. Every hazard (cow/yeti/wave/pig) already funnels
+  shake/flash/hurt-sound. `drawRider()` also flashes the whole rider sprite
+  on/off (12Hz, keyed to `runT` so the phase stays continuous across a hit
+  landing mid-window) any time `seasonPassT > 0` — the same toggle post-hit
+  i-frames and the win-reveal invuln hold use, so every window a hit can't
+  land in reads the same way. Every hazard (cow/yeti/wave/pig) already funnels
   through `hitRider()`, so this one guard covers all four for free.
 - **+50% top speed.** `update()`'s target-speed formula takes
   `Math.max(boostMult, seasonMult)` rather than stacking the two — Season

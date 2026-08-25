@@ -1,0 +1,497 @@
+[
+  {
+    "viewport": "phone412",
+    "width": 412,
+    "screen": "loading",
+    "vw": 412,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "phone412",
+    "width": 412,
+    "screen": "title",
+    "vw": 412,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "phone412",
+    "width": 412,
+    "screen": "claim-name",
+    "vw": 412,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "phone412",
+    "width": 412,
+    "screen": "how-to-play",
+    "vw": 412,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "phone412",
+    "width": 412,
+    "screen": "hud",
+    "vw": 412,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "phone412",
+    "width": 412,
+    "screen": "paused",
+    "vw": 412,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "phone412",
+    "width": 412,
+    "screen": "results-lose",
+    "vw": 412,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "phone412",
+    "width": 412,
+    "screen": "results-win",
+    "vw": 412,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "phone412",
+    "width": 412,
+    "screen": "win-reveal",
+    "vw": 412,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "phone412",
+    "width": 412,
+    "screen": "leaderboard",
+    "vw": 412,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "w320",
+    "width": 320,
+    "screen": "loading",
+    "vw": 320,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "w320",
+    "width": 320,
+    "screen": "title",
+    "vw": 320,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "w320",
+    "width": 320,
+    "screen": "claim-name",
+    "vw": 320,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "w320",
+    "width": 320,
+    "screen": "how-to-play",
+    "vw": 320,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "w320",
+    "width": 320,
+    "screen": "hud",
+    "vw": 320,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "w320",
+    "width": 320,
+    "screen": "paused",
+    "vw": 320,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "w320",
+    "width": 320,
+    "screen": "results-lose",
+    "vw": 320,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "w320",
+    "width": 320,
+    "screen": "results-win",
+    "vw": 320,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "w320",
+    "width": 320,
+    "screen": "win-reveal",
+    "vw": 320,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "w320",
+    "width": 320,
+    "screen": "leaderboard",
+    "vw": 320,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "w360",
+    "width": 360,
+    "screen": "loading",
+    "vw": 360,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "w360",
+    "width": 360,
+    "screen": "title",
+    "vw": 360,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "w360",
+    "width": 360,
+    "screen": "claim-name",
+    "vw": 360,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "w360",
+    "width": 360,
+    "screen": "how-to-play",
+    "vw": 360,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "w360",
+    "width": 360,
+    "screen": "hud",
+    "vw": 360,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "w360",
+    "width": 360,
+    "screen": "paused",
+    "vw": 360,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "w360",
+    "width": 360,
+    "screen": "results-lose",
+    "vw": 360,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "w360",
+    "width": 360,
+    "screen": "results-win",
+    "vw": 360,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "w360",
+    "width": 360,
+    "screen": "win-reveal",
+    "vw": 360,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "w360",
+    "width": 360,
+    "screen": "leaderboard",
+    "vw": 360,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "w390",
+    "width": 390,
+    "screen": "loading",
+    "vw": 390,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "w390",
+    "width": 390,
+    "screen": "title",
+    "vw": 390,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "w390",
+    "width": 390,
+    "screen": "claim-name",
+    "vw": 390,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "w390",
+    "width": 390,
+    "screen": "how-to-play",
+    "vw": 390,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "w390",
+    "width": 390,
+    "screen": "hud",
+    "vw": 390,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "w390",
+    "width": 390,
+    "screen": "paused",
+    "vw": 390,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "w390",
+    "width": 390,
+    "screen": "results-lose",
+    "vw": 390,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "w390",
+    "width": 390,
+    "screen": "results-win",
+    "vw": 390,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "w390",
+    "width": 390,
+    "screen": "win-reveal",
+    "vw": 390,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "w390",
+    "width": 390,
+    "screen": "leaderboard",
+    "vw": 390,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "w768",
+    "width": 768,
+    "screen": "loading",
+    "vw": 768,
+    "count": 1,
+    "bad": [
+      {
+        "tag": "div",
+        "id": "loadTrack",
+        "cls": "",
+        "text": "",
+        "flags": [
+          "scrollWidth"
+        ],
+        "vw": 768,
+        "rectRight": 534,
+        "rectLeft": 234,
+        "scrollWidth": 307,
+        "clientWidth": 294
+      }
+    ]
+  },
+  {
+    "viewport": "w768",
+    "width": 768,
+    "screen": "title",
+    "vw": 768,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "w768",
+    "width": 768,
+    "screen": "claim-name",
+    "vw": 768,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "w768",
+    "width": 768,
+    "screen": "how-to-play",
+    "vw": 768,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "w768",
+    "width": 768,
+    "screen": "hud",
+    "vw": 768,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "w768",
+    "width": 768,
+    "screen": "paused",
+    "vw": 768,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "w768",
+    "width": 768,
+    "screen": "results-lose",
+    "vw": 768,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "w768",
+    "width": 768,
+    "screen": "results-win",
+    "vw": 768,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "w768",
+    "width": 768,
+    "screen": "win-reveal",
+    "vw": 768,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "w768",
+    "width": 768,
+    "screen": "leaderboard",
+    "vw": 768,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "desktop",
+    "width": 1280,
+    "screen": "loading",
+    "vw": 1280,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "desktop",
+    "width": 1280,
+    "screen": "title",
+    "vw": 1280,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "desktop",
+    "width": 1280,
+    "screen": "claim-name",
+    "vw": 1280,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "desktop",
+    "width": 1280,
+    "screen": "how-to-play",
+    "vw": 1280,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "desktop",
+    "width": 1280,
+    "screen": "hud",
+    "vw": 1280,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "desktop",
+    "width": 1280,
+    "screen": "paused",
+    "vw": 1280,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "desktop",
+    "width": 1280,
+    "screen": "results-lose",
+    "vw": 1280,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "desktop",
+    "width": 1280,
+    "screen": "results-win",
+    "vw": 1280,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "desktop",
+    "width": 1280,
+    "screen": "win-reveal",
+    "vw": 1280,
+    "count": 0,
+    "bad": []
+  },
+  {
+    "viewport": "desktop",
+    "width": 1280,
+    "screen": "leaderboard",
+    "vw": 1280,
+    "count": 0,
+    "bad": []
+  }
+]
