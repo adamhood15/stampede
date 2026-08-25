@@ -6,16 +6,20 @@ in [DATABASE.md](DATABASE.md).
 
 ## Leaderboard / database
 
-- **Revert `Board`'s `API` constant to the relative path** before
-  `index.html` is served from WordPress — it currently points at the Kinsta
-  dev site absolute URL (see [DATABASE.md](DATABASE.md#front-end-integration-board-in-indexhtml)).
-- **Get `index.html` into an Oxygen Builder code block.** Needs asset-path
-  rewriting (relative `assets/...` references currently assume same-path
-  hosting) and a decision on code block vs. plugin-enqueued script.
+- ~~**Revert `Board`'s `API` constant to the relative path**~~ — resolved
+  (2026-08-25). `tools/deploy-staging.sh` rewrites it to the relative
+  `/wp-json/waterpark-leaderboard/v1` path for the copy that actually ships
+  to WordPress; the repo's own `index.html` keeps the absolute Kinsta dev
+  URL for local testing against `python3 server.py`.
+- ~~**Get `index.html` into an Oxygen Builder code block.**~~ — superseded
+  (2026-08-25). Went with a WP `template_include` blank-template route at
+  `/play/` instead — no theme/plugin script baggage, no editor fighting a
+  huge inline `<script>`. See "WordPress hosting / go-live" below.
 - **Full word-by-word audit of the 10,000-pair pool** — the 120 words added
   in the 100×100 expansion have only been screened by Claude, not read
   word-by-word by the user the way the original 80 were. This audit is the
-  entire safety argument for the closed-set naming approach.
+  entire safety argument for the closed-set naming approach, and matters
+  more now that a real marketing campaign will send strangers through it.
 - **Clear the Kinsta dev table's test data** before that environment is used
   for anything real — it has accumulated dozens of claimed names/scores from
   verification sessions, including at least one live "Bubbly Jellyfish"
@@ -26,6 +30,66 @@ in [DATABASE.md](DATABASE.md).
 - **Results-card wording:** "You Survived It" is shown for every run now
   that every run ends in a wipeout — accurate when the card could be
   reached mid-run, not any more. Not changed — not yet raised with the user.
+
+## WordPress hosting / go-live
+
+Live on staging (`env-typhoontexasnew-dev.kinsta.cloud`), not pushed to the
+live site — **do not push to live until this section clears.** Deploy via
+`tools/deploy-staging.sh` (rewrites asset paths + the `API` constant, copies
+`assets/` to `waterpark-leaderboard/game-assets/`, normalizes permissions).
+
+**Funnel design (2026-08-25):** no token gate — Adam's call. `/play/` is a
+plain, ungated WP page (`Waterpark_Leaderboard_Game_Router`, blank
+`template_include`, no theme/plugin chrome). Promotion is entirely by not
+publishing the URL anywhere except a button on the signup page, shown after
+signup completes. The token-gate code (HMAC-signed short-lived tokens, the
+`/gate-token` REST route, the fetch-token/redirect snippet) was built,
+verified end-to-end, then scrapped at Adam's request in favor of this
+simpler design — worth remembering if the plain-URL approach ever needs
+tightening (a shared/bookmarked `/play/` link works for anyone, indefinitely,
+whether or not they signed up).
+
+Before pushing to live:
+- **`tools/deploy-staging.sh` only targets the Kinsta dev path/site.** Needs
+  a production target (or a defined manual equivalent) before it can be used
+  for the live push.
+- **The signup page needs an actual "Play Now" button/link to `/play/`**
+  wired into its post-signup success state (WS Form success message or a
+  thank-you page) — nothing currently links the two pages.
+- **End-to-end funnel test once that button exists:** submit the real form →
+  confirm Mailchimp gets the subscriber → confirm the button appears →
+  confirm it lands on a working `/play/`.
+- **Leaderboard test data must not be copied to live** — see the dev-table
+  item above; clear it, don't carry it over.
+- **One more asset-permissions sweep post-copy.** The deploy script now
+  normalizes permissions on every run — caught a real bug this exact way
+  (2026-08-25): `sound-effects/letter-collect/` was `700` and silently
+  404'd only under nginx's different user, invisible locally under
+  `python3 server.py`'s same-user access. Still worth a final full pass
+  after any copy that doesn't go through this script.
+- **Full screen-by-screen smoke test on the actual live domain** once
+  copied (loading → naming → play → wipeout/win → leaderboard), not just a
+  spot-check.
+- **Real-device frame-rate profile still hasn't been done** — see
+  "Performance" below. "Runs great" on staging during a manual check is a
+  good sign, not a substitute, especially since live traffic isn't limited
+  to Android Chrome (see AGENTS.md — that's the only device actually tested
+  so far).
+- **Re-confirm the leaderboard REST calls work same-origin on the real live
+  domain** — should be automatic (the `API` constant is a relative path),
+  confirm rather than assume.
+- **Flush WP rewrite rules once manually right after the live push** — the
+  routes-version check should handle this automatically, but it's cheap
+  insurance for a first launch.
+- **Robots/indexing:** confirm `/play/` isn't indexable/crawlable. With no
+  gate, an indexed or crawled `/play/` fully bypasses the signup funnel —
+  higher stakes now than it would be behind a gate.
+- **Confirm the rollback path** before pushing — know what "revert" looks
+  like if something's wrong post-launch.
+- **Re-confirm the zero-auth/no-rate-limit leaderboard REST routes are still
+  an acceptable risk** at real marketing-campaign volume — accepted as fine
+  for a promo at test volume (see DATABASE.md), but live traffic is a
+  different order of magnitude than anything thrown at it so far.
 
 ## Rendering bugs
 

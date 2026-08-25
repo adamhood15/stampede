@@ -23,18 +23,14 @@ define('WATERPARK_LEADERBOARD_ROUTES_VERSION_OPTION', 'waterpark_leaderboard_rou
 require_once WATERPARK_LEADERBOARD_PATH . 'includes/class-database.php';
 require_once WATERPARK_LEADERBOARD_PATH . 'includes/class-score-repository.php';
 require_once WATERPARK_LEADERBOARD_PATH . 'includes/class-name-pool.php';
-require_once WATERPARK_LEADERBOARD_PATH . 'includes/class-gate.php';
 require_once WATERPARK_LEADERBOARD_PATH . 'includes/class-game-router.php';
-require_once WATERPARK_LEADERBOARD_PATH . 'includes/class-gate-page.php';
 require_once WATERPARK_LEADERBOARD_PATH . 'includes/class-rest-controller.php';
 
 register_activation_hook(__FILE__, array('Waterpark_Leaderboard_DB', 'install'));
-register_activation_hook(__FILE__, array('Waterpark_Leaderboard_Gate', 'ensure_secret'));
 
 // Catches schema drift after a plugin update, not just first activation —
 // dbDelta() is safe to re-run and only applies the diff.
 add_action('plugins_loaded', array('Waterpark_Leaderboard_DB', 'maybe_upgrade'));
-add_action('plugins_loaded', array('Waterpark_Leaderboard_Gate', 'ensure_secret'));
 
 add_action('rest_api_init', array('Waterpark_Leaderboard_REST_Controller', 'register_routes'));
 
@@ -42,5 +38,3 @@ add_action('init', array('Waterpark_Leaderboard_Game_Router', 'register_routes')
 add_action('init', array('Waterpark_Leaderboard_Game_Router', 'maybe_flush'), 20);
 add_filter('query_vars', array('Waterpark_Leaderboard_Game_Router', 'query_vars'));
 add_filter('template_include', array('Waterpark_Leaderboard_Game_Router', 'template_include'));
-
-add_action('wp_footer', array('Waterpark_Leaderboard_Gate_Page', 'maybe_print_snippet'));
