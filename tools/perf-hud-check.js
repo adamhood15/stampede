@@ -75,6 +75,7 @@ async function main() {
     const text = on.text || "";
     const hasFps   = /FPS \d+ avg \/ \d+ p95/.test(text);
     const hasFrame = /frame [\d.]+ms avg \/ [\d.]+ms p95 \/ [\d.]+ms worst/.test(text);
+    const hasWorstMeta = /worst@ [\d.]+s ents=\d+ streaks=\d+ state=\w+/.test(text);
     const hasJank  = /jank<30fps \d+  ents \d+  streaks \d+/.test(text);
     const hasDpr   = /DPR \d+(\.\d+)?  canvas \d+x\d+  state \w+/.test(text);
 
@@ -83,7 +84,7 @@ async function main() {
       offCheck.hudNode === false &&
       on.PERF_DEBUG === true &&
       on.hudExists === true &&
-      hasFps && hasFrame && hasJank && hasDpr &&
+      hasFps && hasFrame && hasWorstMeta && hasJank && hasDpr &&
       pageExceptions.length === 0;
 
     console.log(ok ? "\nPASS" : "\nFAIL");

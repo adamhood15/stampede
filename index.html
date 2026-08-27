@@ -7238,6 +7238,10 @@ const PERF_DEBUG = (() => {
 const PERF_WINDOW_MS = 3000;   // rolling window the on-screen stats are computed over
 const PERF_JANK_MS   = 33.3;   // a frame slower than this reads as a dropped frame (<30fps)
 let perfHud = null, perfSamples = [], perfJank = 0, perfWorst = 0, perfLastPaint = 0;
+let perfWorstMeta = null;   // state captured at the moment the worst frame happened,
+                            // so a single spike can be correlated to what was on
+                            // screen instead of guessed at from steady-state avg/p95
+const perfStartT = performance.now();
 if (PERF_DEBUG){
   perfHud = document.createElement("div");
   perfHud.style.cssText = "position:fixed;top:0;left:0;z-index:99999;" +
@@ -7249,7 +7253,10 @@ function perfTick(rawDt, now){
   const ms = rawDt * 1000;
   perfSamples.push({ t: now, ms: ms });
   if (ms > PERF_JANK_MS) perfJank++;
-  if (ms > perfWorst) perfWorst = ms;
+  if (ms > perfWorst) {
+    perfWorst = ms;
+    perfWorstMeta = { atS: (now - perfStartT) / 1000, ents: ents.length, streaks: streaks.length, state: state };
+  }
   while (perfSamples.length && now - perfSamples[0].t > PERF_WINDOW_MS) perfSamples.shift();
   if (now - perfLastPaint < 500) return;   // throttle the DOM write itself, not just the sampling
   perfLastPaint = now;
@@ -7260,6 +7267,8 @@ function perfTick(rawDt, now){
   perfHud.textContent =
     "FPS " + (1000 / avgMs).toFixed(0) + " avg / " + (1000 / p95Ms).toFixed(0) + " p95\n" +
     "frame " + avgMs.toFixed(1) + "ms avg / " + p95Ms.toFixed(1) + "ms p95 / " + perfWorst.toFixed(1) + "ms worst\n" +
+    "worst@ " + (perfWorstMeta ? perfWorstMeta.atS.toFixed(1) + "s ents=" + perfWorstMeta.ents +
+      " streaks=" + perfWorstMeta.streaks + " state=" + perfWorstMeta.state : "-") + "\n" +
     "jank<30fps " + perfJank + "  ents " + ents.length + "  streaks " + streaks.length + "\n" +
     "DPR " + DPR + "  canvas " + cv.width + "x" + cv.height + "  state " + state;
 }
