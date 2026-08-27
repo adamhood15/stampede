@@ -2372,6 +2372,7 @@ let tunnelIn = 0;                 // eased 0..1, camera inside a covered section
    specifically, enforced on top of the generic obstacle gap. */
 const TUN_APART = 14;
 let lastTunZ = -1e9;
+let lastWaveZ = -1e9;   // see PIG_AFTER_WAVE_MIN_GAP
 
 /* A covered section is a rigid structure laid along the track, so it only works
    where the track is straight. Through a bend its rings fan out sideways, the
@@ -2660,6 +2661,8 @@ const POWERUP_TYPES = [T.BOOST, T.SOUVENIR, T.EXTRALIFE, T.WHIRLPOOL, T.SEASONPA
    because the word is a bigger share of a narrow viewport and so has further to
    travel in vw. Sized to the slowest of those, and to the clip. */
 const STAMPEDE_DUR = 8.1;
+// Slight, not the full ±8px a hit's shake=1 gives — a herd underfoot, not a crash.
+const STAMPEDE_SHAKE = 0.22;
 
 /* Hat tilt on the reveal card. typhoon-hat-tilt.png is a 5x2 contact sheet with
    a numbered label under every frame, so these are not a plain grid: each box
@@ -2678,13 +2681,14 @@ let revealOpen = false, hatT = 0, hatI = -1;
 let overWon = false;
 const FLY_DUR  = 0.72;      // pickup -> its slot in the HUD word
 const FLY_LAND = 0.85;      // when the slot takes over from the badge
-/* Invulnerable from the last pickup until the card is up. Timed off the two
-   things that still have to happen: the letter flies to the HUD and hands over
-   at FLY_LAND, then the word runs off for STAMPEDE_DUR before showReveal fires.
-   Dying anywhere in that ~8.7s took the win away after it had been earned —
-   the run-off and its clip carried on over the wipeout and the card never came,
-   because stampedeT only counts down while the run is playing. */
-const WIN_INVULN = FLY_DUR * FLY_LAND + STAMPEDE_DUR + 0.25;
+/* Invulnerable from the last pickup until the flyer hands over to the HUD at
+   FLY_LAND — the one stretch of the win that still plays out under normal,
+   collidable rules. The run-off itself no longer needs covering here: it
+   freezes the world (see freezeWorld()'s stampedeT block), so nothing can hit
+   the rider while it plays regardless of this timer. Used to also carry
+   STAMPEDE_DUR, back when the run-off played out over live, uninterrupted
+   gameplay and dying mid-clip took the win away. */
+const WIN_INVULN = FLY_DUR * FLY_LAND + 0.25;
 /* gotLetters is the game's count and advances the instant you touch a letter,
    because it also picks which letter is offered next. shownLetters is what the
    HUD has actually received and only advances when a flyer lands, so the slot
@@ -2727,10 +2731,52 @@ let seasonPassIntroT = 0, seasonPassT = 0, seasonPassSpawned = false;
 let seasonPassMusicPlaying = false;
 
 const JUMP_DUR = 0.62, JUMP_H = 0.55;
+const DUCK_DUR = 0.55;       // tuckT set by tuck() — see spawn()'s PIG_AFTER_WAVE_MIN_GAP
 const BOOST_DUR = 2.4;      // also roughly the length of the boost sample
 const BOOST_SUPER_MULT = 1.25;
+
+/* How close a T.PIG is allowed to spawn after a T.WAVE — see spawn()'s
+   "sniper pig" branch. tuck() refuses to fire while jumpT >= 0 (see below), so
+   a wave immediately followed by a pig demands the rider fully land the jump
+   before they can even START ducking — unlike the reverse order, where
+   jump() has no such gate (it cancels an active duck outright), so a pig
+   followed closely by a wave was never actually a problem.
+   Worked backward from the same two z-windows hitRider() itself reads
+   (update()'s collision loop: an entity is "live" while
+   travelled ∈ [e.z-0.5, e.z+1.2], a 1.7-unit span) and from riderLift()'s
+   airborne threshold (lift > 0.28, lift = 0.12 + JUMP_H*sin(pi*jumpT/JUMP_DUR)):
+   solving for the sin() that first crosses 0.28 gives AIR_T_LOWER below — the
+   elapsed time after a jump before the rider first counts as airborne, and by
+   symmetry also how long the airborne window overshoots the LATEST safe
+   landing past a hazard's trailing edge (see the derivation in
+   ARCHITECTURE.md if this ever needs re-deriving).
+   Earliest possible landing after clearing a wave at world-z `w`, jumping as
+   late as the wave's window still allows:
+     w + 1.2 (window's trailing edge) + AIR_T_LOWER * speed
+   Duck must then start by the pig's window LEADING edge (pigZ - 0.5), so the
+   two must not overlap:
+     pigZ - waveZ >= 1.7 + AIR_T_LOWER * speed
+   PIG_REACT adds real human reaction time on top of that razor-thin
+   zero-reaction bound — landing and instantly ducking on the same frame isn't
+   "realistically" playable, per Adam's ask.
+   Sized off the FASTEST speed a live (non-invincible) rider can be going —
+   Season Pass is faster still but hitRider() no-ops entirely while it's
+   active, so it can't die to this — rather than the spawn-time speed, because
+   a tunnel's boost (this exact wave can be the "tunnel, then jump" pattern)
+   can push the rider's actual speed well past what it was when the gap was
+   sized. Using the worst case up front keeps the gap safe no matter what the
+   rider's speed does in between. */
+const AIR_T_LOWER = Math.asin((0.28 - 0.12) / JUMP_H) / Math.PI * JUMP_DUR;
+const PIG_REACT = 0.2;   // seconds of assumed reaction time to start ducking after landing
+const PIG_MAX_LIVE_SPEED = CONFIG.maxSpeed * BOOST_SUPER_MULT;   // Fast Pass / tunnel boost, uncapped by Season Pass since that's invincible
+const PIG_AFTER_WAVE_MIN_GAP = 1.7 + (AIR_T_LOWER + PIG_REACT) * PIG_MAX_LIVE_SPEED;
 const FASTPASS_LABEL_DUR = 1.1;   // seconds the "FAST PASS!" callout holds the screen
 const SOUVENIR_BONUS = 100;       // "acts the same as if you had collected 100 coins"
+const POWERUP_SCORE_BONUS = 15;   // +150 points (coins is the only thing runScore()
+                                   // reads a bonus through — see SOUVENIR_BONUS above)
+                                   // on top of whatever each power-up already grants;
+                                   // added in every T.BOOST/SOUVENIR/EXTRALIFE/
+                                   // WHIRLPOOL/SEASONPASS pickup branch below
 const WHIRLPOOL_DUR   = 6.0;   // seconds the magnet stays active, per Adam's spec
 const WHIRLPOOL_RANGE = 8;     // world units ahead of the rider a coin can be
                                // pulled from — "coins near the player", not
@@ -2762,11 +2808,24 @@ const SEASONPASS_INTRO_DUR  = 3.0;   // frozen reveal: season-pass.mp3 plays
                                      // while season-pass_01-06 step through
 const SEASONPASS_DUR        = 9.0;   // resumed effect: season-pass-music.mp3
                                      // plays for this whole window
-const SEASONPASS_SPEED_MULT = 1.5;   // vs. CONFIG.maxSpeed — bigger than a
+const SEASONPASS_SPEED_MULT = 1.75;  // vs. CONFIG.maxSpeed — bigger than a
                                      // Fast Pass/tunnel boost's 1.25
                                      // (BOOST_SUPER_MULT); see update()'s
                                      // target formula, which takes the larger
-                                     // of the two rather than stacking them
+                                     // of the two rather than stacking them.
+                                     // Was 1.5 (+50%) until Adam asked for the
+                                     // bonus itself boosted ~50% (2026-08-27):
+                                     // the +0.5 over baseline grew to +0.75.
+const BOOST_RAMP_MULT = 6;      // accel multiplier while boostT is active —
+                                 // unchanged, kept a name instead of a bare 6
+                                 // now that Season Pass needs its own
+const SEASONPASS_RAMP_MULT = 8; // at the old 6x, the ramp never actually
+                                 // reached the raised 1.75x target before the
+                                 // effect's own 1.8s outro freeze cut the
+                                 // ramp off (peaked ~13 of 14) — bumped so it
+                                 // reaches top speed with room to spare,
+                                 // same margin (proportionally) the old 6x
+                                 // left before 1.5x's target (2026-08-27)
 const SEASONPASS_PULL  = 3.6;  // ease rate, same shape as WHIRLPOOL_PULL but
                                // a touch snappier — "biggest and best"
 const SEASONPASS_RANGE = 10;   // world units ahead a collectible can be
@@ -2779,7 +2838,7 @@ function reset(){
   touchId = null; steering = false;   // a thumb still down across a restart no
                                       // longer owns the wheel it anchored on
   invuln = 0; boostT = 0; boostSuper = false; shake = 0; hurtT = 0; eatT = 0; moveT = 0; moveDir = 0; leanV = 0; duckA = 0;
-  tunnelIn = 0; lastTunZ = -1e9; dieT = 0; fastPassLabelT = 0; extraLife = false;
+  tunnelIn = 0; lastTunZ = -1e9; lastWaveZ = -1e9; dieT = 0; fastPassLabelT = 0; extraLife = false;
   whirlpoolT = 0; Sound.loopStop();  // in case a run restarted mid-effect
   // seasonPassSpawned resets every run, same as extraLife.
   seasonPassIntroT = 0; seasonPassT = 0; seasonPassSpawned = false; seasonPassMusicPlaying = false;
@@ -2873,13 +2932,16 @@ function spawn(){
       // The run starts past the wave's own depth so it reads as a payout for
       // clearing it rather than as decoration sitting on top of it. Collection
       // is lane-only, so being airborne over them still counts.
-      add(T.WAVE, z, 0, 3);
+      add(T.WAVE, z, 0, 3); lastWaveZ = z;
       const li = (Math.random()*3|0) - 1;
       for (let k = 0; k < 3; k++) add(T.COIN, z + 1.6 + k * 0.8, li);
       gapSec = 1.4;
-    } else if (r < 0.80 && metres > 110){                   // sniper pig -> duck
+    } else if (r < 0.80 && metres > 110
+               && z - lastWaveZ > PIG_AFTER_WAVE_MIN_GAP){    // sniper pig -> duck
       // Wide gap after him: he needs PIG_WIND worth of run-up to animate, and
       // the jet spans the chute, so stacking anything on top is unreadable.
+      // The z - lastWaveZ check is the reverse concern: too soon AFTER a wave,
+      // not too soon before one — see PIG_AFTER_WAVE_MIN_GAP.
       add(T.PIG, z, 0, 3); gapSec = 1.9;
     } else if (r < 0.90 && hard > 0.22){                     // two riders, one gap
       const free = (Math.random()*3|0) - 1;
@@ -2891,7 +2953,8 @@ function spawn(){
       add(T.TUNNEL, z, 0, 3); lastTunZ = z;
       // Placed off the tunnel's LENGTH, not off speed: at speed*1.05 the wave
       // landed 4.6 units in, i.e. buried inside the tunnel, at low speed.
-      add(T.WAVE, z + TUN_LEN + 1.6, 0, 3);
+      lastWaveZ = z + TUN_LEN + 1.6;
+      add(T.WAVE, lastWaveZ, 0, 3);
       gapSec = 2.0; minGap = TUN_LEN + 4.5;
     } else {
       add(Math.random() < 0.5 ? T.COW : T.YETI, z, (Math.random()*3|0) - 1);
@@ -3012,7 +3075,7 @@ function moveLane(d){        // kept for keyboard: one nudge, still continuous
   lane = clampLane(lane + d * 0.34);
 }
 function jump(){ if (jumpT < 0 && state === "play"){ jumpT = 0; tuckT = 0; Sound.jump(); } }
-function tuck(){ if (state === "play" && jumpT < 0 && tuckT <= 0){ tuckT = 0.55; Sound.duck(); } }
+function tuck(){ if (state === "play" && jumpT < 0 && tuckT <= 0){ tuckT = DUCK_DUR; Sound.duck(); } }
 
 const keys = {};
 window.addEventListener("keydown", (e) => {
@@ -3539,10 +3602,16 @@ function drawExtraLifeFlyer(x, y, h, alpha){
 }
 
 /* Sound plays here rather than at the collect site so the last letter gets the
-   stampede sting instead of a pickup blip stacked under it. */
+   stampede sting instead of a pickup blip stacked under it. Whatever music is
+   currently on the channel — ride, or Season Pass's if the two overlapped —
+   cuts out with it: the sting is the only thing that should be heard while
+   the herd runs off, not competing with a track still playing underneath.
+   The freeze's own onEnd (see freezeWorld()'s stampedeT block) hands the
+   channel back once the run-off ends. */
 function runStampede(){
   $("letters").classList.add("run");
   Sound.stampede(); puff(22);
+  Sound.musicStop(0.15);
 }
 
 /* The results card is now the only screen a run ends on, win or lose —
@@ -4129,6 +4198,45 @@ function riderLift(){
   return lift;
 }
 
+/* Shared by every "action pauses" beat — Season Pass's reveal and its
+   frozen exit, the extra-life chomp, the stampede letters' run-off. Each of
+   those already owns a timer that means something else too (eatT also picks
+   the chomp frame, stampedeT also drives the CSS run-off) — this only ticks
+   THAT timer down and does the boilerplate every frozen beat shares: hold the
+   camera at the current travelled position so the world doesn't drift, keep
+   cosmetic spray decaying so a puff mid-freeze still fades naturally instead
+   of hanging, and fire `onEnd` once, the instant the timer runs out. Returns
+   the new value — the caller writes it back into its own variable.
+
+   camX/camY re-add laneA's own lean offset (Math.sin/cos(laneA) * 0.34/0.1),
+   matching the main path's formula below exactly rather than the plain
+   curveX/curveY(travelled) it used to hold at. laneA itself is frozen too
+   (its ease only runs in the main path), so this is just "hold the camera
+   at its exact pre-freeze frame" — the plain formula silently dropped the
+   lean term, snapping the whole slide sideways the instant a freeze started
+   mid-turn, and snapping it back the instant one ended (Adam noticed this
+   the moment extra-life's chomp finished). */
+function freezeWorld(timer, dt, { shakeAmt, onEnd } = {}){
+  timer = Math.max(0, timer - dt);
+  if (timer === 0 && onEnd) onEnd();
+  camX = curveX(travelled) + Math.sin(laneA) * 0.34;
+  camY = curveY(travelled) - CAM_UP + Math.cos(laneA) * 0.1;
+  for (const p of spray){ p.life -= dt; p.x += p.vx*dt; p.y += p.vy*dt; p.vy += 900*dt; }
+  spray = spray.filter(p => p.life > 0);
+  if (shakeAmt !== undefined) shake = shakeAmt;
+  return timer;
+}
+/* True whenever update() is short-circuited into one of freezeWorld()'s
+   holds. render()'s invuln flash reads this too — runT stops advancing
+   through every one of these, so without the exclusion the rider gets stuck
+   on whichever flash phase it entered instead of reading as a clean hold. */
+function worldFrozen(){
+  return seasonPassIntroT > 0
+      || (seasonPassT > 0 && seasonPassT <= SEASONPASS_OUTRO_DUR)
+      || eatT > 0
+      || stampedeT > 0;
+}
+
 function update(dt){
   waterFlow(dt);
 
@@ -4202,48 +4310,82 @@ function update(dt){
   /* Season Pass's frozen reveal — "action pauses" per Adam's spec. Everything
      that advances the world (travel, spawns, collisions, every other
      power-up's own clock) holds still while the stinger plays and the rider
-     steps through season-pass_01-06 (see seasonPassFrame()); only cosmetic
-     particle decay keeps running, so the pickup's own puff still fades
-     naturally instead of freezing mid-burst. Once the timer runs out, the
-     world resumes and the mechanical effect (seasonPassT) and its music both
-     start together. */
+     steps through season-pass_01-06 (see seasonPassFrame()). Once the timer
+     runs out, the world resumes and the mechanical effect (seasonPassT) and
+     its music both start together. */
   if (seasonPassIntroT > 0){
-    seasonPassIntroT -= dt;
-    if (seasonPassIntroT <= 0){
-      seasonPassIntroT = 0;
+    seasonPassIntroT = freezeWorld(seasonPassIntroT, dt, { onEnd: () => {
       seasonPassT = SEASONPASS_DUR;
       seasonPassMusicPlaying = true;
       // Nothing to fade out — the grab itself already silenced the channel
       // (see the T.SEASONPASS branch above) and it's stayed that way through
       // the whole reveal, so this only needs to fade IN.
       Sound.music("seasonPass", null, 0.3);
-    }
-    camX = curveX(travelled); camY = curveY(travelled) - CAM_UP;
-    for (const p of spray){ p.life -= dt; p.x += p.vx*dt; p.y += p.vy*dt; p.vy += 900*dt; }
-    spray = spray.filter(p => p.life > 0);
+    }});
     return;
   }
 
   /* Season Pass's frozen exit — the same "action pauses" treatment as the
      intro reveal, for the last SEASONPASS_OUTRO_DUR of seasonPassT while the
      rider winds up and tosses the card away (frames 07-09). Unlike the intro
-     block, seasonPassT itself keeps ticking down IN HERE rather than being
-     left to the block below, so the outro's own length and the music handoff
-     when it hits 0 land at the exact same instant they did before this froze
-     — only travel/spawns/collisions changed, not timing. */
+     block, seasonPassT itself is the timer being frozen here rather than a
+     dedicated one, so the outro's own length and the music handoff when it
+     hits 0 land at the exact same instant they did before this froze — only
+     travel/spawns/collisions changed, not timing. */
   if (seasonPassT > 0 && seasonPassT <= SEASONPASS_OUTRO_DUR){
-    seasonPassT -= dt;
-    if (seasonPassT <= 0){
-      seasonPassT = 0;
+    seasonPassT = freezeWorld(seasonPassT, dt, { onEnd: () => {
       if (seasonPassMusicPlaying){
         seasonPassMusicPlaying = false;
         Sound.musicStop(0.4);
         Sound.music("ride", null, 0.5);
       }
-    }
-    camX = curveX(travelled); camY = curveY(travelled) - CAM_UP;
-    for (const p of spray){ p.life -= dt; p.x += p.vx*dt; p.y += p.vy*dt; p.vy += 900*dt; }
-    spray = spray.filter(p => p.life > 0);
+    }});
+    return;
+  }
+
+  /* The extra-life chomp — same "action pauses" treatment, for EAT_DUR. eatT
+     already exists to pick the rider's 4-frame eating pose (see drawRider's
+     quadIdx read), so it doubles as the freeze's own timer. flyExtraLife()
+     fires here, on onEnd, rather than at the grab — see the T.EXTRALIFE
+     branch above for why: spawned any earlier, the badge would just sit
+     frozen over the rider for the whole chomp instead of the pickup reading
+     as gone. */
+  if (eatT > 0){
+    eatT = freezeWorld(eatT, dt, { onEnd: flyExtraLife });
+    return;
+  }
+
+  /* The stampede letters' run-off is the pause, with a slight shake for the
+     herd underfoot — Adam's call, once the "collect all 8" clip's own noise
+     starts. stampedeT already times the CSS run-off (#letters.run's
+     keyframes), so it doubles as the freeze's own timer too.
+     Unlike eatT's freeze, this one keeps calling updateFlyers() — the 8th
+     letter's own flyer (and any other pickup's, if one happened to still be
+     mid-flight) is already most of the way through its flight the instant
+     this freeze starts, not freshly spawned the same frame the way
+     flyExtraLife() now is: measured at t~0.87 here, a few px off and a few px
+     oversized next to its real HUD slot. Skipping updateFlyers() the way the
+     other freezes do would leave that gap frozen on screen — a visible ghost
+     badge sitting slightly off the letter it just became — for the whole
+     8.1s run-off. Letting it finish its last beat settles it into the slot
+     within a couple of frames instead. Nothing NEW can start mid-freeze
+     (the collision loop that spawns flyers doesn't run), so this only ever
+     finishes flight already committed before the freeze began. */
+  if (stampedeT > 0){
+    updateFlyers(dt);
+    stampedeT = freezeWorld(stampedeT, dt, { shakeAmt: STAMPEDE_SHAKE, onEnd: () => {
+      /* The card used to fire here, the instant the word finished. It is a
+         curtain call now, not an interruption: the player keeps riding until
+         the last life is gone and the reveal waits for them at the end. */
+      $("letters").classList.add("gone");
+      // Hands the channel back to whichever track runStampede() cut off.
+      // seasonPassT is frozen (unchanged) for the whole run-off, so
+      // seasonPassMusicPlaying still reflects whether Season Pass was the
+      // one playing — its own effect resumes right where it left off next
+      // frame, so the music should pick back up alongside it rather than
+      // handing to "ride" and then immediately being cut again.
+      Sound.music(seasonPassMusicPlaying ? "seasonPass" : "ride", null, 0.5);
+    }});
     return;
   }
 
@@ -4258,7 +4400,8 @@ function update(dt){
   const boostMult = (boostT > 0 && boostSuper) ? BOOST_SUPER_MULT : 1;
   const seasonMult = seasonPassT > 0 ? SEASONPASS_SPEED_MULT : 1;
   const target = CONFIG.maxSpeed * Math.max(boostMult, seasonMult);
-  speed = Math.min(target, speed + CONFIG.accel * dt * ((boostT > 0 || seasonPassT > 0) ? 6 : 1));
+  const rampMult = seasonPassT > 0 ? SEASONPASS_RAMP_MULT : (boostT > 0 ? BOOST_RAMP_MULT : 1);
+  speed = Math.min(target, speed + CONFIG.accel * dt * rampMult);
   travelled += speed * dt;
   metres += speed * dt * CONFIG.metresPerUnit;
 
@@ -4268,7 +4411,6 @@ function update(dt){
   duckA += ((tuckT > 0 ? 1 : 0) - duckA) * Math.min(1, dt * 14);
   if (invuln > 0) invuln -= dt;
   if (hurtT  > 0) hurtT  -= dt;
-  if (eatT   > 0) eatT   -= dt;
   if (moveT  > 0) moveT  -= dt;
   if (boostT > 0) boostT -= dt;
   if (whirlpoolT > 0){
@@ -4292,15 +4434,6 @@ function update(dt){
   }
   if (fastPassLabelT > 0) fastPassLabelT = Math.max(0, fastPassLabelT - dt);
   if (shake > 0) shake = Math.max(0, shake - dt * 3);
-  // Held until the run-off has finished rather than hidden on the last pickup,
-  // or the word would vanish before it got anywhere. The card follows it.
-  if (stampedeT > 0){
-    stampedeT -= dt;
-    /* The card used to fire here, the instant the word finished. It is a
-       curtain call now, not an interruption: the player keeps riding until the
-       last life is gone and the reveal waits for them at the end. */
-    if (stampedeT <= 0){ $("letters").classList.add("gone"); }
-  }
 
   /* Held-arrow steering, the keyboard's answer to a held thumb. Skipped while a
      finger is on the glass so the two can't fight over the same variable. */
@@ -4424,6 +4557,7 @@ function update(dt){
       // past max, never conditional on the rider's current pace.
       if (nearLane(e.i, LANE_PICK)){
         e.dead = true; boostSuper = true; boostT = BOOST_DUR;
+        coins += POWERUP_SCORE_BONUS;
         fastPassLabelT = FASTPASS_LABEL_DUR;
         Sound.boost(); puff(16);
       }
@@ -4441,7 +4575,7 @@ function update(dt){
       // the HUD flash still waits for flySouvenir()'s flight to land, so the
       // Buckaroos figure lighting up reads as "this is what just paid out."
       if (nearLane(e.i, LANE_PICK)){
-        e.dead = true; coins += SOUVENIR_BONUS;
+        e.dead = true; coins += SOUVENIR_BONUS + POWERUP_SCORE_BONUS;
         puff(24); flySouvenir(); Sound.souvenir();
       }
     } else if (e.t === T.EXTRALIFE){
@@ -4452,8 +4586,17 @@ function update(dt){
       // animation/sound are NOT deferred the same way, though — Adam's call:
       // they're the pickup's own feedback, so they fire right on the grab,
       // not a beat later once the flyer finishes its flight to the HUD.
+      // flyExtraLife() itself IS deferred, though — to eatT's freeze onEnd
+      // (below) rather than fired here. Spawned here, its flyer would sit
+      // frozen at the rider's own position for the whole EAT_DUR chomp
+      // (updateFlyers() doesn't run during the freeze — see freezeWorld()),
+      // reading as the pickup never actually vanishing. Waiting for the
+      // freeze to end means the world pickup (e.dead, right below) is gone
+      // the instant it's grabbed, nothing stands in for it during the eat
+      // animation, and the badge only takes flight once that's done.
       if (nearLane(e.i, LANE_PICK)){
-        e.dead = true; puff(16); flyExtraLife(); eatT = EAT_DUR; Sound.eating();
+        e.dead = true; puff(16); eatT = EAT_DUR; Sound.eating();
+        coins += POWERUP_SCORE_BONUS;
       }
     } else if (e.t === T.WHIRLPOOL){
       // Starts the magnet the instant it's grabbed, same "banked on the grab"
@@ -4462,6 +4605,7 @@ function update(dt){
       // whole effect, doubling as the pickup's own sound (rule 9).
       if (nearLane(e.i, LANE_PICK)){
         e.dead = true; whirlpoolT = WHIRLPOOL_DUR; puff(20);
+        coins += POWERUP_SCORE_BONUS;
         Sound.loopStart("whirlpool", 0.5);
       }
     } else if (e.t === T.SEASONPASS){
@@ -4473,6 +4617,7 @@ function update(dt){
       // over (also in update()).
       if (nearLane(e.i, LANE_PICK)){
         e.dead = true; seasonPassIntroT = SEASONPASS_INTRO_DUR; puff(30, SEASONPASS_GOLD);
+        coins += POWERUP_SCORE_BONUS;
         // Its own flash, not the plain hit-orange — white-to-gold, matching
         // the glow, and held noticeably longer/brighter than a hit's 130ms
         // blink so the grab reads as a big moment, not a jolt.
@@ -6543,12 +6688,12 @@ function drawRider(){
   // clock that only pauses in states this branch already excludes, rather
   // than to invuln/seasonPassT themselves, so the flash phase stays
   // continuous across a hit landing mid-reveal instead of resetting.
-  // Excluded once seasonPassT drops into its own frozen exit window
-  // (SEASONPASS_OUTRO_DUR) — no hit can land there (update() is frozen, same
-  // as the intro reveal), and runT itself stops advancing through it, so
-  // without this the rider would just get stuck on whichever flash phase it
-  // entered on instead of reading as a clean, un-flashed send-off.
-  if ((invuln > 0 || seasonPassT > SEASONPASS_OUTRO_DUR) && lives > 0 && Math.floor(runT * 12) % 2 === 0) return;
+  // Excluded whenever worldFrozen() — no hit can land in any of those holds
+  // (update() is short-circuited into freezeWorld() for all of them), and
+  // runT itself stops advancing through every one, so without this the rider
+  // would just get stuck on whichever flash phase it entered on instead of
+  // reading as a clean, un-flashed send-off.
+  if ((invuln > 0 || seasonPassT > SEASONPASS_OUTRO_DUR) && !worldFrozen() && lives > 0 && Math.floor(runT * 12) % 2 === 0) return;
 
   const h = Math.max(0.52 * S, H * 0.12);
   if (!img){                                     // stand-in rider
@@ -7221,6 +7366,22 @@ const NAME_B = ["Longhorn","Armadillo","Bronco","Rattler","Buckaroo","Coyote",
 
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
 
+/* Diagnostic-only rank tracing, gated so it costs nothing and prints nothing
+   in normal play. Opt in from the console with
+   `localStorage.setItem("stampede.debug.rank","1")` and reload, or load the
+   page with `?debugRank` — added 2026-08-27 to trace a reported mismatch
+   between the results card's rank and the leaderboard's own position for the
+   same standing score (see DATABASE.md/TODOLIST.md). Read once at load
+   rather than on every call: it's a manual debugging toggle, not something
+   that needs to react mid-session. */
+const RANK_DEBUG = (() => {
+  try {
+    return localStorage.getItem("stampede.debug.rank") === "1" ||
+           new URLSearchParams(location.search).has("debugRank");
+  } catch (e) { return false; }
+})();
+function rankLog(...args){ if (RANK_DEBUG) console.log("[rank]", ...args); }
+
 /* LIVE — backed by waterpark-leaderboard's REST routes, not localStorage.
    Digit-suffix collision handling (BAD_NUM etc.) now lives entirely
    server-side; see waterpark-leaderboard/includes/class-name-pool.php. */
@@ -7231,6 +7392,8 @@ const Board = (() => {
   // WP site itself.
   const API = "https://env-typhoontexasnew-dev.kinsta.cloud/wp-json/waterpark-leaderboard/v1";
   const ME  = "stampede.rider.v1";
+  const RANK_RETRY_ATTEMPTS = 2;    // rankOf(): one retry beyond the first try
+  const RANK_RETRY_DELAY_MS = 400;  // short enough to stay inside the "calculating" cycle
   const readJSON = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) || d; }
                                catch (e) { return d; } };
   const writeJSON = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); }
@@ -7267,8 +7430,10 @@ const Board = (() => {
        the results card never waits on the network, and a dropped connection
        just means the server catches up on the next successful submit. */
     submit(score){
-      const r = readJSON(ME, null); if (!r) return null;
+      const r = readJSON(ME, null);
+      if (!r){ rankLog("submit() skipped — no rider on file"); return null; }
       if (score > (r.score || 0)){
+        rankLog("submit() score", score, "beats standing best", r.score, "— posting and clearing cached rank");
         // A higher score moves the rider up the board, so the rank cached
         // against the old score is no longer valid — drop it and let the
         // next rankOf() call earn a fresh one.
@@ -7278,6 +7443,8 @@ const Board = (() => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ token: r.token, score }),
         }, 8000).catch(() => {});
+      } else {
+        rankLog("submit() score", score, "does not beat standing best", r.score, "— ignored");
       }
       return r;
     },
@@ -7311,16 +7478,42 @@ const Board = (() => {
        already moved score forward would stomp that newer score/rank with
        this stale one. */
     async rankOf(score){
+      rankLog("rankOf() called for score", score);
       const r = readJSON(ME, null);
-      if (r && r.score === score && r.rank != null) return r.rank;
-      try {
-        const res = await timeoutFetch(API + "/rank?score=" + Math.max(0, Math.floor(score)), {}, 8000);
-        if (!res.ok) return null;
-        const data = await res.json();
-        const fresh = readJSON(ME, null);
-        if (fresh && fresh.score === score){ fresh.rank = data.rank; writeJSON(ME, fresh); }
-        return data.rank;
-      } catch (e) { return null; }
+      if (r && r.score === score && r.rank != null){
+        rankLog("rankOf() cache hit — score", score, "rank", r.rank);
+        return r.rank;
+      }
+      rankLog("rankOf() cache miss for score", score, "— querying /rank",
+        r ? { cachedScore: r.score, cachedRank: r.rank } : { cachedScore: null, cachedRank: null });
+      const q = Math.max(0, Math.floor(score));
+      // One retry after a short delay: a single failed attempt (dropped
+      // packet, cold TLS handshake on the session's first cross-origin
+      // request) used to strand the results card on "—" even though a
+      // second attempt moments later — the leaderboard's own independent
+      // lookup — would succeed. RANK_RETRY_DELAY_MS is short enough to stay
+      // inside the results card's "calculating" cycling rather than reading
+      // as a stall.
+      for (let attempt = 0; attempt < RANK_RETRY_ATTEMPTS; attempt++){
+        try {
+          const res = await timeoutFetch(API + "/rank?score=" + q, {}, 8000);
+          if (res.ok){
+            const data = await res.json();
+            rankLog("rankOf() /rank response for score", score, "->", data);
+            const fresh = readJSON(ME, null);
+            if (fresh && fresh.score === score){ fresh.rank = data.rank; writeJSON(ME, fresh); }
+            return data.rank;
+          }
+          rankLog("rankOf() /rank responded not-ok", res.status, "attempt", attempt + 1, "for score", score);
+        } catch (e) {
+          rankLog("rankOf() /rank request failed, attempt", attempt + 1, "for score", score, "-", e && e.message);
+        }
+        if (attempt < RANK_RETRY_ATTEMPTS - 1){
+          await new Promise(res => setTimeout(res, RANK_RETRY_DELAY_MS));
+        }
+      }
+      rankLog("rankOf() giving up for score", score, "— returning null");
+      return null;
     },
 
     /* Every currently claimed name, so the reels can steer clear of a pair
@@ -7504,11 +7697,18 @@ async function renderBoard(){
   });
   $("lbEmpty").classList.toggle("on", rows.length === 0);
 
+  const meRowIndex = rows.findIndex(r => r.me);
+  if (meRowIndex >= 0){
+    rankLog("renderBoard() found current player inside the top", rows.length,
+      "at list position", meRowIndex + 1, "for score", me && me.score);
+  }
+
   /* Outside the top 50, the player still gets their own row — pinned below the
      board so "#578 of 3,412" is answered without scrolling to nowhere. */
   const you = $("lbYou"); you.innerHTML = "";
   if (me && me.score > 0 && !rows.some(r => r.me)){
     const pos = await Board.rankOf(me.score);
+    rankLog("renderBoard() pinned 'you' row — rankOf(", me.score, ") ->", pos);
     if (pos != null){
       const d = document.createElement("div");
       d.className = "lbRow me";

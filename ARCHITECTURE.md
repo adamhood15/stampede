@@ -101,6 +101,24 @@ design), `JUMP_DUR = 0.62`. If this is ever revisited, the levers are the lift
 threshold, the hazard z-band (`e.z > travelled - 3`, wider for tunnels), and
 `tuckT`.
 
+**`PIG_AFTER_WAVE_MIN_GAP`** (next to `JUMP_DUR`/`DUCK_DUR` in index.html)
+enforces the one asymmetry those two hazards have: `tuck()` refuses to fire
+while `jumpT >= 0`, so a WAVE immediately followed by a PIG demands the rider
+fully land the jump before they can even start ducking — `jump()` has no such
+gate on `tuckT` (it cancels an active duck outright), so a PIG followed by a
+WAVE was never actually a problem and needed no rule. The constant is derived
+from the same collision z-window `hitRider()` reads (`travelled ∈
+[e.z-0.5, e.z+1.2]`) and from solving `riderLift()`'s airborne threshold for
+the elapsed time it takes to first cross it — the full derivation is in the
+constant's own comment. It's sized off the fastest a *live* (non-Season-Pass)
+rider can be going, `CONFIG.maxSpeed * BOOST_SUPER_MULT`, not the speed at
+spawn time — the "tunnel, then jump" pattern's own tunnel can boost the rider
+mid-transit between the wave and the pig, so sizing off spawn-time speed would
+have let the gap be too short by the time the rider actually gets there.
+`spawn()` tracks `lastWaveZ` (parallel to `lastTunZ`) across BOTH places a
+WAVE can be added — the plain wave pattern and the tunnel-then-wave one — so
+the "sniper pig" branch's gate covers a wave from either origin.
+
 ## Rider animation & sprite registration
 
 **Priority (`drawRider`, matching the actual check order in code — an earlier
@@ -230,6 +248,13 @@ Built: **Fast Pass** (`T.BOOST`), **Souvenir Bottle** (`T.SOUVENIR`),
 (`T.SEASONPASS`) — see the README's power-up table for player-facing
 descriptions. That's the full 4-5 (rule 1) — no slots left.
 
+Every pickup also adds `POWERUP_SCORE_BONUS` (15 — 150 points once run through
+`runScore()`'s `coins * SC_COIN` term, same coin-equivalent pattern
+`SOUVENIR_BONUS` already used) to `coins`, right in each type's own collision
+branch (2026-08-27). It stacks with whatever a power-up already grants —
+Souvenir Bottle's own `SOUVENIR_BONUS` included — rather than replacing it, so
+the grab always reads as strictly better than before.
+
 **The speed-boost rider animation** (`SPEED_REG`, `speedFrame`, see
 [Rider animation](#rider-animation--sprite-registration)) covers BOTH ways
 the boost is granted — a tunnel and the Fast Pass pickup — because both
@@ -335,11 +360,75 @@ is timed off), so `SEASONPASS_OUTRO_DUR`'s own length and the music handoff to
 `"ride"` when it reaches 0 land at the exact same instant they always did;
 freezing the world changed nothing about the music timing. The post-hit/
 Season-Pass invulnerability flash (`drawRider()`, keyed to `seasonPassT > 0`)
-is deliberately excluded once inside this window — checks
-`seasonPassT > SEASONPASS_OUTRO_DUR` instead — since `runT` (the flash's own
-clock) stops advancing through the freeze too, and without the exclusion the
-rider would just get stuck on whichever flash phase it entered on rather than
-reading as a clean send-off.
+is deliberately excluded once inside this window, via `worldFrozen()` (see
+below) — since `runT` (the flash's own clock) stops advancing through the
+freeze too, and without the exclusion the rider would just get stuck on
+whichever flash phase it entered on rather than reading as a clean send-off.
+
+**`freezeWorld()`/`worldFrozen()`** (right before `update()`) are the shared
+"action pauses" machinery Season Pass's two blocks above now call into,
+rather than each freeze duplicating the same camera-hold/spray-decay
+boilerplate. `freezeWorld(timer, dt, {shakeAmt, onEnd})` ticks the caller's
+own timer down (that timer usually drives something else too — see below),
+holds `camX`/`camY` at the current `travelled`, keeps `spray` decaying, sets
+`shake` when `shakeAmt` is passed, and fires `onEnd` once, the instant the
+timer hits 0 — the caller writes the returned value back into its own
+variable. `worldFrozen()` is true whenever any freeze is currently active;
+`drawRider()`'s flash exclusion reads it instead of a single hardcoded
+condition, so it stays correct as freeze call sites are added. Three calls
+into `freezeWorld()` sit in `update()`, in this order: Season Pass's intro,
+Season Pass's outro, then two more —
+
+- **Extra Life's chomp.** `eatT` (already driving the rider's 4-frame eating
+  pose via `quadIdx(1 - eatT/EAT_DUR)`, `EAT_DUR` = 2.6s) doubles as the
+  freeze's own timer: `if (eatT > 0){ eatT = freezeWorld(eatT, dt, { onEnd:
+  flyExtraLife }); return; }`. `flyExtraLife()` fires on `onEnd`, not at the
+  grab — spawned any earlier, the flyer would just sit frozen over the rider
+  for the whole chomp (`updateFlyers()` doesn't run during this freeze), which
+  read as the pickup never actually vanishing even though the world entity
+  itself (`e.dead`) is gone the instant it's grabbed. Because `eatT` is set
+  the instant the pickup is grabbed (T.EXTRALIFE's collision branch), the
+  freeze starts on the very next frame, same one-frame lag as Season Pass's
+  intro; the badge's flight to the HUD (and `extraLife` flipping true) plays
+  out entirely after the chomp ends rather than overlapping it.
+- **The STAMPEDE letters' run-off.** `stampedeT` (already driving the CSS
+  run-off via `#letters.run`'s keyframes, `STAMPEDE_DUR` = 8.1s) doubles as
+  the freeze's own timer too, with a slight shake (`STAMPEDE_SHAKE` = 0.22,
+  well under a hit's `shake = 1`) for the herd underfoot. `stampedeT` is set
+  once the 8th letter's flyer *lands* in the HUD (`updateFlyers()`, when
+  `shownLetters` reaches `WORD.length`), not on the grab itself — grabbing the
+  8th letter still plays out under normal, collidable rules for the ~0.6s
+  flight to the HUD (`WIN_INVULN = FLY_DUR * FLY_LAND + 0.25` covers exactly
+  that window). `WIN_INVULN` used to also carry `STAMPEDE_DUR`, back when the
+  run-off played out over live gameplay and dying mid-clip could take the win
+  away; now that the run-off itself is frozen (no collision loop runs, so
+  nothing can hit the rider regardless of `invuln`), that term was dropped —
+  leaving it in would have granted several extra seconds of bonus
+  invincibility the instant the freeze ends, for no reason.
+
+  Unlike Extra Life's chomp, this freeze block *does* keep calling
+  `updateFlyers()` every frame — the 8th letter's own flyer (`flyLetter()`
+  fires at the grab, same as every other letter) is already ~85% through its
+  flight the instant the freeze starts, not freshly spawned the same frame,
+  because the freeze only begins once THAT flyer lands. Skipping
+  `updateFlyers()` the way the other freezes do left it stuck mid-flight for
+  the whole 8.1s — measured at a few px off and a few px oversized next to its
+  real HUD slot — which read as the last letter (Adam's report: "the E")
+  never actually disappearing. Nothing NEW can start mid-freeze (the
+  collision loop that spawns flyers doesn't run), so this only ever finishes
+  flight already committed before the freeze began — the letter's own, or any
+  other pickup's flyer that happened to still be catching up.
+
+  `runStampede()` (fires once, the instant `stampedeT` is set) also calls
+  `Sound.musicStop(0.15)` — Adam's report: grabbing Season Pass and the 8th
+  letter close together left Season Pass's music playing under the stampede
+  sting for the whole run-off, since nothing told the channel to stop. The
+  freeze's own `onEnd` hands it back once the run-off ends:
+  `Sound.music(seasonPassMusicPlaying ? "seasonPass" : "ride", null, 0.5)` —
+  `seasonPassMusicPlaying` still reflects the truth because `seasonPassT` is
+  frozen (unchanged) for the whole run-off, so Season Pass's own effect (if it
+  was running) resumes in lockstep with its music rather than the channel
+  handing to "ride" and then immediately being cut again.
 
 Every mechanical effect starts together the instant `seasonPassT` takes over:
 - **Invincibility.** `hitRider()`'s very first line is
@@ -355,12 +444,20 @@ Every mechanical effect starts together the instant `seasonPassT` takes over:
   i-frames and the win-reveal invuln hold use, so every window a hit can't
   land in reads the same way. Every hazard (cow/yeti/wave/pig) already funnels
   through `hitRider()`, so this one guard covers all four for free.
-- **+50% top speed.** `update()`'s target-speed formula takes
+- **+75% top speed.** `update()`'s target-speed formula takes
   `Math.max(boostMult, seasonMult)` rather than stacking the two — Season
-  Pass's `SEASONPASS_SPEED_MULT` (1.5) simply wins over a concurrent Fast
-  Pass/tunnel boost's `BOOST_SUPER_MULT` (1.25) rather than compounding with
-  it. Gets the same accelerated ramp-to-target boost normally reserved for
-  `boostT > 0`, and the same "going fast" vignette/rush-line read in
+  Pass's `SEASONPASS_SPEED_MULT` (1.75, raised from 1.5 on 2026-08-27 —
+  Adam's call to make the already-bigger-than-Fast-Pass bonus ~50% bigger
+  still) simply wins over a concurrent Fast Pass/tunnel boost's
+  `BOOST_SUPER_MULT` (1.25) rather than compounding with it. Ramps to target
+  via its own `SEASONPASS_RAMP_MULT` (8, vs. Fast Pass/tunnel's
+  `BOOST_RAMP_MULT` = 6, both replacing what used to be one shared bare `6`)
+  — raising `SEASONPASS_SPEED_MULT` to 1.75 without also raising the ramp left
+  the rider never actually reaching the new, higher target before the 1.8s
+  outro freeze cut the ramp off (peaked ~13 of 14); `SEASONPASS_RAMP_MULT` = 8
+  closes that gap with roughly the same proportional margin the old shared
+  6x left before the 1.5x target, still not fast enough to change Fast
+  Pass's own feel. Same "going fast" vignette/rush-line read in
   `speedLines()`/`frame()`'s `rushPhase` update — both now check
   `seasonPassT > 0` alongside `boostT > 0`, since the rider is genuinely
   moving faster and the existing cue is generic, not Fast-Pass-specific.

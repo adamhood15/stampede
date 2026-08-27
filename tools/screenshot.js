@@ -27,6 +27,21 @@ const SERVER = process.env.STAMPEDE_URL || "http://127.0.0.1:8000/index.html";
 // loader's own class toggle is copied here to keep the two paths in sync.
 const SKIP_LOADER = `dismissLoader();`;
 
+// Seeds the rider directly rather than calling Board.claim(), which is a real
+// network call against the live Kinsta dev backend (DATABASE.md: Board's API
+// is a temporary absolute URL) that this tool has no reason to depend on
+// succeeding — these screens are about layout, not the naming flow. `score`
+// is seeded well above anything a non---worst run here produces (max is
+// over-won's ~14,000; SC_COIN/SC_LETTER, index.html) so Board.submit() never
+// sees a "new best" and Board.rankOf() serves the pre-seeded `rank` from its
+// own cache instead of making a live network read for a screenshot that
+// doesn't need one. --worst intentionally exceeds this (coins: 98765432) and
+// falls through to a real, read-only /rank call — acceptable there, since
+// --worst is already an extreme-value mode.
+const SEED_RIDER = `localStorage.setItem("stampede.rider.v1", JSON.stringify({
+  name: "Test Rider", token: "test-token", score: 50000, at: Date.now(), rank: 12
+}));`;
+
 const SCREEN_SCRIPTS = {
   // Fresh visit: loader dismissed, then the naming reels (no rider on file yet).
   name: `
@@ -37,12 +52,12 @@ const SCREEN_SCRIPTS = {
   `,
   // Repeat visit (rider already on file) straight to the title card.
   title: `
-    Board.claim("Test Rider");
+    ${SEED_RIDER}
     ${SKIP_LOADER}
     afterLoader();
   `,
   play: `
-    Board.claim("Test Rider");
+    ${SEED_RIDER}
     ${SKIP_LOADER}
     start();
     if (WORST){
@@ -53,7 +68,7 @@ const SCREEN_SCRIPTS = {
   `,
   // Wipeout results card, word NOT spelled — "Wipeout" copy path.
   over: `
-    Board.claim("Test Rider");
+    ${SEED_RIDER}
     ${SKIP_LOADER}
     start();
     gotLetters = WORST ? 8 : 3;
@@ -64,7 +79,7 @@ const SCREEN_SCRIPTS = {
   // Wipeout results card, word WAS spelled — exercises the "You Survived It"
   // copy, which HANDOFF flags as stale now that every run ends in a wipeout.
   "over-won": `
-    Board.claim("Test Rider");
+    ${SEED_RIDER}
     ${SKIP_LOADER}
     start();
     gotLetters = WORD.length;
@@ -73,7 +88,7 @@ const SCREEN_SCRIPTS = {
     showOver();
   `,
   board: `
-    Board.claim("Test Rider");
+    ${SEED_RIDER}
     ${SKIP_LOADER}
     openBoard();
   `,

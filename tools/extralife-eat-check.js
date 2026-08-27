@@ -14,6 +14,13 @@ const { launchChrome, openPage, evaluate, VIEWPORTS } = require("./cdp");
 
 const SERVER = process.env.STAMPEDE_URL || "http://127.0.0.1:8000/index.html";
 const SKIP_LOADER = `dismissLoader();`;
+// Seeds the rider directly rather than calling Board.claim(), which is a
+// real network call against the live Kinsta dev backend (DATABASE.md) that
+// this power-up check has no reason to depend on -- it never reaches
+// showOver()/Board.submit(), so no rank caching is needed either.
+const SEED_RIDER = `localStorage.setItem("stampede.rider.v1", JSON.stringify({
+  name: "Test Rider", token: "test-token", score: 0, at: Date.now()
+}));`;
 
 async function main() {
   const chrome = await launchChrome({});
@@ -45,7 +52,7 @@ async function main() {
         window.__starts.push(node);
         return origStart.apply(this, arguments);
       };
-      Board.claim("Test Rider");
+      ${SEED_RIDER}
       ${SKIP_LOADER}
       start();
       lane = 0; laneA = 0;
@@ -63,12 +70,28 @@ async function main() {
           extraLife, eatT, EAT_DUR,
           plays: window.__plays.slice(),
           hasChainedWebAudioSource: chainedIdx >= 0,
+          flyerKinds: flyers.map(f => f.kind),
+          entLeft: ents.some(e => e.t === T.EXTRALIFE && !e.dead),
         };
       })()
     `);
 
-    // Now run the flyer's flight to completion -- extraLife should flip true
-    // here, with no second eatT/Sound.eating() firing.
+    // Now run the eat freeze out to its last instant and let update() fire
+    // its onEnd -- flyExtraLife() is deferred there (see index.html's
+    // update()), not spawned at the grab, so the flyer doesn't exist until
+    // the chomp actually finishes. Jumping eatT to the freeze's last instant
+    // rather than pumping ~150 real frames keeps this deterministic (no
+    // organically-spawned hazard can land on the rider in between).
+    const chomped = await evaluate(session, `
+      (() => {
+        eatT = 0.001;
+        update(1/60);
+        return { eatT, flyerKinds: flyers.map(f => f.kind) };
+      })()
+    `);
+
+    // Then run the flyer's flight to completion -- extraLife should flip
+    // true here, with no second eatT/Sound.eating() firing.
     const landed = await evaluate(session, `
       (() => {
         for (let i = 0; i < 60; i++) updateFlyers(0.02);
@@ -142,7 +165,7 @@ async function main() {
 
     const exceptions = await evaluate(session, `window.__caughtExceptions || []`);
 
-    console.log(JSON.stringify({ grabbed, landed, frames, priority, chained, exceptions }, null, 2));
+    console.log(JSON.stringify({ grabbed, chomped, landed, frames, priority, chained, exceptions }, null, 2));
 
     // Whichever path Sound.eating() actually took must show BOTH: eating
     // started at pickup, and slurp only starts once eating's own end hook
@@ -155,8 +178,11 @@ async function main() {
     const ok =
       grabbed.extraLife === false &&                   // shield still waits for the flyer to land
       grabbed.eatT > 0 && grabbed.eatT <= grabbed.EAT_DUR &&   // but eating fired right on the grab
+      grabbed.entLeft === false &&                      // the world pickup is gone the instant it's grabbed
+      grabbed.flyerKinds.length === 0 &&                // and no badge stands in for it during the chomp
       (eatingStartedViaWebAudio || eatingStartedViaElement) &&
       !grabbed.plays.includes("typhoon-slurp.mp3") &&   // not fired yet -- only on ended
+      chomped.flyerKinds.includes("extralife") &&        // badge takes flight only once the chomp ends
       landed.extraLife === true &&                      // NOW the shield goes live
       landed.startsCount === chained.startsBefore &&    // landing itself started no new sound
       frames.every(f => f.ei >= -1 && f.ei <= 3 && f.img !== false) &&

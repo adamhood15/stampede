@@ -12,6 +12,13 @@ const { launchChrome, openPage, evaluate, VIEWPORTS } = require("./cdp");
 
 const SERVER = process.env.STAMPEDE_URL || "http://127.0.0.1:8000/index.html";
 const SKIP_LOADER = `dismissLoader();`;
+// Seeds the rider directly rather than calling Board.claim(), which is a
+// real network call against the live Kinsta dev backend (DATABASE.md) that
+// this power-up check has no reason to depend on -- it never reaches
+// showOver()/Board.submit(), so no rank caching is needed either.
+const SEED_RIDER = `localStorage.setItem("stampede.rider.v1", JSON.stringify({
+  name: "Test Rider", token: "test-token", score: 0, at: Date.now()
+}));`;
 
 async function main() {
   const chrome = await launchChrome({});
@@ -20,22 +27,31 @@ async function main() {
     await new Promise(r => setTimeout(r, 400));
 
     await evaluate(session, `
-      Board.claim("Test Rider");
+      ${SEED_RIDER}
       ${SKIP_LOADER}
       start();
       lane = 0; laneA = 0;
     `);
 
-    // 1. Pickup -> flight -> landing.
+    // 1. Pickup -> eat freeze -> flight -> landing. flyExtraLife() is
+    // deferred to the eat freeze's onEnd (see index.html's update()), so the
+    // badge doesn't spawn at the grab -- the world pickup just needs to be
+    // gone right away (e.dead) so nothing stands in for it during the chomp.
     const pickup = await evaluate(session, `
       (() => {
         const before = { extraLife, tubesExtra: document.querySelectorAll('#tubes .tube.extra').length };
         add(T.EXTRALIFE, travelled + 0.05, 0);
         update(0.016);
         const afterPickup = { extraLife, flyerKinds: flyers.map(f => f.kind), entLeft: ents.some(e => e.t === T.EXTRALIFE && !e.dead) };
+        // Jump straight to the freeze's last instant rather than pumping
+        // ~150 real frames -- deterministic, and no organically-spawned
+        // hazard can land on the rider in between.
+        eatT = 0.001;
+        update(1/60);
+        const afterChomp = { flyerKinds: flyers.map(f => f.kind) };
         for (let i = 0; i < 60; i++) updateFlyers(0.02);
         const afterLand = { extraLife, tubesExtra: document.querySelectorAll('#tubes .tube.extra').length, flyersLeft: flyers.length };
-        return { before, afterPickup, afterLand };
+        return { before, afterPickup, afterChomp, afterLand };
       })()
     `);
 
@@ -100,7 +116,9 @@ async function main() {
     const ok =
       pickup.before.extraLife === false && pickup.before.tubesExtra === 0 &&
       pickup.afterPickup.extraLife === false &&           // not real until landed
-      pickup.afterPickup.flyerKinds.includes("extralife") &&
+      pickup.afterPickup.entLeft === false &&             // world pickup gone the instant it's grabbed
+      pickup.afterPickup.flyerKinds.length === 0 &&       // no badge stands in for it during the chomp
+      pickup.afterChomp.flyerKinds.includes("extralife") && // badge takes flight once the chomp ends
       pickup.afterLand.extraLife === true &&
       pickup.afterLand.tubesExtra === 1 &&
       absorb.before.extraLife === true &&

@@ -42,7 +42,19 @@ const VIEWPORTS = {
   desktop:  { width: 1280, height: 800, dsf: 1, mobile: false },
 };
 
-async function launchChrome({ port = 9333 } = {}) {
+// A fixed default port meant two concurrent tool runs (two sessions, or two
+// tools in the same session) could both bind 9333 -- the second Chrome fails
+// to claim the port but still starts, and waitForDevtools() below then finds
+// the FIRST one's devtools endpoint still answering and happily attaches to
+// that stale, unrelated browser instead. Symptom is a test that hangs for
+// real (a `while` loop against page state that will never arrive) rather
+// than a clean connection failure, which is what actually happened running
+// two sessions' tools side by side (2026-08-27). Randomizing the default
+// per-process makes a collision unlikely without requiring every caller to
+// coordinate a port; pass an explicit port to pin one on purpose.
+function defaultPort() { return 9200 + Math.floor(Math.random() * 800); }
+
+async function launchChrome({ port = defaultPort() } = {}) {
   const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "stampede-cdp-"));
   const bin = findChrome();
   const args = [
@@ -115,7 +127,40 @@ class CDPSession {
   }
 }
 
-async function openPage({ port, url, viewport = VIEWPORTS.phone412 }) {
+// index.html's Board talks to a live Kinsta DEV backend (DATABASE.md — the
+// API constant is a temporary absolute URL, not same-origin), not a sandbox.
+// Every tool here goes through openPage(), so this guard runs by default:
+// installed via Page.addScriptToEvaluateOnNewDocument, it patches
+// window.fetch BEFORE the page's own <script> ever executes, so it catches
+// even a request fired at page-load time (e.g. the naming screen's
+// namesPromise). It only blocks WRITES — POST /claim and POST /submit, the
+// two routes that create or change a row — leaving GET /leaderboard, /rank,
+// and /names to hit the real dev API, since a blocked read would change what
+// these tools can verify for no write-safety benefit.
+// A blocked call rejects the same way a real dropped connection would
+// (fetch() throwing a TypeError), which is exactly the failure mode
+// Board.claim()/Board.submit() already handle — see DATABASE.md's own
+// "fails open" design — so this changes WHY a call fails in a tool that
+// never depended on it succeeding, never WHETHER it fails.
+// Pass allowBoardWrites: true only for a test that genuinely needs the real
+// backend; per Adam's request (2026-08-27), such a test should claim under
+// an identifiable test name/token (e.g. a fixed adjective/noun pair reserved
+// for testing) so any row it creates is obviously not a real player's.
+const BOARD_WRITE_GUARD = `(() => {
+  const BLOCKED = [/\\/claim(?:$|\\?)/, /\\/submit(?:$|\\?)/];
+  const realFetch = window.fetch.bind(window);
+  window.fetch = function(input, init){
+    const url = typeof input === "string" ? input : (input && input.url) || "";
+    if (BLOCKED.some(re => re.test(url))) {
+      return Promise.reject(new TypeError(
+        "stampede test tooling: blocked a real /claim or /submit request to " + url
+      ));
+    }
+    return realFetch(input, init);
+  };
+})();`;
+
+async function openPage({ port, url, viewport = VIEWPORTS.phone412, allowBoardWrites = false }) {
   const res = await fetch(`http://127.0.0.1:${port}/json/new?about:blank`, { method: "PUT" });
   const target = await res.json();
   const ws = new WebSocket(target.webSocketDebuggerUrl);
@@ -127,6 +172,9 @@ async function openPage({ port, url, viewport = VIEWPORTS.phone412 }) {
   await session.send("Page.enable");
   await session.send("Runtime.enable");
   await session.send("DOM.enable");
+  if (!allowBoardWrites) {
+    await session.send("Page.addScriptToEvaluateOnNewDocument", { source: BOARD_WRITE_GUARD });
+  }
   await session.send("Emulation.setDeviceMetricsOverride", {
     width: viewport.width,
     height: viewport.height,

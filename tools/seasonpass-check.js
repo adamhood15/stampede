@@ -27,6 +27,13 @@ const { launchChrome, openPage, evaluate, VIEWPORTS } = require("./cdp");
 
 const SERVER = process.env.STAMPEDE_URL || "http://127.0.0.1:8000/index.html";
 const SKIP_LOADER = `dismissLoader();`;
+// Seeds the rider directly rather than calling Board.claim(), which is a
+// real network call against the live Kinsta dev backend (DATABASE.md) that
+// this power-up check has no reason to depend on -- it never reaches
+// showOver()/Board.submit(), so no rank caching is needed either.
+const SEED_RIDER = `localStorage.setItem("stampede.rider.v1", JSON.stringify({
+  name: "Test Rider", token: "test-token", score: 0, at: Date.now()
+}));`;
 
 function ok(label, cond, detail) {
   console.log((cond ? "PASS" : "FAIL") + " - " + label + (detail !== undefined ? " (" + JSON.stringify(detail) + ")" : ""));
@@ -44,7 +51,7 @@ async function main() {
       window.__safeCount = 0;
       const origSeasonPassSafe = Sound.seasonPassSafe.bind(Sound);
       Sound.seasonPassSafe = function(){ window.__safeCount++; return origSeasonPassSafe(); };
-      Board.claim("Test Rider");
+      ${SEED_RIDER}
       ${SKIP_LOADER}
       start();
       lane = 0; laneA = 0;
@@ -97,12 +104,12 @@ async function main() {
     allPass &= ok("world resumes into the effect once the intro ends", resumed.seasonPassIntroT === 0 && resumed.seasonPassT > 8.9, resumed);
     allPass &= ok("rider holds on frame index 5 (season-pass_06) right after resuming", resumed.frame === 5, resumed);
 
-    // --- Now travelled DOES advance, and speed climbs toward 1.5x maxSpeed ---
+    // --- Now travelled DOES advance, and speed climbs toward SEASONPASS_SPEED_MULT x maxSpeed ---
     const speedState = await evaluate(session, `
-      (() => { const t0 = travelled; for (let i = 0; i < 400; i++) update(0.016); return { advanced: travelled > t0, speed, maxSpeed: CONFIG.maxSpeed }; })()
+      (() => { const t0 = travelled; for (let i = 0; i < 400; i++) update(0.016); return { advanced: travelled > t0, speed, maxSpeed: CONFIG.maxSpeed, mult: SEASONPASS_SPEED_MULT }; })()
     `);
     allPass &= ok("travelled advances once resumed", speedState.advanced, speedState);
-    allPass &= ok("speed climbs toward 1.5x maxSpeed", Math.abs(speedState.speed - speedState.maxSpeed * 1.5) < 0.05, speedState);
+    allPass &= ok("speed climbs toward SEASONPASS_SPEED_MULT x maxSpeed", Math.abs(speedState.speed - speedState.maxSpeed * speedState.mult) < 0.05, speedState);
 
     // --- Invincibility now that the effect is truly active ---
     const beforeLives = await evaluate(session, "lives");

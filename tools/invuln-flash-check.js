@@ -14,6 +14,13 @@ const { launchChrome, openPage, evaluate, VIEWPORTS } = require("./cdp");
 
 const SERVER = process.env.STAMPEDE_URL || "http://127.0.0.1:8000/index.html";
 const SKIP_LOADER = `dismissLoader();`;
+// Seeds the rider directly rather than calling Board.claim(), which is a
+// real network call against the live Kinsta dev backend (DATABASE.md) that
+// this power-up check has no reason to depend on -- it never reaches
+// showOver()/Board.submit(), so no rank caching is needed either.
+const SEED_RIDER = `localStorage.setItem("stampede.rider.v1", JSON.stringify({
+  name: "Test Rider", token: "test-token", score: 0, at: Date.now()
+}));`;
 const OUT_DIR = path.join(__dirname, "..", ".tmp-invuln-flash-check");
 
 async function main() {
@@ -26,7 +33,7 @@ async function main() {
     await new Promise(r => setTimeout(r, 400));
 
     await evaluate(session, `
-      Board.claim("Test Rider");
+      ${SEED_RIDER}
       ${SKIP_LOADER}
       start();
       lane = 0; laneA = 0;
