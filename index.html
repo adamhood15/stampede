@@ -1589,7 +1589,6 @@ const CONFIG = {
 const ART = {
   sun:      "assets/sprites/backdrop/sun.png",
   cloud:    "assets/sprites/backdrop/cloud.png",
-  cloudBoot:      "assets/sprites/backdrop/cloud-boot.png",
   cloudWagonWheel:"assets/sprites/backdrop/cloud-wagon-wheel.png",
   rider:    "assets/sprites/typhoon-sprites/typhoon-rider.png",
   cow:      "assets/sprites/obstacles/cow-tube.png",
@@ -4676,7 +4675,7 @@ function update(dt){
    they get more drift and more parallax. */
 const CLOUDS = [
   { u: 0.05, v: 0.20, s: 0.240, a: 0.95, sp: 0.016, par: 0.55 },
-  { u: 0.40, v: 0.52, s: 0.152, a: 0.80, sp: 0.011, par: 0.38, img: "cloudBoot" },
+  { u: 0.40, v: 0.52, s: 0.152, a: 0.80, sp: 0.011, par: 0.38 },
   { u: 0.61, v: 0.12, s: 0.192, a: 0.88, sp: 0.014, par: 0.46 },
   { u: 0.75, v: 0.63, s: 0.112, a: 0.66, sp: 0.008, par: 0.28 },
   { u: 0.90, v: 0.34, s: 0.176, a: 0.85, sp: 0.013, par: 0.44, img: "cloudWagonWheel" },
@@ -7387,7 +7386,10 @@ window.addEventListener("keydown",     () => startTitleMusic(true));
    nothing for leetspeak or homoglyphs to slip through. Grown to 100x100
    2026-08-20 (was 40x40) — every individual word is still readable in one
    sitting, but the 10,000-pair cross product no longer is; see TODOLIST.md
-   for the resulting audit gap. Mirrored in the plugin
+   for the resulting audit gap. NAME_A is 99 words, not 100 — "Slippery" was
+   cut 2026-08-27 (Adam's word-by-word read of the expansion) for its
+   negative-personality connotation, leaving a 99x100 = 9,900-pair pool.
+   Mirrored in the plugin
    at waterpark-leaderboard/includes/class-name-pool.php — keep both in sync. */
 const NAME_A = ["Dusty","Rowdy","Soggy","Rusty","Lucky","Wild","Trusty","Sandy",
   "Muddy","Sunbaked","Splashy","Gritty","Speedy","Bouncy","Rugged","Breezy",
@@ -7400,7 +7402,7 @@ const NAME_A = ["Dusty","Rowdy","Soggy","Rusty","Lucky","Wild","Trusty","Sandy",
   "Rip-roarin'","Wranglin'","Saddlesore","Rootin'-tootin'","Barnstormin'",
   "Spurred","Ranch-raised","Dune-hoppin'","Sagebrush","Prairie-bred",
   "Trailworn","Splashin'","Drenched","Soaked","Waterlogged","Bubbly","Foamy",
-  "Fizzy","Slippery","Slick","Sloshy","Wavy","Rippling","Gushing","Misty",
+  "Fizzy","Slick","Sloshy","Wavy","Rippling","Gushing","Misty",
   "Dewy","Damp","Drizzly","Poolside","Tubular","Slidin'","Divin'",
   "Cannonballin'","Floatin'","Bobbin'","Sudsy","Frothy","Sparkling","Chilly",
   "Dripping"];

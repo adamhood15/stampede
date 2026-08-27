@@ -15,11 +15,12 @@ in [DATABASE.md](DATABASE.md).
   (2026-08-25). Went with a WP `template_include` blank-template route at
   `/play/` instead — no theme/plugin script baggage, no editor fighting a
   huge inline `<script>`. See "WordPress hosting / go-live" below.
-- **Full word-by-word audit of the 10,000-pair pool** — the 120 words added
-  in the 100×100 expansion have only been screened by Claude, not read
-  word-by-word by the user the way the original 80 were. This audit is the
-  entire safety argument for the closed-set naming approach, and matters
-  more now that a real marketing campaign will send strangers through it.
+- ~~**Full word-by-word audit of the 10,000-pair pool**~~ — resolved
+  (2026-08-27). Adam reviewed all 120 expansion words via an interactive
+  checklist artifact (18 pre-flagged by Claude for tone/trademark/
+  connotation, same categories as the original 2026-08-18 audit). Only
+  `Slippery` was cut; see DATABASE.md's "Word pool" section for the full
+  kept/cut breakdown. Pool is now 99×100 = 9,900 combinations.
 - **Clear the Kinsta dev table's test data** before that environment is used
   for anything real — it has accumulated dozens of claimed names/scores from
   verification sessions, including at least one live "Bubbly Jellyfish"

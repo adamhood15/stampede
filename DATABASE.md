@@ -161,9 +161,10 @@ revisit only if the board actually gets gamed.
 
 ## Word pool
 
-`NAME_A` × `NAME_B` = 100 × 100 = 10,000 combinations, mirrored byte-for-byte
+`NAME_A` × `NAME_B` = 99 × 100 = 9,900 combinations, mirrored byte-for-byte
 into `waterpark-leaderboard/includes/class-name-pool.php` (the claim endpoint
-validates server-side, never trusts client text).
+validates server-side, never trusts client text). `NAME_A` is 99, not 100 —
+see the 2026-08-27 audit below.
 
 **Ruled on by the user (2026-08-18):** the original 40×40 pool was read
 word-by-word for tone/trademark/association. Only `Blazin'` was cut
@@ -182,8 +183,21 @@ audit was **explicitly kept** — recorded here so it isn't re-litigated:
 - `Blazin'` *(removed)*, `Sunbaked`, `Drippy`, `Catfish`, `Stormy`,
   `Cowpoke` — minor slang/association readings, kept.
 
-**Not yet audited to the same bar:** the 60 new adjectives and 60 new nouns
-added in the 2026-08-20 expansion (40×40 → 100×100) were screened by Claude
-for the same categories while writing them, but have not had the user's own
-word-by-word read the original 80 got. Tracked in
-[TODOLIST.md](TODOLIST.md#leaderboard--database).
+**Ruled on by the user (2026-08-27):** the 60 new adjectives and 60 new
+nouns added in the 2026-08-20 expansion, previously only Claude-screened,
+got the same word-by-word read the original 80 got. Only `Slippery` was cut
+(negative-personality read — sneaky/untrustworthy) and not replaced, so
+`NAME_A` is 99 words, not 100. Everything else flagged in that pass was
+**explicitly kept** — recorded here so it isn't re-litigated:
+
+- `Wiry`, `Rippling`, `Dripping` — body/virility-adjacent, same category as
+  `Stallion`/`Sizzlin'` above, kept anyway.
+- `Saddlesore`, `Slick`, `Vulture`, `Buzzard`, `Piranha` — minor
+  negative-connotation readings, kept.
+- `Gunslinger`, `Sidewinder` — weapon-adjacent, a new category this
+  expansion introduced; kept.
+- `Saloon`, `Cantina` — alcohol-reference, another new category; kept.
+- `Tidalwave` — water-hazard word, same category as `Riptide`/`Whirlpool`
+  above, kept.
+- `Flipper`, `Stingray`, `Barracuda` — trademark/brand association, same
+  category as `Longhorn`/`Mustang` above, kept as non-infringing use.

@@ -24,7 +24,7 @@ class Waterpark_Leaderboard_Name_Pool {
         "Rip-roarin'", "Wranglin'", "Saddlesore", "Rootin'-tootin'", "Barnstormin'",
         "Spurred", "Ranch-raised", "Dune-hoppin'", "Sagebrush", "Prairie-bred",
         "Trailworn", "Splashin'", "Drenched", "Soaked", "Waterlogged", "Bubbly", "Foamy",
-        "Fizzy", "Slippery", "Slick", "Sloshy", "Wavy", "Rippling", "Gushing", "Misty",
+        "Fizzy", "Slick", "Sloshy", "Wavy", "Rippling", "Gushing", "Misty",
         "Dewy", "Damp", "Drizzly", "Poolside", "Tubular", "Slidin'", "Divin'",
         "Cannonballin'", "Floatin'", "Bobbin'", "Sudsy", "Frothy", "Sparkling", "Chilly",
         "Dripping",
