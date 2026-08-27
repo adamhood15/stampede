@@ -7219,14 +7219,61 @@ function danceTick(dt){
   heroDance.src = im.src;           // im.src, so it can only swap to a decoded frame
 }
 
+/* Diagnostic-only frame-rate HUD, gated so it costs nothing and renders
+   nothing in normal play. Opt in with
+   `localStorage.setItem("stampede.debug.perf","1")` and reload, or load the
+   page with `?debugPerf` — added 2026-08-27 for the real-device frame-rate
+   profile TODOLIST.md flags as never having been done. Reads the RAW
+   (unclamped) frame delta, not frame()'s own `dt`, so a real stall shows up
+   as a real spike instead of being hidden behind the 0.05s clamp gameplay
+   logic uses to avoid one huge catch-up step. ents.length/streaks.length are
+   surfaced because they're the Performance section's own leading suspects
+   (~120 water streaks, 12 rail-polygon gradients rebuilt every frame). */
+const PERF_DEBUG = (() => {
+  try {
+    return localStorage.getItem("stampede.debug.perf") === "1" ||
+           new URLSearchParams(location.search).has("debugPerf");
+  } catch (e) { return false; }
+})();
+const PERF_WINDOW_MS = 3000;   // rolling window the on-screen stats are computed over
+const PERF_JANK_MS   = 33.3;   // a frame slower than this reads as a dropped frame (<30fps)
+let perfHud = null, perfSamples = [], perfJank = 0, perfWorst = 0, perfLastPaint = 0;
+if (PERF_DEBUG){
+  perfHud = document.createElement("div");
+  perfHud.style.cssText = "position:fixed;top:0;left:0;z-index:99999;" +
+    "background:rgba(0,0,0,.72);color:#0f0;font:11px/1.4 monospace;" +
+    "padding:6px 8px;white-space:pre;pointer-events:none;text-shadow:0 0 2px #000;";
+  document.body.appendChild(perfHud);
+}
+function perfTick(rawDt, now){
+  const ms = rawDt * 1000;
+  perfSamples.push({ t: now, ms: ms });
+  if (ms > PERF_JANK_MS) perfJank++;
+  if (ms > perfWorst) perfWorst = ms;
+  while (perfSamples.length && now - perfSamples[0].t > PERF_WINDOW_MS) perfSamples.shift();
+  if (now - perfLastPaint < 500) return;   // throttle the DOM write itself, not just the sampling
+  perfLastPaint = now;
+  const times = perfSamples.map(p => p.ms).sort((a, b) => a - b);
+  const n = times.length || 1;
+  const avgMs = times.reduce((s, v) => s + v, 0) / n;
+  const p95Ms = times[Math.min(times.length - 1, Math.floor(times.length * 0.95))] || avgMs;
+  perfHud.textContent =
+    "FPS " + (1000 / avgMs).toFixed(0) + " avg / " + (1000 / p95Ms).toFixed(0) + " p95\n" +
+    "frame " + avgMs.toFixed(1) + "ms avg / " + p95Ms.toFixed(1) + "ms p95 / " + perfWorst.toFixed(1) + "ms worst\n" +
+    "jank<30fps " + perfJank + "  ents " + ents.length + "  streaks " + streaks.length + "\n" +
+    "DPR " + DPR + "  canvas " + cv.width + "x" + cv.height + "  state " + state;
+}
+
 /* ==================================================================
    LOOP
    ================================================================== */
 let last = performance.now();
 function frame(now){
-  const dt = Math.min(0.05, (now - last) / 1000);
+  const rawDt = (now - last) / 1000;
+  const dt = Math.min(0.05, rawDt);
   last = now;                       // kept current even while paused, so resuming
                                     // can't hand update() one enormous dt
+  if (PERF_DEBUG) perfTick(rawDt, now);
   if (state !== "paused"){
     skyT += dt;                     // sky drifts in every state, title included
     rushPhase = (rushPhase + dt * (0.75 + ((boostT > 0 || seasonPassT > 0) ? 1.5 : 0))) % 1;

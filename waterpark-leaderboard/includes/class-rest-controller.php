@@ -61,6 +61,12 @@ class Waterpark_Leaderboard_REST_Controller {
             'callback'            => array(__CLASS__, 'names'),
             'permission_callback' => '__return_true',
         ));
+
+        register_rest_route(self::NAMESPACE_, '/gate-token', array(
+            'methods'             => 'GET',
+            'callback'            => array(__CLASS__, 'gate_token'),
+            'permission_callback' => '__return_true',
+        ));
     }
 
     protected static function game_key() {
@@ -139,6 +145,12 @@ class Waterpark_Leaderboard_REST_Controller {
         $repository = new Waterpark_Leaderboard_Score_Repository();
 
         return new WP_REST_Response($repository->get_all_names(self::game_key()), 200);
+    }
+
+    // Powers the gate page's fetch-token-then-redirect-on-submit flow — see
+    // Waterpark_Leaderboard_Gate for what the token actually proves.
+    public static function gate_token(WP_REST_Request $request) {
+        return new WP_REST_Response(array('token' => Waterpark_Leaderboard_Gate::issue_token()), 200);
     }
 
     // Never expose a row's token to anyone but the caller who already holds

@@ -3,15 +3,22 @@ if (!defined('ABSPATH')) exit;
 
 /**
  * Serves the game at /play/ as a bare document — no theme header/footer, no
- * enqueued theme/plugin scripts. Promoted only via a button on the signup
- * page after signup (Adam's call, 2026-08-25) rather than gated by a token —
- * see TODOLIST.md for the access-control tradeoff that implies. A blank
- * template avoids the load-time/frame-rate cost of everything else
+ * enqueued theme/plugin scripts — gated behind a signed token from
+ * Waterpark_Leaderboard_Gate. See ARCHITECTURE.md/DATABASE.md for why: a
+ * blank template avoids the load-time/frame-rate cost of everything else
  * WordPress would otherwise attach to the page.
  */
 class Waterpark_Leaderboard_Game_Router {
 
-    const QUERY_VAR = 'waterpark_game';
+    const QUERY_VAR       = 'waterpark_game';
+    // Stores a page ID (not a URL) so this and Waterpark_Leaderboard_Gate_Page
+    // share one source of truth for "which page is the gate."
+    const GATE_PAGE_OPTION = 'waterpark_gate_page_id';
+
+    // Re-enabled (2026-08-27) — Adam's call to bring the token gate back.
+    // The gate, the REST route, and the gate-page snippet were untouched
+    // since being switched off; flip to false to serve /play/ ungated again.
+    const GATE_ENABLED = true;
 
     public static function register_routes() {
         add_rewrite_rule('^play/?$', 'index.php?' . self::QUERY_VAR . '=1', 'top');
@@ -36,6 +43,15 @@ class Waterpark_Leaderboard_Game_Router {
             return $template;
         }
 
+        if (self::GATE_ENABLED) {
+            $token = isset($_GET['t']) ? $_GET['t'] : '';
+
+            if (!Waterpark_Leaderboard_Gate::validate_token($token)) {
+                wp_safe_redirect(self::gate_page_url());
+                exit;
+            }
+        }
+
         $game_file = WATERPARK_LEADERBOARD_PATH . 'game/index.html';
 
         if (!file_exists($game_file)) {
@@ -46,5 +62,11 @@ class Waterpark_Leaderboard_Game_Router {
         header('Cache-Control: no-store');
         readfile($game_file);
         exit;
+    }
+
+    protected static function gate_page_url() {
+        $page_id = (int) get_option(self::GATE_PAGE_OPTION);
+        $url     = $page_id ? get_permalink($page_id) : false;
+        return $url ? $url : home_url('/');
     }
 }

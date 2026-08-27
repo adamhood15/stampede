@@ -38,25 +38,37 @@ live site — **do not push to live until this section clears.** Deploy via
 `tools/deploy-staging.sh` (rewrites asset paths + the `API` constant, copies
 `assets/` to `waterpark-leaderboard/game-assets/`, normalizes permissions).
 
-**Funnel design (2026-08-25):** no token gate — Adam's call. `/play/` is a
-plain, ungated WP page (`Waterpark_Leaderboard_Game_Router`, blank
-`template_include`, no theme/plugin chrome). Promotion is entirely by not
-publishing the URL anywhere except a button on the signup page, shown after
-signup completes. The token-gate code (HMAC-signed short-lived tokens, the
-`/gate-token` REST route, the fetch-token/redirect snippet) was built,
-verified end-to-end, then scrapped at Adam's request in favor of this
-simpler design — worth remembering if the plain-URL approach ever needs
-tightening (a shared/bookmarked `/play/` link works for anyone, indefinitely,
-whether or not they signed up).
+**Funnel design (2026-08-27, supersedes the 2026-08-25 no-gate call):** the
+token gate is back on. `/play/` (`Waterpark_Leaderboard_Game_Router`, blank
+`template_include`, no theme/plugin chrome) now requires a valid signed
+token (`?t=...`) or redirects to the configured gate page — flip
+`GATE_ENABLED` to `false` to go back to the plain-URL design. The gate was
+originally built and verified end-to-end (2026-08-25), then scrapped in
+favor of a plain "Play Now" button because a shared/bookmarked `/play/` link
+worked for anyone indefinitely; it's been recreated from that same design
+(`Waterpark_Leaderboard_Gate` — HMAC-signed, 15-minute tokens; the
+`/gate-token` REST route; `Waterpark_Leaderboard_Gate_Page`'s
+fetch-token/redirect snippet, printed via `wp_footer` on whichever page is
+set as `waterpark_gate_page_id`).
+
+**Not yet done for this gate to work live:**
+- `waterpark_gate_page_id` must be set (which WP page mints/hosts the
+  token-fetch snippet) — nothing sets this option yet.
+- The redirect-on-submit half of the gate-page snippet is still unwired to a
+  real WS Form submit event (see `class-gate-page.php`'s own note) —
+  currently only exposes `window.WaterparkGate.redirectToGame()` for
+  manual/console use.
+- `tools/gate-check.js` (recreated 2026-08-27) verifies the deployed gate
+  end-to-end but hasn't been run against the current staging deploy yet.
 
 Before pushing to live:
 - **`tools/deploy-staging.sh` only targets the Kinsta dev path/site.** Needs
   a production target (or a defined manual equivalent) before it can be used
   for the live push.
-- **The signup page needs an actual "Play Now" button/link to `/play/`**
-  wired into its post-signup success state (WS Form success message or a
-  thank-you page) — nothing currently links the two pages.
-- **End-to-end funnel test once that button exists:** submit the real form →
+- **The signup page needs to be set as the gate page** (`waterpark_gate_page_id`)
+  and its WS Form submit event wired to call `window.WaterparkGate.redirectToGame()`
+  — nothing currently connects form submission to the redirect.
+- **End-to-end funnel test once that's wired:** submit the real form →
   confirm Mailchimp gets the subscriber → confirm the button appears →
   confirm it lands on a working `/play/`.
 - **Leaderboard test data must not be copied to live** — see the dev-table
@@ -81,9 +93,11 @@ Before pushing to live:
 - **Flush WP rewrite rules once manually right after the live push** — the
   routes-version check should handle this automatically, but it's cheap
   insurance for a first launch.
-- **Robots/indexing:** confirm `/play/` isn't indexable/crawlable. With no
-  gate, an indexed or crawled `/play/` fully bypasses the signup funnel —
-  higher stakes now than it would be behind a gate.
+- **Robots/indexing:** confirm `/play/` isn't indexable/crawlable. Lower
+  stakes now that the gate is back on (an indexed link without a valid token
+  just redirects), but a bookmarked/shared link from *within* a valid
+  15-minute token window would still work until it expires — worth
+  confirming crawlers can't pick one up mid-window.
 - **Confirm the rollback path** before pushing — know what "revert" looks
   like if something's wrong post-launch.
 - **Re-confirm the zero-auth/no-rate-limit leaderboard REST routes are still
