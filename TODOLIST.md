@@ -180,11 +180,27 @@ Before pushing to live:
 
 ## Performance
 
-- **Mobile render cost never profiled on a device.** Suspected cost
-  centres: ~120 water streaks, 12 rail polygons rebuilding gradients every
-  frame, the park aerial rescaled every frame, ribs drawn from `dz 0.85`.
-  Cheapest untaken lever: `DPR = Math.min(2, devicePixelRatio)` — capping at
-  1.5 would cut fill-rate ~44% on a 2× phone. Profile before changing it.
+- ~~**Mobile render cost never profiled on a device.**~~ — resolved
+  (2026-08-27). Profiled on two real Android phones via an opt-in on-screen
+  HUD (`?debugPerf` / `localStorage.stampede.debug.perf`, `PERF_DEBUG` in
+  `index.html`, verified by `tools/perf-hud-check.js`), played over GitHub
+  Pages (`adamhood15.github.io/stampede`) since Adam's WiFi firewall blocked
+  the LAN dev server. Both runs held a flat **60fps avg/p95, ~16.7ms frame
+  time** — steady-state cost is not a problem. Each run had a handful of
+  isolated jank frames (11 over one run, 8 over a ~2-minute run) with one
+  worst-case spike (151.7ms, then 66.7ms) — but the worst frame's own
+  captured context (`ents`, `streaks`, `state`) showed it did NOT correlate
+  with entity/streak count (one spike happened at `ents=10`, *below* that
+  run's own max of 18), which rules out the original "~120 water streaks /
+  rail-polygon gradients" suspicion as the cause. Adam confirmed it felt
+  "extremely smooth and great" while playing. **Conclusion: the DPR cap
+  (`Math.min(2, devicePixelRatio)` → 1.5) is not warranted** — it would
+  trade real visual quality for a steady-state cost problem the data doesn't
+  show. The rare isolated stalls read as GC pauses or an OS-level blip, not
+  a rendering-cost issue; pinning the exact cause further would need real
+  GC/heap profiling (Chrome remote debugging over USB), which `adb` isn't
+  set up for on this machine — not pursued further since the game already
+  reads as fully smooth in practice.
 
 ## Loading optimization
 
