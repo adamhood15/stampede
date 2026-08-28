@@ -1,6 +1,6 @@
 # Architecture — `index.html`
 
-"Typhoon Texas — Buckaroo Run": a single-file HTML5 canvas water-slide runner.
+"Stampede: Wild Rush": a single-file HTML5 canvas water-slide runner.
 Everything — markup, CSS, game logic, rendering, input, audio, HUD — is in
 `index.html` (~6,750 lines). No build step, no framework, plain Canvas 2D and
 vanilla JS. A companion WordPress plugin, [`waterpark-leaderboard/`](waterpark-leaderboard/),

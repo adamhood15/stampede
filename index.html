@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>Typhoon Texas — Buckaroo Run</title>
+<title>Stampede: Wild Rush | Typhoon Texas</title>
+<link rel="stylesheet" href="https://use.typekit.net/cmv0fio.css">
 <style>
   /* ==========================================================
      PALETTE — sampled from slide.png, background-simple.png and
@@ -26,13 +27,22 @@
     --navy:     #1e3048;
     --ink:      #0a0a0a;
 
-    --display: "Haettenschweiler","Arial Narrow","Impact","Franklin Gothic Bold",
-               "Helvetica Neue",Arial,sans-serif;
+    /* Three-way font split: --display is reserved for buttons, major page
+       titles, and leaderboard rank numbers (never scores); --display-card is
+       for the small bold labels inside a card (.ctl/.haz/.hgItem b);
+       --copy is body text everywhere else. --mono stays put and is applied
+       explicitly to the few tabular-nums figures (HUD/board digits, results
+       stats, leaderboard scores, the load percentage) that need stable
+       monospaced digit widths for setFigure()'s shrink-to-fit math. */
+    --display: "sutro-deluxe-primary","Haettenschweiler","Arial Narrow","Impact",
+               "Franklin Gothic Bold","Helvetica Neue",Arial,sans-serif;
+    --display-card: "sutro-open-fill","Franklin Gothic Bold","Helvetica Neue",Arial,sans-serif;
+    --copy: "sutro","Helvetica Neue",Arial,sans-serif;
     --mono: ui-monospace,"SF Mono",Menlo,Consolas,"Roboto Mono",monospace;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;height:100%;overflow:hidden;background:var(--sky)}
-  body{font-family:var(--mono);color:var(--white);
+  body{font-family:var(--copy);color:var(--white);
        -webkit-user-select:none;user-select:none;touch-action:none}
   #stage{position:fixed;inset:0;overflow:hidden}
   canvas{display:block;width:100%;height:100%}
@@ -55,7 +65,7 @@
      uncapped term in runScore()) shrinks the digits to fit the board rather
      than truncating them. Never ellipsise a figure: a cut-off number reads as
      a WRONG number. */
-  .board .val{display:block;font-size:25px;font-weight:400;line-height:1;
+  .board .val{display:block;font-family:var(--mono);font-size:25px;font-weight:400;line-height:1;
               white-space:nowrap;font-variant-numeric:tabular-nums}
   #hudRight{text-align:right}
   #coinRow{display:flex;align-items:center;gap:7px;justify-content:flex-end;min-width:0}
@@ -301,13 +311,32 @@
   /* 12.5vw, not 15: eight condensed caps plus a 7px stroke and a skew ran wider
      than the viewport on a phone, so the S and the final E were cut off by the
      screen edges. Desktop is unaffected — it sits on the 118px ceiling. */
-  .ride{font-family:var(--display);text-transform:uppercase;transform:skewX(-7deg);
-        font-size:clamp(40px,12.5vw,118px);line-height:.84;color:var(--white);margin:0;
-        -webkit-text-stroke:7px var(--ink);paint-order:stroke fill;
-        text-shadow:7px 7px 0 var(--orange)}
-  .park{font-family:var(--display);text-transform:uppercase;transform:skewX(-7deg);
-        font-size:clamp(14px,4.2vw,22px);letter-spacing:.06em;color:var(--yellow);
-        margin:0 0 6px;-webkit-text-stroke:4px var(--ink);paint-order:stroke fill}
+  .ride{font-family:var(--display);text-transform:uppercase;transform:skewX(-7deg);font-weight:400;
+        font-size:clamp(37px,5.5vw,118px);line-height:.84;color:var(--orange);margin:0;
+        -webkit-text-stroke:2px var(--ink);paint-order:stroke fill;
+        }
+  /* .ride is shared with headings that DO want to wrap (#namePanel's
+     "What Do They Call Ya?", the how-to/leaderboard headers), so the
+     never-wrap guarantee lives on the ID, not the class. */
+  #rideName{white-space:nowrap}
+  /* Sized well under .ride's 12.5vw (a fixed fraction of it, not a fresh
+     tuned number) so "WILD RUSH" — wider per-letter on average than
+     "STAMPEDE" — still can't out-grow the ceiling .ride was tuned against.
+     nowrap backs that up: a subheading wrapping to a second line would turn
+     the name into three lines, which is the one thing this must never do. */
+  /* Stroke/shadow are lighter than .ride's (3px/3px vs 7px/7px) in the same
+     rough proportion to font size — at .ride's own ratio, .rideSub's ~22px
+     phone-floor size turned the 4px stroke + 5px5px shadow into a muddy
+     double-exposure; letters that small can't carry that much ink. */
+  .rideSub{font-family:var(--display);text-transform:uppercase;transform:skewX(-7deg);
+        font-size:clamp(16px,6vw,50px);line-height:.9;color:var(--yellow);margin:5px 0 0;
+        white-space:nowrap;
+        -webkit-text-stroke:2px var(--ink);paint-order:stroke fill;
+        }
+  .rideSub:empty{display:none}
+  .park{font-family:var(--display-card);text-transform:uppercase;transform:skewX(-7deg);
+        font-size:clamp(14px,4.2vw,22px);letter-spacing:.06em;color:var(--white);
+        margin:0 0 6px;-webkit-text-stroke:2px var(--ink);paint-order:stroke fill}
   .tag{margin:14px 0 0;font-size:12px;letter-spacing:.14em;text-transform:uppercase;
        color:rgba(252,246,240,.85);max-width:32ch;line-height:1.7}
   #heroWrap{position:relative;display:flex;align-items:flex-end;justify-content:center;
@@ -321,9 +350,9 @@
              filter:drop-shadow(0 8px 0 rgba(10,10,10,.25))}
   @media (max-height:600px){ #heroWrap{display:none} }
 
-  .btn{pointer-events:auto;cursor:pointer;font-family:var(--display);
+  .btn{pointer-events:auto;cursor:pointer;font-family:var(--display-card);
        text-transform:uppercase;transform:skewX(-7deg);font-size:27px;letter-spacing:.03em;
-       color:var(--ink);background:var(--yellow);border:3px solid var(--ink);border-radius:4px;
+       color:var(--white);-webkit-text-stroke:1px var(--ink);background:var(--yellow);border:3px solid var(--ink);border-radius:4px;
        padding:12px 34px 14px;margin-top:20px;box-shadow:6px 6px 0 var(--ink);
        transition:transform .08s,box-shadow .08s}
   .btn:active{transform:skewX(-7deg) translate(4px,4px);box-shadow:2px 2px 0 var(--ink)}
@@ -331,7 +360,7 @@
      colour differs — because the three-button rule always pairs them side by
      side under the primary: see .ghostRow below. */
   .btn.ghost,.btn.tertiary{color:var(--white);font-size:14px;
-             padding:10px 18px 11px;margin-top:12px;box-shadow:4px 4px 0 var(--ink)}
+             padding:10px 18px 11px;margin-top:12px;box-shadow:4px 4px 0 var(--ink);-webkit-text-stroke:1px var(--ink)}
   .btn.ghost{background:var(--orange)}
   /* Deep water blue, not another shade of the ghost orange: the third action
      in a trio needs its own colour to read as a distinct choice rather than
@@ -344,6 +373,10 @@
      pair underneath. */
   .btn.trioPrimary{font-size:30px;padding:14px 38px 16px}
   .btn:focus-visible,.hudbtn:focus-visible{outline:3px solid var(--yellow);outline-offset:4px}
+
+  @media (max-width:560px){
+    .btn.ghost, .btn.tertiary{font-size:12px;padding:8px 14px 9px;margin-top:10px;box-shadow:3px 3px 0 var(--ink)}
+  }
 
   /* ---------- controls ----------
      Replaces the old two-item .keys strip. Each control is a keycap built from
@@ -371,7 +404,7 @@
   /* Title/caption type shared verbatim with .haz b/span and .hgItem b/span —
      one card vocabulary for every section on the how-to-play card, not three
      near-identical ones drifting apart a property at a time. */
-  .ctl b{font-family:var(--display);text-transform:uppercase;transform:skewX(-7deg);
+  .ctl b{font-family:var(--copy);text-transform:uppercase;transform:skewX(-7deg);
          font-size:17px;letter-spacing:.04em;color:var(--white)}
   .ctl span{font-size:9px;line-height:1.6;letter-spacing:.1em;
             color:rgba(252,246,240,.72)}
@@ -393,8 +426,7 @@
      Built on #howPanel's shape rather than .panel's: it is a reading screen
      that has to scroll, so it needs the same inner scroller and darker wash.
      One panel serves all three entry points (title, results, win). */
-  #lbPanel{padding:0;background:radial-gradient(130% 90% at 50% 0%,
-           rgba(30,48,72,.93),rgba(16,26,40,.975))}
+  #lbPanel{padding:0;}
   /* Nothing in a scrolling column may shrink. A flex item's automatic minimum
      size normally stops it collapsing below its content — but that only applies
      while overflow is visible, and a rounded-corner child with overflow:hidden
@@ -433,8 +465,8 @@
   #reels{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;
          max-width:min(94vw,460px);width:100%}
   .reel{pointer-events:auto;cursor:pointer;flex:1 1 0;min-width:0;position:relative;
-        font-family:var(--display);text-transform:uppercase;letter-spacing:.02em;
-        font-size:clamp(15px,4.9vw,27px);color:var(--ink);background:var(--white);
+        font-family:var(--display-card);text-transform:uppercase;letter-spacing:.02em;
+        font-size:clamp(15px,3.9vw,18px);color:var(--ink);background:var(--white);
         border:3px solid var(--ink);border-radius:5px;padding:11px 8px 24px;
         /* bottom pad clears the badge, which hangs at translateY(62%) and so
            still reaches ~16px up into the button face */
@@ -540,15 +572,15 @@
   #lbHead,#lbList,#lbYou{width:100%;max-width:min(90vw,470px)}
   #lbHead,.lbRow{display:grid;grid-template-columns:2.6em 1fr auto;gap:10px;
                  align-items:center;text-align:left}
-  #lbHead{font-size:9px;letter-spacing:.2em;text-transform:uppercase;
-          color:var(--sky-low);opacity:.8;padding:0 12px 6px}
+  #lbHead{font-size:9px;letter-spacing:.2em;text-transform:uppercase;font-family:var(--display-card);
+          color:var(--yellow);opacity:.8;padding:0 12px 6px;-webkit-text-stroke:1px var(--ink);paint-order:stroke fill}
   #lbHead span:last-child,.lbRow .lbScore{text-align:right}
   .lbRow{background:rgba(30,48,72,.9);border:3px solid var(--ink);border-radius:5px;
          padding:9px 12px 10px;margin-bottom:7px;box-shadow:3px 3px 0 var(--ink)}
   .lbRow .lbPos{font-family:var(--display);font-size:17px;color:var(--sky-low)}
   .lbRow .lbName{font-size:14px;letter-spacing:.04em;color:var(--white);
                  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
-  .lbRow .lbScore{font-size:17px;color:var(--white);white-space:nowrap;
+  .lbRow .lbScore{font-family:var(--mono);font-size:17px;color:var(--yellow);white-space:nowrap;
                   font-variant-numeric:tabular-nums}
   .lbRow.me{background:var(--yellow)}
   .lbRow.me .lbPos,.lbRow.me .lbName,.lbRow.me .lbScore{color:var(--ink)}
@@ -631,14 +663,13 @@
      what happens to a figure that would have needed more room than this. */
   #hudLeft, #hudRight{max-width:46%}
 
-  #howPanel{padding:0;background:radial-gradient(130% 90% at 50% 0%,
-            rgba(30,48,72,.93),rgba(16,26,40,.975))}
+  #howPanel{padding:0;}
   #howScroll{width:100%;max-height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;
              touch-action:pan-y;display:flex;flex-direction:column;align-items:center;
              text-align:center;
              padding:calc(env(safe-area-inset-top,0px) + 28px) 22px
                      calc(env(safe-area-inset-bottom,0px) + 34px)}
-  .howHead{font-size:clamp(34px,10vw,64px);margin-bottom:4px}
+  .howHead{font-size:clamp(30px,9vw,48px);margin-bottom:4px}
   /* .howHead's own 4px margin-bottom is sized for #howPanel, where the next
      thing down is a .howSec that supplies its own 26px margin-top. #lbTitle
      has no such buffer of its own — #lbHead butts straight up against it
@@ -649,7 +680,7 @@
   .howSec{width:100%;max-width:min(92vw,560px);margin-top:26px;
           padding-top:22px;border-top:3px solid rgba(10,10,10,.35)}
   .howSec:first-of-type{border-top:none;padding-top:0}
-  .howSec h3{font-family:var(--display);text-transform:uppercase;transform:skewX(-7deg);
+  .howSec h3{font-family:var(--display-card);text-transform:uppercase;transform:skewX(-7deg);
              font-size:23px;letter-spacing:.05em;color:var(--white);margin:0 0 12px;
              -webkit-text-stroke:4px var(--ink);paint-order:stroke fill}
   .howSec p{margin:12px auto 0;max-width:40ch;font-size:11px;line-height:1.85;
@@ -666,7 +697,7 @@
        border:3px solid var(--ink);box-shadow:4px 4px 0 var(--ink)}
   .haz img,.haz svg{width:100%;max-width:88px;height:62px;object-fit:contain;
                     filter:drop-shadow(0 3px 0 rgba(10,10,10,.28))}
-  .haz b{font-family:var(--display);text-transform:uppercase;transform:skewX(-7deg);
+  .haz b{font-family:var(--copy);text-transform:uppercase;transform:skewX(-7deg);
          font-size:17px;letter-spacing:.04em;color:var(--white)}
   /* One card style for every entry, tunnel included. It used to take a green
      background, a green accent line and the whole row to itself, which made it
@@ -689,7 +720,7 @@
   .hgItem{display:flex;flex-direction:column;align-items:center;gap:6px;
           padding:14px 8px 12px;border-radius:8px;background:rgba(30,48,72,.55);
           border:3px solid var(--ink);box-shadow:4px 4px 0 var(--ink)}
-  .hgItem b{font-family:var(--display);text-transform:uppercase;transform:skewX(-7deg);
+  .hgItem b{font-family:var(--copy);text-transform:uppercase;transform:skewX(-7deg);
             font-size:17px;letter-spacing:.04em;color:var(--white)}
   .hgItem span{font-size:9px;letter-spacing:.1em;line-height:1.6;
                color:rgba(252,246,240,.72)}
@@ -739,10 +770,14 @@
      .hgItem left over in .hudGuide's grid — one rule for every orphaned card
      on this screen, not a centred one here and a left-aligned one there. */
   @media (max-width:560px){
+    
     #howPanel .controls,
     #howPanel .hgRow3{flex-wrap:wrap;justify-content:flex-start}
     #howPanel .controls > .ctl{flex:0 0 calc(50% - 5px);max-width:calc(50% - 5px)}
     #howPanel .hgRow3 > .hgItem{flex:0 0 calc(50% - 6px);max-width:calc(50% - 6px)}
+  }
+  @media (max-width:380px) {
+    .howSec h3 {font-size:18px}
   }
 
   /* ONE results object, not two. The letters used to sit outside this board as
@@ -798,7 +833,7 @@
      exact thing display:block above is here to prevent. Digits do not need
      it anyway: a comma between digits carries no line-break opportunity, so
      1,284,930 cannot wrap. setFigure() handles the width. */
-  #stats strong{display:block;font-weight:400;font-size:26px;
+  #stats strong{display:block;font-family:var(--mono);font-weight:400;font-size:26px;
                 font-variant-numeric:tabular-nums}
   /* The letters row keeps the same label style as the figures above it, so it
      reads as a fourth stat rather than as decoration that wandered in.
@@ -1103,7 +1138,7 @@
   @keyframes bob{50%{transform:translateY(-3px)}}
   #loadRow{display:flex;align-items:baseline;gap:12px;font-size:11px;letter-spacing:.3em;
            text-transform:uppercase;text-shadow:0 2px 0 rgba(10,10,10,.35)}
-  #loadPct{font-size:13px;letter-spacing:.12em;color:var(--yellow);
+  #loadPct{font-family:var(--mono);font-size:13px;letter-spacing:.12em;color:var(--yellow);
            font-variant-numeric:tabular-nums}
   /* Waiting on the tap that buys us audio. The percentage has done its job by
      now, so it steps aside and the prompt takes the eye. */
@@ -1128,7 +1163,7 @@
 </head>
 <body>
 <div id="stage">
-  <canvas id="game" aria-label="Typhoon Buckaroo Run"></canvas>
+  <canvas id="game" aria-label="Stampede: Wild Rush"></canvas>
 
   <div id="hud">
     <div id="hudLeft">
@@ -1153,6 +1188,7 @@
     <div class="eyebrow" id="eyebrow">Coming Soon to Typhoon Texas</div>
     <p class="park" id="parkName">Typhoon Texas</p>
     <h1 class="ride" id="rideName">STAMPEDE</h1>
+    <p class="rideSub" id="rideSub"></p>
     <div id="heroWrap">
       <img id="heroDance" alt="">
     </div>
@@ -1551,15 +1587,16 @@
 <script>
 "use strict";
 /* ==================================================================
-   TYPHOON TEXAS — BUCKAROO RUN
+   STAMPEDE: WILD RUSH
    Temple-Run style endless flume. Elevated chase camera looking down
    into the chute. All character art is supplied as PNG assets.
    ================================================================== */
 
 const CONFIG = {
   parkName:  "Typhoon Texas",
-  rideName:  "Stampede",          // <- your real slide name
-  eyebrow:   "Now testing at Typhoon Texas",
+  rideName:  "Stampede",             // <- your real slide name
+  rideSubtitle: "Wild Rush",         // <- shows smaller, under the name; blank hides it
+  eyebrow:   "Join. Slide. Save.",
   winNote:   "You spelled it. Here is the real thing.",   // blank hides the line
   tagline:   "Grab the Letters, and the Buckaroos. Dodge the crowd. Ride it before you ride it.",
   openingLine: "Coming Summer 2027",
@@ -1724,7 +1761,6 @@ const SFX = {
   boost: "assets/sound-effects/interactions/Speed%20Boost%2005.mp3",
   hurt:  "assets/sound-effects/player/typhoon-hurt.mp3",
   dead:  "assets/sound-effects/player/typhoon-dead.mp3",
-  eating:"assets/sound-effects/player/typhoon-eating.mp3",
   slurp: "assets/sound-effects/player/typhoon-slurp.mp3",
   letter:"assets/sound-effects/letter-collect/Happy%20Game%20Notification.mp3",
   stampede:"assets/sound-effects/special/stampede-sound.mp3",
@@ -1853,9 +1889,14 @@ function finishLoading(){
 for (const k in ART) load(k, ART[k]);
 
 /* ---------- config into the DOM ---------- */
+/* The full "Stampede: Wild Rush" name is only ever spoken in one place
+   (this line) — everywhere else either wants just the name+colon (the big
+   title) or the subtitle alone (the smaller line under it). */
+const RIDE_FULL_NAME = CONFIG.rideName + (CONFIG.rideSubtitle ? ": " + CONFIG.rideSubtitle : "");
 $("parkName").textContent = CONFIG.parkName;
-$("rideName").textContent = CONFIG.rideName;
-$("revealName").textContent = CONFIG.rideName;
+$("rideName").textContent = CONFIG.rideName + (CONFIG.rideSubtitle ? ":" : "");
+$("rideSub").textContent = CONFIG.rideSubtitle || "";
+$("revealName").textContent = RIDE_FULL_NAME;
 $("eyebrow").textContent  = CONFIG.eyebrow;
 /* CONFIG.tagline no longer has a home anywhere on the card: the sell line and
    the "collect every letter" prompt both moved into #howPanel, which can
@@ -1871,7 +1912,7 @@ $("reveal").querySelector(".k").textContent = CONFIG.openingLine;
 $("revealNote").textContent = CONFIG.winNote || "";
 if (!CONFIG.winNote) $("revealNote").style.display = "none";
 if (!CONFIG.ctaUrl) $("ctaBtn").style.display = "none";
-document.title = CONFIG.parkName + " — " + CONFIG.rideName;
+document.title = CONFIG.parkName + " — " + RIDE_FULL_NAME;
 
 /* ==================================================================
    CAMERA — the elevated Temple-Run view: behind and above the rider,
@@ -2092,6 +2133,18 @@ const Sound = (function(){
      replace it, and music's own fade/stop logic is tuned for the ride/over/
      start tracks specifically. */
   let loopSrc = null, loopGain = null, loopEl = null;
+  /* whirlpool.mp3 fades in/out at its own head and tail — looping the whole
+     buffer means every cycle audibly dips near-silent at the seam. loopStart/
+     loopEnd confine the *repeating* portion to the sustained middle; the
+     first playthrough still plays 0..loopEnd (so the fade-in is heard once,
+     on pickup), only the restart point skips back past it. Values are
+     zero-crossing-aligned offsets into the buffer as Chrome's own
+     decodeAudioData produces it (measured live via tools/
+     whirlpool-loop-trim-check.js, not the source mp3 file) — Chrome
+     resamples to its own AudioContext rate and trims encoder padding
+     differently than other decoders, so numbers measured against the raw
+     file don't line up with what actually plays. */
+  const LOOP_TRIM = { whirlpool: { start: 0.0699, end: 1.4651 } };
   function loopStart(key, vol){
     loopStop();
     if (!on) return;
@@ -2099,6 +2152,8 @@ const Sound = (function(){
     if (a && buffers[key]){
       loopSrc = a.createBufferSource(); loopGain = a.createGain();
       loopSrc.buffer = buffers[key]; loopSrc.loop = true;
+      const trim = LOOP_TRIM[key];
+      if (trim){ loopSrc.loopStart = trim.start; loopSrc.loopEnd = trim.end; }
       loopGain.gain.value = vol;
       loopGain.__vol = vol;                  // read back by toggle()'s mute/unmute
       loopSrc.connect(loopGain).connect(a.destination);
@@ -2123,8 +2178,9 @@ const Sound = (function(){
     }
   }
   /* onEnded fires once the clip actually finishes playing — used to chain the
-     slurp sample directly onto the end of the eating one (see Sound.eating())
-     rather than guessing eating.mp3's length with a timer. */
+     slurp sample directly onto the end of extra-life's own (see
+     Sound.extraLifeEat()) rather than guessing extra-life.mp3's length with
+     a timer. */
   function sample(key, vol, onEnded){
     if (!on) return false;
     const a = ctxr();
@@ -2283,15 +2339,14 @@ const Sound = (function(){
     // so a 100-coin pickup doesn't sound identical to a 1-coin one.
     souvenir(){ if (!sample("souvenir", 0.85)){ tone(500, 1800, 0.3, "triangle", 0.15);
                                                 tone(750, 2200, 0.22, "sine", 0.1); } },
-    extraLife(){ if (!sample("extraLife", 0.85)){ tone(440, 880, 0.18, "triangle", 0.14);
-                                                  tone(660, 1320, 0.22, "sine", 0.12); } },
     /* Season Pass's pickup stinger, played the instant it's grabbed. Unlike
        Whirlpool's loop sample, this doesn't need to hand anything off itself
        — the game times season-pass-music.mp3's entrance off
-       SEASONPASS_INTRO_DUR (measured against this very clip's own length,
-       ~3.03s) rather than this sample's onended, so the world-freeze/reveal
-       animation and the music switch stay in lockstep even if this falls
-       back to the synth tones below. */
+       SEASONPASS_INTRO_DUR (measured against this clip's own audible window,
+       ~1.8s — see SEASONPASS_INTRO_DUR's own comment) rather than this
+       sample's onended, so the world-freeze/reveal animation and the music
+       switch stay in lockstep even if this falls back to the synth tones
+       below. */
     seasonPass(){
       if (!sample("seasonPass", 0.9)){
         tone(300, 900, 0.3, "triangle", 0.16); tone(500, 1400, 0.22, "sine", 0.12);
@@ -2303,10 +2358,12 @@ const Sound = (function(){
     seasonPassSafe(){ tone(760, 1320, 0.14, "triangle", 0.16);
                        tone(1140, 1560, 0.10, "sine", 0.10); },
     // Chained rather than two independent calls: slurp has to start the instant
-    // eating ends, not on a guessed delay, so it rides eating's own onended.
-    eating(){ if (!sample("eating", 0.9, () => sample("slurp", 0.9))){
-                tone(220, 340, 0.16, "triangle", 0.13);
-                tone(180, 260, 0.14, "sine", 0.11); } }
+    // extra-life ends, not on a guessed delay, so it rides extra-life's own
+    // onended. Only one sound plays at the grab, never a second one layered
+    // in later at the HUD landing (that used to double up and get cut off).
+    extraLifeEat(){ if (!sample("extraLife", 0.9, () => sample("slurp", 0.9))){
+                       tone(220, 340, 0.16, "triangle", 0.13);
+                       tone(180, 260, 0.14, "sine", 0.11); } }
   };
 })();
 
@@ -2797,14 +2854,25 @@ const WHIRLPOOL_SPIN  = 4.2;   // rad/s the real, physically-pulled coins orbit
    magnet widened to every collectible, not just coins. One per run (see
    seasonPassSpawned).
    SEASONPASS_INTRO_DUR and SEASONPASS_DUR are sized off the real audio,
-   not guessed — `afinfo` on the actual files gives season-pass.mp3 (the
-   stinger) at ~3.03s and season-pass-music.mp3 at ~9.14s. Both constants sit
-   a hair under their sample's measured length so the animation never
-   outruns its sound, or, worse, so update()'s expiry code never hands the
-   music channel back mid-note. Re-measure both if either file is
-   re-exported. */
-const SEASONPASS_INTRO_DUR  = 3.0;   // frozen reveal: season-pass.mp3 plays
-                                     // while season-pass_01-06 step through
+   not guessed. season-pass-music.mp3 measures ~9.14s (SEASONPASS_DUR sits a
+   hair under that so update()'s expiry code never hands the music channel
+   back mid-note).
+   season-pass.mp3 (the stinger) is a different case: its raw container is
+   ~2.98s (afinfo's ~3.03s includes LAME encoder priming/padding Chrome's own
+   decodeAudioData already trims — decoded duration measured at 2.9837s), but
+   almost all of that is a quiet reverb tail — an RMS-envelope pass over the
+   decoded PCM (20ms windows) put 99.9% of the clip's total energy inside the
+   first 1.26s, and the last window still above -40dB relative to peak (a
+   "still audible" floor) ends at 1.78s. Past that it's below the noise floor
+   of anything else playing. SEASONPASS_INTRO_DUR is sized to that audible
+   window, not the full decoded length — Adam's call, so the reveal doesn't
+   keep visibly stepping through poses for another second-plus after the
+   stinger has effectively gone silent. Re-measure (and re-run this envelope
+   pass) if the file is re-exported. */
+const SEASONPASS_INTRO_DUR  = 1.8;   // frozen reveal: season-pass.mp3's
+                                     // audible window, not its full decoded
+                                     // length — while season-pass_01-06
+                                     // step through
 const SEASONPASS_DUR        = 9.0;   // resumed effect: season-pass-music.mp3
                                      // plays for this whole window
 const SEASONPASS_SPEED_MULT = 1.75;  // vs. CONFIG.maxSpeed — bigger than a
@@ -3509,8 +3577,9 @@ function updateFlyers(dt){
         // tube becomes real right here, the instant it's actually seen in
         // the HUD (see flyExtraLife()'s comment). The eating animation/sound
         // fire earlier, right at the grab (see T.EXTRALIFE's collision
-        // branch) — this is just the HUD payoff, timed to the flight landing.
-        extraLife = true; drawTubes(); Sound.extraLife();
+        // branch), and that's the only sound this pickup ever plays — no
+        // second cue here, so there's nothing left to overlap or cut off.
+        extraLife = true; drawTubes();
       } else {
         shownLetters = Math.max(shownLetters, f.idx + 1);
         paintLetters();
@@ -4050,7 +4119,7 @@ function showOver(){
     "vs best", { dist: BEST.dist, coins: BEST.coins, score: BEST.score, letters: BEST.letters },
     bestStored ? "(records persist)" : "(SESSION ONLY — storage blocked, likely file://)");
   $("overTitle").textContent  = overWon ? "Nice Ride, Partner" : "Wipeout";
-  $("overKicker").textContent = overWon ? CONFIG.rideName : "Typhoon wiped out";
+  $("overKicker").textContent = overWon ? RIDE_FULL_NAME : "Typhoon wiped out";
   $("overPanel").classList.add("on");
   settleOverRider();          // only measurable once the panel is displayed
   /* Crossfade rather than a hand-off. The ride track is 1.6s into a 2.4s linear
@@ -4198,10 +4267,13 @@ function riderLift(){
 }
 
 /* Shared by every "action pauses" beat — Season Pass's reveal and its
-   frozen exit, the extra-life chomp, the stampede letters' run-off. Each of
-   those already owns a timer that means something else too (eatT also picks
-   the chomp frame, stampedeT also drives the CSS run-off) — this only ticks
-   THAT timer down and does the boilerplate every frozen beat shares: hold the
+   frozen exit, the stampede letters' run-off. The extra-life chomp used to be
+   one of these too, but Adam's call was to drop the pause there — eatT still
+   ticks down and still picks the chomp frame (see update()'s own countdown),
+   it just no longer holds up travel/spawns/collisions while it does. Each of
+   the beats still using this already owns a timer that means something else
+   too (stampedeT also drives the CSS run-off) — this only ticks THAT timer
+   down and does the boilerplate every frozen beat shares: hold the
    camera at the current travelled position so the world doesn't drift, keep
    cosmetic spray decaying so a puff mid-freeze still fades naturally instead
    of hanging, and fire `onEnd` once, the instant the timer runs out. Returns
@@ -4232,7 +4304,6 @@ function freezeWorld(timer, dt, { shakeAmt, onEnd } = {}){
 function worldFrozen(){
   return seasonPassIntroT > 0
       || (seasonPassT > 0 && seasonPassT <= SEASONPASS_OUTRO_DUR)
-      || eatT > 0
       || stampedeT > 0;
 }
 
@@ -4342,27 +4413,15 @@ function update(dt){
     return;
   }
 
-  /* The extra-life chomp — same "action pauses" treatment, for EAT_DUR. eatT
-     already exists to pick the rider's 4-frame eating pose (see drawRider's
-     quadIdx read), so it doubles as the freeze's own timer. flyExtraLife()
-     fires here, on onEnd, rather than at the grab — see the T.EXTRALIFE
-     branch above for why: spawned any earlier, the badge would just sit
-     frozen over the rider for the whole chomp instead of the pickup reading
-     as gone. */
-  if (eatT > 0){
-    eatT = freezeWorld(eatT, dt, { onEnd: flyExtraLife });
-    return;
-  }
-
   /* The stampede letters' run-off is the pause, with a slight shake for the
      herd underfoot — Adam's call, once the "collect all 8" clip's own noise
      starts. stampedeT already times the CSS run-off (#letters.run's
      keyframes), so it doubles as the freeze's own timer too.
-     Unlike eatT's freeze, this one keeps calling updateFlyers() — the 8th
+     Unlike the other freezes, this one keeps calling updateFlyers() — the 8th
      letter's own flyer (and any other pickup's, if one happened to still be
      mid-flight) is already most of the way through its flight the instant
      this freeze starts, not freshly spawned the same frame the way
-     flyExtraLife() now is: measured at t~0.87 here, a few px off and a few px
+     flyExtraLife() would be: measured at t~0.87 here, a few px off and a few px
      oversized next to its real HUD slot. Skipping updateFlyers() the way the
      other freezes do would leave that gap frozen on screen — a visible ghost
      badge sitting slightly off the letter it just became — for the whole
@@ -4412,6 +4471,13 @@ function update(dt){
   if (hurtT  > 0) hurtT  -= dt;
   if (moveT  > 0) moveT  -= dt;
   if (boostT > 0) boostT -= dt;
+  // No freeze anymore — eatT only picks the chomp frame (drawRider's quadIdx
+  // read) while the world keeps moving. flyExtraLife() fires the instant it
+  // runs out, same as it did at the old freeze's onEnd.
+  if (eatT > 0){
+    eatT -= dt;
+    if (eatT <= 0){ eatT = 0; flyExtraLife(); }
+  }
   if (whirlpoolT > 0){
     whirlpoolT -= dt;
     if (whirlpoolT <= 0){ whirlpoolT = 0; Sound.loopStop(); }
@@ -4582,19 +4648,14 @@ function update(dt){
       // only flips true once the flyer actually lands in the HUD (see
       // flyExtraLife() and updateFlyers()), so a hit taken mid-flight is a
       // normal hit, not a shield that was never visibly granted. The eating
-      // animation/sound are NOT deferred the same way, though — Adam's call:
+      // animation/sound (extra-life.mp3 then slurp.mp3) are NOT deferred the same way, though — Adam's call:
       // they're the pickup's own feedback, so they fire right on the grab,
       // not a beat later once the flyer finishes its flight to the HUD.
-      // flyExtraLife() itself IS deferred, though — to eatT's freeze onEnd
-      // (below) rather than fired here. Spawned here, its flyer would sit
-      // frozen at the rider's own position for the whole EAT_DUR chomp
-      // (updateFlyers() doesn't run during the freeze — see freezeWorld()),
-      // reading as the pickup never actually vanishing. Waiting for the
-      // freeze to end means the world pickup (e.dead, right below) is gone
-      // the instant it's grabbed, nothing stands in for it during the eat
-      // animation, and the badge only takes flight once that's done.
+      // flyExtraLife() itself IS deferred, though — to eatT running out
+      // (below) rather than fired here, so the badge only takes flight once
+      // the chomp animation is actually done playing.
       if (nearLane(e.i, LANE_PICK)){
-        e.dead = true; puff(16); eatT = EAT_DUR; Sound.eating();
+        e.dead = true; puff(16); eatT = EAT_DUR; Sound.extraLifeEat();
         coins += POWERUP_SCORE_BONUS;
       }
     } else if (e.t === T.WHIRLPOOL){
@@ -6502,12 +6563,11 @@ const triIdx = (t) => t < 0.34 ? 0 : t < 0.68 ? 1 : 2;
 /* ------------------------------------------------------------------
    EXTRA LIFE EATING
    Four frames of Typhoon working through a pizza slice, tube-registered
-   like hurt/die/duck — he digs in while the ring stays planted. Plays once
-   the flyer lands and the shield tube is actually granted (see
-   updateFlyers()'s "extralife" branch), riding the same
-   eatT-counts-down/quadIdx-picks-the-frame shape as HURT_DUR/triIdx.
-   EAT_DUR is the eating.mp3 + slurp.mp3 pair's combined runtime (1.70s +
-   0.89s), so the pose holds through both sounds instead of snapping back
+   like hurt/die/duck — he digs in while the ring stays planted. Plays right
+   on the grab, riding the same eatT-counts-down/quadIdx-picks-the-frame
+   shape as HURT_DUR/triIdx.
+   EAT_DUR is the extra-life.mp3 + slurp.mp3 pair's combined runtime (2.30s +
+   0.91s), so the pose holds through both sounds instead of snapping back
    to idle mid-chew. ------------------------------------------------------------------ */
 const EAT_REG = [
   { tw: 0.9307, cx: 0.4990, by: 0.9980 },   // reaching for the slice
@@ -6515,7 +6575,7 @@ const EAT_REG = [
   { tw: 0.9715, cx: 0.5020, by: 0.9961 },   // mid bite
   { tw: 0.9717, cx: 0.4980, by: 0.9940 },   // savoring the last of it
 ];
-const EAT_DUR = 2.6;
+const EAT_DUR = 3.22;
 const quadIdx = (t) => t < 0.25 ? 0 : t < 0.5 ? 1 : t < 0.75 ? 2 : 3;
 
 /* ------------------------------------------------------------------

@@ -83,11 +83,10 @@ Before pushing to live:
 - **Full screen-by-screen smoke test on the actual live domain** once
   copied (loading → naming → play → wipeout/win → leaderboard), not just a
   spot-check.
-- **Real-device frame-rate profile still hasn't been done** — see
-  "Performance" below. "Runs great" on staging during a manual check is a
-  good sign, not a substitute, especially since live traffic isn't limited
-  to Android Chrome (see AGENTS.md — that's the only device actually tested
-  so far).
+- ~~**Real-device frame-rate profile still hasn't been done**~~ — resolved
+  (2026-08-27), see "Performance" below. Profiled on two real Android
+  phones, flat 60fps both runs. Still only Android Chrome tested (see
+  AGENTS.md) — live traffic won't be limited to that.
 - **Re-confirm the leaderboard REST calls work same-origin on the real live
   domain** — should be automatic (the `API` constant is a relative path),
   confirm rather than assume.

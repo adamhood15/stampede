@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Stampede — Get Your Promo Code | Typhoon Texas</title>
+<title>Stampede: Wild Rush | Typhoon Texas</title>
 <style>
   :root{
     --sky:      #068af6;
@@ -101,6 +101,7 @@
       text-transform:uppercase;transform:skewX(-7deg);font-size:24px;letter-spacing:.03em;
       color:var(--ink);background:var(--yellow);border:3px solid var(--ink);border-radius:5px;
       padding:13px 10px 15px;margin-top:20px;box-shadow:6px 6px 0 var(--ink);
+      text-decoration:none;text-align:center;
       transition:transform .08s,box-shadow .08s}
   .btn:active{transform:skewX(-7deg) translate(4px,4px);box-shadow:2px 2px 0 var(--ink)}
   .btn:focus-visible{outline:3px solid var(--white);outline-offset:4px}
@@ -111,10 +112,16 @@
   .card.done{text-align:center;padding:32px 22px 30px}
   .card.done .eyebrow{font-size:10px;letter-spacing:.3em;text-transform:uppercase;
       color:var(--yellow);margin:0 0 8px}
+  /* Tried a gradient-fill (background-clip:text) treatment here — it fought
+     with the stroke + shadow layering (the "fill" is a clip trick, not a
+     real opaque paint, so the shadow showed through the letter interior
+     instead of staying behind it) and came out unreadable. Three flat,
+     distinct colors instead: white fill, orange outline, ink shadow — no
+     transparency tricks, no blur, nothing to fight. */
   .card.done h2{font-family:var(--display);text-transform:uppercase;transform:skewX(-7deg);
-      font-size:clamp(30px,9vw,44px);line-height:.9;margin:0 0 12px;color:var(--white);
-      -webkit-text-stroke:5px var(--ink);paint-order:stroke fill;
-      text-shadow:5px 5px 0 var(--orange)}
+      font-size:clamp(34px,10.5vw,50px);line-height:1.15;margin:0 0 14px;color:var(--white);
+      -webkit-text-stroke:3px var(--orange);paint-order:stroke fill;
+      text-shadow:4px 4px 0 var(--ink)}
   .card.done p{font-size:13px;line-height:1.7;color:var(--pale);margin:0}
   .card.done .channel{color:var(--yellow)}
 
@@ -177,6 +184,7 @@
       <div class="eyebrow">You're In, Partner</div>
       <h2>Check Yer<br>Messages</h2>
       <p>Your promo code is on its way <span class="channel" id="doneChannel">by email</span>.<br>See ya at the park!</p>
+      <a class="btn" id="playBtn" href="index.html">Play Now</a>
     </div>
   </main>
 </div>

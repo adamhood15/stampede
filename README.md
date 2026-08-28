@@ -1,4 +1,4 @@
-# Stampede — Typhoon Texas: Buckaroo Run
+# Stampede: Wild Rush — Typhoon Texas
 
 A single-file HTML5 canvas water-slide runner. Steer down an infinite flume,
 dodge obstacles, jump waves, and collect Buckaroos (coins) for as long as you

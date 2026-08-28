@@ -62,6 +62,12 @@ action.
 - **Rebuild verification tooling before any nontrivial change, and commit it
   under `tools/`** — never leave it in a session scratchpad. It has
   repeatedly caught things review did not.
+- **Always kill the headless Chrome instance when done** — on every exit
+  path, including errors, not just the happy path. Orphaned instances have
+  piled up and pegged the user's CPU before. Kill by the specific port or
+  `user-data-dir` you launched, and check `ListAgents`/process start times
+  before killing anything matching `stampede-cdp-*` in case another session
+  is still using it.
 - **Distrust your own tools before you distrust the code.** Calibrate a
   metric against a known-good case before trusting its verdict.
 

@@ -65,18 +65,18 @@ async function main() {
         return { seasonPassIntroT, seasonPassT, travelledAfter: travelled };
       })()
     `);
-    allPass &= ok("pickup starts the frozen intro, not the effect", grabbed.seasonPassIntroT > 2.9 && grabbed.seasonPassT === 0, grabbed);
+    allPass &= ok("pickup starts the frozen intro, not the effect", grabbed.seasonPassIntroT > 1.7 && grabbed.seasonPassT === 0, grabbed);
 
     // --- World is frozen during intro: travelled should not advance over many frames ---
     const frozen = await evaluate(session, `
       (() => {
         const before = travelled;
-        for (let i = 0; i < 60; i++) update(0.016);   // ~0.96s, still well inside the 3s intro
+        for (let i = 0; i < 30; i++) update(0.016);   // ~0.48s, still well inside the 1.8s intro
         return { before, after: travelled, seasonPassIntroT };
       })()
     `);
     allPass &= ok("travelled does not advance during the frozen reveal", frozen.after === frozen.before, frozen);
-    allPass &= ok("still mid-intro after ~1s of a 3s intro", frozen.seasonPassIntroT > 1.9 && frozen.seasonPassIntroT < 2.1, frozen);
+    allPass &= ok("still mid-intro after ~0.5s of a 1.8s intro", frozen.seasonPassIntroT > 1.2 && frozen.seasonPassIntroT < 1.4, frozen);
 
     // --- Reveal animation steps through frames during the freeze ---
     const introFrame = await evaluate(session, `seasonPassFrame()`);
