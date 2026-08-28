@@ -583,7 +583,7 @@
   .lbRow .lbScore{font-family:var(--mono);font-size:17px;color:var(--yellow);white-space:nowrap;
                   font-variant-numeric:tabular-nums}
   .lbRow.me{background:var(--yellow)}
-  .lbRow.me .lbPos,.lbRow.me .lbName,.lbRow.me .lbScore{color:var(--ink)}
+  .lbRow.me .lbPos,.lbRow.me .lbName {color:var(--ink)}
   /* At 320px the default sizing spent so much of the row on the rank and score
      columns that most names ellipsised — technically correct (the number is
      never the thing that gets cut) but useless to read. Give the name back its
@@ -4119,7 +4119,7 @@ function showOver(){
     "vs best", { dist: BEST.dist, coins: BEST.coins, score: BEST.score, letters: BEST.letters },
     bestStored ? "(records persist)" : "(SESSION ONLY — storage blocked, likely file://)");
   $("overTitle").textContent  = overWon ? "Nice Ride, Partner" : "Wipeout";
-  $("overKicker").textContent = overWon ? RIDE_FULL_NAME : "Typhoon wiped out";
+  $("overKicker").textContent = overWon ? RIDE_FULL_NAME : "Better Luck Next Time Partner";
   $("overPanel").classList.add("on");
   settleOverRider();          // only measurable once the panel is displayed
   /* Crossfade rather than a hand-off. The ride track is 1.6s into a 2.4s linear
