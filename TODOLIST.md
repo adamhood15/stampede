@@ -25,6 +25,12 @@ in [DATABASE.md](DATABASE.md).
   for anything real — it has accumulated dozens of claimed names/scores from
   verification sessions, including at least one live "Bubbly Jellyfish"
   entry created by a simulated-offline test that went through for real.
+- ~~**Name-pool squatting** — a script could claim large swaths of the
+  9,900-word pool with no gameplay~~ — partially addressed (2026-08-28), a
+  cheat-audit finding. `Waterpark_Leaderboard_Claim_Cleanup` (hourly
+  WP-Cron) releases any claim still unplayed (`score = 0`) after a 48-hour
+  grace window; real plays are never touched. Doesn't stop squatting within
+  that window, just stops it being permanent — see DATABASE.md.
 - **Claim screen renders over the full board** — reels and "Use This Name"
   sit on top of the top-50 list, reads busy. Alternative: a dedicated claim
   view that swaps to the board after.
@@ -100,10 +106,15 @@ Before pushing to live:
   confirming crawlers can't pick one up mid-window.
 - **Confirm the rollback path** before pushing — know what "revert" looks
   like if something's wrong post-launch.
-- **Re-confirm the zero-auth/no-rate-limit leaderboard REST routes are still
-  an acceptable risk** at real marketing-campaign volume — accepted as fine
-  for a promo at test volume (see DATABASE.md), but live traffic is a
-  different order of magnitude than anything thrown at it so far.
+- ~~**Re-confirm the zero-auth/no-rate-limit leaderboard REST routes are
+  still an acceptable risk**~~ — partially addressed (2026-08-28). A cheat
+  audit found `/submit` accepted any integer score with no validation and
+  neither `/claim` nor `/submit` had rate limiting, so a single request (or
+  script) could forge the board. Fixed: a plausibility ceiling on submitted
+  scores and per-IP rate limiting on both routes (see DATABASE.md). `/leaderboard`,
+  `/rank`, `/names` remain zero-auth, unlimited reads — still fine, they
+  can't alter the board. Re-confirm the new limits hold at real
+  marketing-campaign volume once live, not just test volume.
 
 ## Rendering bugs
 

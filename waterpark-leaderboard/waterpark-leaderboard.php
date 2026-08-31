@@ -23,6 +23,8 @@ define('WATERPARK_LEADERBOARD_ROUTES_VERSION_OPTION', 'waterpark_leaderboard_rou
 require_once WATERPARK_LEADERBOARD_PATH . 'includes/class-database.php';
 require_once WATERPARK_LEADERBOARD_PATH . 'includes/class-score-repository.php';
 require_once WATERPARK_LEADERBOARD_PATH . 'includes/class-name-pool.php';
+require_once WATERPARK_LEADERBOARD_PATH . 'includes/class-rate-limiter.php';
+require_once WATERPARK_LEADERBOARD_PATH . 'includes/class-claim-cleanup.php';
 require_once WATERPARK_LEADERBOARD_PATH . 'includes/class-gate.php';
 require_once WATERPARK_LEADERBOARD_PATH . 'includes/class-game-router.php';
 require_once WATERPARK_LEADERBOARD_PATH . 'includes/class-gate-page.php';
@@ -30,11 +32,18 @@ require_once WATERPARK_LEADERBOARD_PATH . 'includes/class-rest-controller.php';
 
 register_activation_hook(__FILE__, array('Waterpark_Leaderboard_DB', 'install'));
 register_activation_hook(__FILE__, array('Waterpark_Leaderboard_Gate', 'ensure_secret'));
+register_activation_hook(__FILE__, array('Waterpark_Leaderboard_Claim_Cleanup', 'schedule'));
+register_deactivation_hook(__FILE__, array('Waterpark_Leaderboard_Claim_Cleanup', 'unschedule'));
 
 // Catches schema drift after a plugin update, not just first activation —
 // dbDelta() is safe to re-run and only applies the diff.
 add_action('plugins_loaded', array('Waterpark_Leaderboard_DB', 'maybe_upgrade'));
 add_action('plugins_loaded', array('Waterpark_Leaderboard_Gate', 'ensure_secret'));
+// A plugin update doesn't re-fire the activation hook, so also confirm the
+// cron event is scheduled on every load — wp_next_scheduled() inside
+// schedule() makes this a no-op once it already is.
+add_action('plugins_loaded', array('Waterpark_Leaderboard_Claim_Cleanup', 'schedule'));
+add_action(Waterpark_Leaderboard_Claim_Cleanup::CRON_HOOK, array('Waterpark_Leaderboard_Claim_Cleanup', 'run'));
 
 add_action('rest_api_init', array('Waterpark_Leaderboard_REST_Controller', 'register_routes'));
 

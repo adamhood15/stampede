@@ -15,6 +15,16 @@ class Waterpark_Leaderboard_REST_Controller {
 
     const NAMESPACE_ = 'waterpark-leaderboard/v1';
 
+    // Cheat-audit finding #1 (2026-08-28): /submit took any integer with no
+    // gameplay validation, so a forged score topped the board with a single
+    // request. This ceiling doesn't validate a score is real — it just
+    // rejects what no real run could plausibly reach, per runScore()'s own
+    // ceiling comment in index.html: an unsteered bot banks ~0.57 coins/sec
+    // (measured 2026-08-18), a skilled player roughly 5x that, ~28 score/sec.
+    // 100,000 is a generous ~1-hour single-sitting cap, not a tight bound —
+    // tune it if legitimate marathon runs ever get close.
+    const MAX_PLAUSIBLE_SCORE = 100000;
+
     public static function register_routes() {
         register_rest_route(self::NAMESPACE_, '/claim', array(
             'methods'             => 'POST',
@@ -74,6 +84,18 @@ class Waterpark_Leaderboard_REST_Controller {
     }
 
     public static function claim(WP_REST_Request $request) {
+        // Cheat-audit finding #2 (2026-08-28): unlimited, unauthenticated
+        // /claim let a script squat the whole name pool in seconds. 30/10min
+        // per IP is generous enough for a shared park-Wi-Fi NAT (many real
+        // players, one IP) while still bounding a scripted claim spree.
+        if (!Waterpark_Leaderboard_Rate_Limiter::allow('claim', 30, 600)) {
+            return new WP_Error(
+                'waterpark_rate_limited',
+                'Too many name claims from this connection — try again shortly.',
+                array('status' => 429)
+            );
+        }
+
         $result = Waterpark_Leaderboard_Name_Pool::claim(
             self::game_key(),
             (string) $request->get_param('adjective'),
@@ -89,8 +111,29 @@ class Waterpark_Leaderboard_REST_Controller {
     }
 
     public static function submit(WP_REST_Request $request) {
+        // Cheat-audit finding #2 (2026-08-28): unlimited /submit let a script
+        // hammer the board with forged scores. 20/5min per IP is far above
+        // what a real player triggers (submit only fires on a new personal
+        // best) while bounding an automated flood.
+        if (!Waterpark_Leaderboard_Rate_Limiter::allow('submit', 20, 300)) {
+            return new WP_Error(
+                'waterpark_rate_limited',
+                'Too many score submissions from this connection — try again shortly.',
+                array('status' => 429)
+            );
+        }
+
         $token = (string) $request->get_param('token');
         $score = max(0, (int) $request->get_param('score'));
+
+        // Cheat-audit finding #1 (2026-08-28) — see MAX_PLAUSIBLE_SCORE above.
+        if ($score > self::MAX_PLAUSIBLE_SCORE) {
+            return new WP_Error(
+                'waterpark_score_implausible',
+                'Score exceeds what a single run can plausibly reach.',
+                array('status' => 422)
+            );
+        }
 
         $repository = new Waterpark_Leaderboard_Score_Repository();
         $existing   = $repository->get_by_token(self::game_key(), $token);

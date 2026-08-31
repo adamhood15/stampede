@@ -241,7 +241,7 @@
             and was clipping the corner of the last control card on short screens */
          padding:24px 24px calc(env(safe-area-inset-bottom,0px) + 66px);
          overflow-y:auto;touch-action:pan-y;
-         background:radial-gradient(130% 100% at 50% 15%,rgba(48,180,252,.82),rgba(30,48,72,.97))}
+         background:radial-gradient(130% 100% at 50% 15%,rgba(48,180,252,.99),rgba(30,48,72,.97))}
   .panel.on{display:flex}
   /* Centred by a PAIR of auto margins rather than justify-content, because a
      centred flex column with overflow-y:auto clips its own top once the content
@@ -311,29 +311,15 @@
   /* 12.5vw, not 15: eight condensed caps plus a 7px stroke and a skew ran wider
      than the viewport on a phone, so the S and the final E were cut off by the
      screen edges. Desktop is unaffected — it sits on the 118px ceiling. */
-  .ride{font-family:var(--display);text-transform:uppercase;transform:skewX(-7deg);font-weight:400;
-        font-size:clamp(37px,5.5vw,118px);line-height:.84;color:var(--orange);margin:0;
+  .ride{position:relative;z-index:0;font-family:var(--display);text-transform:uppercase;transform:skewX(-7deg);font-weight:400;
+        font-size:clamp(37px,5.5vw,118px);line-height:.84;color:transparent;margin:0;
         -webkit-text-stroke:2px var(--ink);paint-order:stroke fill;
         }
-  /* .ride is shared with headings that DO want to wrap (#namePanel's
-     "What Do They Call Ya?", the how-to/leaderboard headers), so the
-     never-wrap guarantee lives on the ID, not the class. */
-  #rideName{white-space:nowrap}
-  /* Sized well under .ride's 12.5vw (a fixed fraction of it, not a fresh
-     tuned number) so "WILD RUSH" — wider per-letter on average than
-     "STAMPEDE" — still can't out-grow the ceiling .ride was tuned against.
-     nowrap backs that up: a subheading wrapping to a second line would turn
-     the name into three lines, which is the one thing this must never do. */
-  /* Stroke/shadow are lighter than .ride's (3px/3px vs 7px/7px) in the same
-     rough proportion to font size — at .ride's own ratio, .rideSub's ~22px
-     phone-floor size turned the 4px stroke + 5px5px shadow into a muddy
-     double-exposure; letters that small can't carry that much ink. */
-  .rideSub{font-family:var(--display);text-transform:uppercase;transform:skewX(-7deg);
-        font-size:clamp(16px,6vw,50px);line-height:.9;color:var(--yellow);margin:5px 0 0;
-        white-space:nowrap;
-        -webkit-text-stroke:2px var(--ink);paint-order:stroke fill;
-        }
-  .rideSub:empty{display:none}
+  .rideLogo{width:min(84vw,340px);height:auto;margin:0;
+        filter:drop-shadow(4px 6px 0 rgba(10,10,10,.4))}
+  .ride::before{content:attr(data-text);position:absolute;z-index:-1;
+        inset:0;font-family:"sutro-deluxe-fill",var(--display);white-space:inherit;
+        color:var(--orange)}
   .park{font-family:var(--display-card);text-transform:uppercase;transform:skewX(-7deg);
         font-size:clamp(14px,4.2vw,22px);letter-spacing:.06em;color:var(--white);
         margin:0 0 6px;-webkit-text-stroke:2px var(--ink);paint-order:stroke fill}
@@ -352,7 +338,7 @@
 
   .btn{pointer-events:auto;cursor:pointer;font-family:var(--display-card);
        text-transform:uppercase;transform:skewX(-7deg);font-size:27px;letter-spacing:.03em;
-       color:var(--white);-webkit-text-stroke:1px var(--ink);background:var(--yellow);border:3px solid var(--ink);border-radius:4px;
+       color:var(--white);-webkit-text-stroke:2px var(--ink);background:var(--yellow);border:3px solid var(--ink);border-radius:4px;
        padding:12px 34px 14px;margin-top:20px;box-shadow:6px 6px 0 var(--ink);
        transition:transform .08s,box-shadow .08s}
   .btn:active{transform:skewX(-7deg) translate(4px,4px);box-shadow:2px 2px 0 var(--ink)}
@@ -1187,8 +1173,14 @@
   <div class="panel on" id="titlePanel">
     <div class="eyebrow" id="eyebrow">Coming Soon to Typhoon Texas</div>
     <p class="park" id="parkName">Typhoon Texas</p>
-    <h1 class="ride" id="rideName">STAMPEDE</h1>
-    <p class="rideSub" id="rideSub"></p>
+    <img class="rideLogo" id="rideLogo" alt="Stampede: Wild Rush"
+      src="assets/logo/stampede-logo-600.png"
+      srcset="assets/logo/stampede-logo-100.png 100w,
+              assets/logo/stampede-logo-300.png 300w,
+              assets/logo/stampede-logo-600.png 600w,
+              assets/logo/stampede-logo-1000.png 1000w,
+              assets/logo/stampede-logo-2100.png 2100w"
+      sizes="min(84vw,340px)">
     <div id="heroWrap">
       <img id="heroDance" alt="">
     </div>
@@ -1227,7 +1219,7 @@
        and ask mid-flow. Shown only when there is no stored rider. -->
   <div class="panel" id="namePanel">
     <div class="eyebrow">Howdy Partner,</div>
-    <h1 class="ride nameHead">What Do They Call Ya?</h1>
+    <h1 class="ride nameHead" data-text="What Do They Call Ya?">What Do They Call Ya?</h1>
     <div id="reels">
       <button class="reel" id="reelA" type="button"><span class="reelWord"></span></button>
       <button class="reel" id="reelB" type="button"><span class="reelWord"></span></button>
@@ -1244,7 +1236,14 @@
   <div class="panel" id="howPanel">
     <div id="howScroll">
       <div class="eyebrow">How to Play</div>
-      <h2 class="ride howHead">Stampede</h2>
+      <img class="rideLogo howHead" alt="Stampede: Wild Rush"
+        src="assets/logo/stampede-logo-600.png"
+        srcset="assets/logo/stampede-logo-100.png 100w,
+                assets/logo/stampede-logo-300.png 300w,
+                assets/logo/stampede-logo-600.png 600w,
+                assets/logo/stampede-logo-1000.png 1000w,
+                assets/logo/stampede-logo-2100.png 2100w"
+        sizes="min(84vw,340px)">
 
       <section class="howSec">
         <h3>Complete the Word</h3>
@@ -1442,7 +1441,7 @@
 
   <div class="panel" id="overPanel">
     <div class="eyebrow" id="overKicker">Wipeout</div>
-    <h2 class="ride" style="font-size:clamp(38px,11vw,80px)" id="overTitle">Nice Run</h2>
+    <h2 class="ride" style="font-size:clamp(38px,11vw,80px)" id="overTitle" data-text="Nice Run">Nice Run</h2>
     <div id="stats">
       <div class="statRow">
         <div><span>Descent</span><strong id="fDist">0</strong></div>
@@ -1522,7 +1521,7 @@
   <div class="panel" id="lbPanel">
     <div id="lbScroll">
       <div class="eyebrow">Leaderboard</div>
-      <h2 class="ride howHead" id="lbTitle">Top Riders</h2>
+      <h2 class="ride howHead" id="lbTitle" data-text="Top Riders">Top Riders</h2>
 
       <div id="lbHead"><span>#</span><span>Rider</span><span>Score</span></div>
       <div id="lbList"></div>
@@ -1545,7 +1544,7 @@
 
   <div class="panel" id="pausePanel">
     <div class="eyebrow">Paused</div>
-    <h2 class="ride" style="font-size:clamp(38px,11vw,80px)">Take a Breath</h2>
+    <h2 class="ride" style="font-size:clamp(38px,11vw,80px)" data-text="Take a Breath">Take a Breath</h2>
     <p class="tag">The slide will wait.</p>
     <button class="btn trioPrimary" id="resumeBtn" type="button">Resume</button>
     <!-- Three-button rule: the primary (Resume) gets its own row above, and
@@ -1894,8 +1893,6 @@ for (const k in ART) load(k, ART[k]);
    title) or the subtitle alone (the smaller line under it). */
 const RIDE_FULL_NAME = CONFIG.rideName + (CONFIG.rideSubtitle ? ": " + CONFIG.rideSubtitle : "");
 $("parkName").textContent = CONFIG.parkName;
-$("rideName").textContent = CONFIG.rideName + (CONFIG.rideSubtitle ? ":" : "");
-$("rideSub").textContent = CONFIG.rideSubtitle || "";
 $("revealName").textContent = RIDE_FULL_NAME;
 $("eyebrow").textContent  = CONFIG.eyebrow;
 /* CONFIG.tagline no longer has a home anywhere on the card: the sell line and
@@ -4118,7 +4115,7 @@ function showOver(){
     { dist, coins, score, letters: gotLetters },
     "vs best", { dist: BEST.dist, coins: BEST.coins, score: BEST.score, letters: BEST.letters },
     bestStored ? "(records persist)" : "(SESSION ONLY — storage blocked, likely file://)");
-  $("overTitle").textContent  = overWon ? "Nice Ride, Partner" : "Wipeout";
+  $("overTitle").textContent  = $("overTitle").dataset.text = overWon ? "Nice Ride, Partner" : "Wipeout";
   $("overKicker").textContent = overWon ? RIDE_FULL_NAME : "Better Luck Next Time Partner";
   $("overPanel").classList.add("on");
   settleOverRider();          // only measurable once the panel is displayed

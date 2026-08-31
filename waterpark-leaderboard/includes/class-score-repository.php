@@ -134,6 +134,21 @@ class Waterpark_Leaderboard_Score_Repository {
         return $higher + 1;
     }
 
+    // Releases claims that were reserved but never played (still score = 0)
+    // once they're older than the cleanup grace window — see
+    // Waterpark_Leaderboard_Claim_Cleanup. A row with score > 0 is a real
+    // leaderboard entry and is never touched here, regardless of age.
+    public function delete_unplayed_claims_older_than($game_key, $cutoff_utc) {
+        global $wpdb;
+        $table = $this->table();
+
+        return $wpdb->query($wpdb->prepare(
+            "DELETE FROM {$table} WHERE game_key = %s AND score = 0 AND created_at < %s",
+            $game_key,
+            $cutoff_utc
+        ));
+    }
+
     public function delete_score($game_key, $token) {
         global $wpdb;
         $table = $this->table();

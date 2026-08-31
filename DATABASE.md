@@ -155,9 +155,24 @@ WordPress. **Must be reverted to the relative path before `index.html` is
 served from the WordPress site itself**, or it will keep talking to the dev
 environment from production. Tracked in [TODOLIST.md](TODOLIST.md#leaderboard--database).
 
-**Accepted, not addressed:** anyone can claim any name, and score is computed
-in client-side JS anyone can read, so it's forgeable. Fine for a park promo;
-revisit only if the board actually gets gamed.
+**Partially addressed (2026-08-28):** a cheat audit confirmed `/submit` took
+any integer with no gameplay validation, so a single forged request could top
+the board, and neither `/claim` nor `/submit` had any rate limiting to stop a
+script from doing that at scale. `class-rest-controller.php` now rejects
+scores above a generous plausibility ceiling (`MAX_PLAUSIBLE_SCORE`, 100,000 —
+see its own comment for the math) and rate-limits both routes per IP via
+`Waterpark_Leaderboard_Rate_Limiter`. Name-squatting (finding #3) is also partially addressed: `Waterpark_Leaderboard_Claim_Cleanup`
+runs hourly via WP-Cron and deletes any claim still at `score = 0` after a
+48-hour grace window, so a name reserved but never played recycles back into
+the pool instead of being squatted forever. A row with `score > 0` is a real
+leaderboard entry and is never touched by this, no matter how old — "Data is
+retained indefinitely" above still applies to actual plays. **Still
+accepted, not addressed:** anyone can still claim any name that isn't
+currently held (there's no ownership/identity check beyond the token), and a
+forged score anywhere under the ceiling is still possible with a single
+request — this closes the instant, obviously-fake 9-digit case and
+permanent squatting, not forgery or squatting in general. Fine for a park
+promo; revisit if the board actually gets gamed.
 
 ## Word pool
 
