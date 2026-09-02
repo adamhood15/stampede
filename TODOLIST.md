@@ -6,21 +6,6 @@ in [DATABASE.md](DATABASE.md).
 
 ## Leaderboard / database
 
-- ~~**Revert `Board`'s `API` constant to the relative path**~~ — resolved
-  (2026-08-25). `tools/deploy-staging.sh` rewrites it to the relative
-  `/wp-json/waterpark-leaderboard/v1` path for the copy that actually ships
-  to WordPress; the repo's own `index.html` keeps the absolute Kinsta dev
-  URL for local testing against `python3 server.py`.
-- ~~**Get `index.html` into an Oxygen Builder code block.**~~ — superseded
-  (2026-08-25). Went with a WP `template_include` blank-template route at
-  `/play/` instead — no theme/plugin script baggage, no editor fighting a
-  huge inline `<script>`. See "WordPress hosting / go-live" below.
-- ~~**Full word-by-word audit of the 10,000-pair pool**~~ — resolved
-  (2026-08-27). Adam reviewed all 120 expansion words via an interactive
-  checklist artifact (18 pre-flagged by Claude for tone/trademark/
-  connotation, same categories as the original 2026-08-18 audit). Only
-  `Slippery` was cut; see DATABASE.md's "Word pool" section for the full
-  kept/cut breakdown. Pool is now 99×100 = 9,900 combinations.
 - **Clear the Kinsta dev table's test data** before that environment is used
   for anything real — it has accumulated dozens of claimed names/scores from
   verification sessions, including at least one live "Bubbly Jellyfish"
@@ -42,7 +27,7 @@ in [DATABASE.md](DATABASE.md).
 
 Live on staging (`env-typhoontexasnew-dev.kinsta.cloud`), not pushed to the
 live site — **do not push to live until this section clears.** Deploy via
-`tools/deploy-staging.sh` (rewrites asset paths + the `API` constant, copies
+`tools/deploy.sh` (rewrites asset paths + the `API` constant, copies
 `assets/` to `waterpark-leaderboard/game-assets/`, normalizes permissions).
 
 **Funnel design (2026-08-27, supersedes the 2026-08-25 no-gate call):** the
@@ -80,7 +65,7 @@ Before pushing to live:
   re-enabled, confirm ungated `/play/` actually redirects to the real
   signup page (`waterpark_gate_page_id` set to the
   `stampede-wild-rush-signup` page), not just to the homepage fallback.
-- **`tools/deploy-staging.sh` only targets the Kinsta dev path/site.** Needs
+- **`tools/deploy.sh` only targets the Kinsta dev path/site.** Needs
   a production target (or a defined manual equivalent) before it can be used
   for the live push.
 - **The signup page needs to be set as the gate page** (`waterpark_gate_page_id`)
@@ -91,23 +76,17 @@ Before pushing to live:
   confirm it lands on a working `/play/`.
 - **Leaderboard test data must not be copied to live** — see the dev-table
   item above; clear it, don't carry it over.
-- ~~**One more asset-permissions sweep post-copy.**~~ — resolved
-  (2026-09-01). Audited the live staging deploy over SSH: all 142 files /
-  33 dirs under `waterpark-leaderboard/` are `644`/`755`, including
-  `sound-effects/letter-collect/` (the folder that broke this way before,
-  2026-08-25) and the full ancestor chain from `/` down to `game-assets/`
-  (all `755`, world-readable). Clean — nothing snuck in outside the deploy
-  script's own normalization.
 - **Full screen-by-screen smoke test on the actual live domain** once
   copied (loading → naming → play → wipeout/win → leaderboard), not just a
   spot-check.
-- ~~**Real-device frame-rate profile still hasn't been done**~~ — resolved
-  (2026-08-27), see "Performance" below. Profiled on two real Android
-  phones, flat 60fps both runs. Still only Android Chrome tested (see
-  AGENTS.md) — live traffic won't be limited to that.
-- **Re-confirm the leaderboard REST calls work same-origin on the real live
-  domain** — should be automatic (the `API` constant is a relative path),
-  confirm rather than assume.
+- **Re-confirm the leaderboard's cross-origin (CORS) calls work from the real
+  live domain** — the leaderboard backend moved off WordPress onto Railway
+  (`leaderboard-service/`, see `lazy-rolling-matsumoto.md`), so `Board`'s
+  `API` constant is now an absolute cross-origin URL, not a relative path.
+  The Railway service's CORS allowlist needs to include the real production
+  domain (`typhoontexas.com`), not just the Kinsta staging origin — confirm
+  this once live rather than assuming the staging allowlist entry carries
+  over.
 - **Flush WP rewrite rules once manually right after the live push** — the
   routes-version check should handle this automatically, but it's cheap
   insurance for a first launch.
@@ -151,103 +130,6 @@ Before pushing to live:
   `/rank`, `/names` remain zero-auth, unlimited reads — still fine, they
   can't alter the board. Re-confirm the new limits hold at real
   marketing-campaign volume once live, not just test volume.
-
-## Rendering bugs
-
-- ~~**Sky disappearing at extreme roll angles.**~~ — fixed (2026-08-25).
-  Neither of the two leading suspects on file: the sky gradient/sun/clouds
-  were never actually losing coverage or getting swung off past `OVER`'s
-  margin. The real cause was `speedLines()`'s always-on ambient vignette
-  (`rgba(30,48,72,...)`, the same radial darkening used for boost/tunnel):
-  its `createRadialGradient` is centred on `W/2, horizon` — the *exact* point
-  camera roll (`ctx.rotate` in `render()`) pivots about — so rolling it is
-  mathematically a no-op (every screen pixel sits at a roll-invariant
-  distance from that centre). It was still being painted through the full
-  rotated transform with an `OVER`-margined oversized rect anyway, purely by
-  copying the backdrop's overdraw pattern without checking whether this
-  particular gradient needed it. Confirmed via headless Chrome
-  (`Emulation.setDeviceMetricsOverride` at a wide landscape size, forcing
-  `travelled` to a near-peak-roll `curveX` gradient z) that the unmodified
-  code visibly blacked out the sky/sun/cloud band at extreme roll in
-  landscape, and that a fresh load of the edited file does not. Fix: draw
-  the vignette's gradient creation *and* fill outside the rolled transform
-  (`ctx.save()`/`ctx.setTransform(DPR,0,0,DPR,0,0)`/`ctx.restore()`, plain
-  `fillRect(0,0,W,H)`, no `OVER` margin needed since nothing here moves when
-  the camera banks) — `boostRush()`, which *is* roll-dependent (rides with
-  the rider), stays inside the rotated block as before, called after the
-  `restore()`. Zero visual change at rest (proven both algebraically and by
-  a flat-roll before/after screenshot); resolves the reported darkening at
-  peak roll in a wide viewport, and is strictly cheaper (one `W x H` fill
-  instead of one ~1.5x-oversized rotated one).
-
-## Verification sweeps needed
-
-- ~~**Full viewport audit**~~ — done (2026-08-25). `tools/viewport-audit.js`
-  walks every screen (loading, title, claim-name, how-to-play, in-run HUD,
-  paused, wipeout/results win+lose, win reveal, leaderboard) at 320, 360,
-  390, 412, 768, and desktop widths with worst-case content (longest reel
-  name pair, 9-digit score/coins/distance, all 8 letters lit, 50-row
-  leaderboard), flagging `getBoundingClientRect()` edge overflow and real
-  `scrollWidth > clientWidth` bursts. Found and fixed one real bug: `#stats`
-  had no width cap, so worst-case figures grew the results card's stat row
-  past both screen edges at ≤412px — fixed with `width:100%` on `#stats`.
-  Two other flags are confirmed cosmetic, not bugs (the loading bar's handle
-  straddling its track at 0%, and the win-reveal sign's rotated drop-shadow).
-- ~~**Sprite animation audit**~~ — done (2026-08-25). `tools/sprite-size-audit.js`
-  measures every registered rider-animation frame's actual on-screen apparent
-  size (opaque-pixel silhouette area, not raw PNG dimensions — a red herring,
-  since e.g. season-pass_08/09 differ in canvas size on purpose). Fixed four
-  frames whose decorative canvas padding (swoosh/burst/thrown-card art) was
-  shrinking Typhoon's rendered height via `dh = dw * (img.height/img.width)`:
-  `SEASONPASS_REG[3]`/`[8]` (season-pass_04/_09), `DIE_REG[2]` (die_03),
-  `FLIP_REG[2]`/`[3]` (backflip_03/04). Verified live via
-  `tools/seasonpass-outro-shrink-check.js`'s real `drawImage()` capture.
-  `DUCK_REG`'s intentional duck-tuck shrink and `SEASONPASS_REG[5]`
-  (season-pass_06's resting pose) left as-is — not padding artifacts.
-  Letters and power-ups also audited (`tools/powerup-letter-size-audit.js`):
-  every pickup's `*_H` was its own hand-tuned literal (a deliberate rarity
-  hierarchy — Season Pass documented as "the biggest power-up... by design")
-  which read as visibly inconsistent sizes; flattened at Adam's explicit
-  request (2026-08-25) so every pickup (letters, Fast Pass, Souvenir, Extra
-  Life, Whirlpool, Season Pass) now renders at roughly the same on-screen
-  footprint, and every pickup's own glow now reaches the same fraction of
-  its icon's height (`SUN_R` = 0.85, shared by every glow's own reach
-  constant). Matching every `*_H` to the same literal (`LETTER_H`) got the
-  first four right but missed Season Pass: season-pass.png's native canvas
-  is unusually wide-and-flat (200x126, vs. the others' roughly square-to-tall
-  canvases), so matching HEIGHT alone let its WIDTH balloon out unchecked —
-  read as "considerably bigger" on a real device despite an identical `H`.
-  Caught after the fact by re-running the same audit's `footprintArea`
-  metric (bounding-box area, not just height) against a live screenshot;
-  fixed by solving `SEASONPASS_H` (0.393, not `LETTER_H`) for the footprint
-  the other four icons actually average, not for a matching height. See
-  `SEASONPASS_H`'s own comment in `index.html` for the full rationale.
-- 
-
-
-## Performance
-
-- ~~**Mobile render cost never profiled on a device.**~~ — resolved
-  (2026-08-27). Profiled on two real Android phones via an opt-in on-screen
-  HUD (`?debugPerf` / `localStorage.stampede.debug.perf`, `PERF_DEBUG` in
-  `index.html`, verified by `tools/perf-hud-check.js`), played over GitHub
-  Pages (`adamhood15.github.io/stampede`) since Adam's WiFi firewall blocked
-  the LAN dev server. Both runs held a flat **60fps avg/p95, ~16.7ms frame
-  time** — steady-state cost is not a problem. Each run had a handful of
-  isolated jank frames (11 over one run, 8 over a ~2-minute run) with one
-  worst-case spike (151.7ms, then 66.7ms) — but the worst frame's own
-  captured context (`ents`, `streaks`, `state`) showed it did NOT correlate
-  with entity/streak count (one spike happened at `ents=10`, *below* that
-  run's own max of 18), which rules out the original "~120 water streaks /
-  rail-polygon gradients" suspicion as the cause. Adam confirmed it felt
-  "extremely smooth and great" while playing. **Conclusion: the DPR cap
-  (`Math.min(2, devicePixelRatio)` → 1.5) is not warranted** — it would
-  trade real visual quality for a steady-state cost problem the data doesn't
-  show. The rare isolated stalls read as GC pauses or an OS-level blip, not
-  a rendering-cost issue; pinning the exact cause further would need real
-  GC/heap profiling (Chrome remote debugging over USB), which `adb` isn't
-  set up for on this machine — not pursued further since the game already
-  reads as fully smooth in practice.
 
 ## Loading optimization
 
