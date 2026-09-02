@@ -7621,9 +7621,8 @@ const Board = (() => {
        it without their own score changing — so it can't be invalidated the
        way syncedScore can. A previous version cached rank keyed on score
        and only cleared it when the player's own score improved, which went
-       stale exactly when someone else passed them; see
-       LEADERBOARD-REFACTOR.md's "Remove Persistent Rank Caching" for the
-       reproduced bug. */
+       stale exactly when someone else passed them without the player's own
+       score changing. */
     async rankOf(score){
       rankLog("rankOf() called for score", score);
       const q = Math.max(0, Math.floor(score));

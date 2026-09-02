@@ -89,7 +89,10 @@ assets/
   sprites/      Rider animation frames (move/jump/duck/hurt/die/spin),
                 obstacles (cow, pig, snowman, waves), coins, power-ups,
                 and backdrop art
-old-version/    Earlier prototype (claude-stampede.html), kept for reference
+waterpark-leaderboard/  WordPress plugin: /play/ route + signup-gate funnel
+                        (game/ and game-assets/ are gitignored, deploy.sh-built)
+leaderboard-service/    Leaderboard backend (Node/Express + Redis), deployed
+                        to Railway — see DATABASE.md
 AGENTS.md       Operating rules; links to ARCHITECTURE.md, DATABASE.md, TODOLIST.md
 ```
 

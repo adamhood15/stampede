@@ -588,11 +588,22 @@ GET `/json/version`, open the WebSocket, `Target.createTarget` +
 `Target.attachToTarget {flatten:true}`, then `Runtime.evaluate` /
 `Page.captureScreenshot` against that session id. `ws` is the only dependency.
 
-Current scripts: `cdp.js` (shared CDP helper), `screenshot.js`, and
-per-power-up checks (`extralife-check.js`, `whirlpool-check.js`). A
-general whole-flow walker and a viewport-overflow sweep have existed before
-and been lost to scratchpads — rebuild them into `tools/` before the next
-nontrivial UI change (see [TODOLIST.md](TODOLIST.md)).
+`cdp.js` is the shared CDP helper every other script builds on. Beyond that,
+`tools/` holds ~30 scripts: `screenshot.js`; a general whole-flow walker
+(`viewport-audit.js`, also the viewport-overflow sweep — walks every screen
+at multiple widths with worst-case content, see TODOLIST.md); sprite/power-up
+sizing audits (`sprite-size-audit.js`, `powerup-letter-size-audit.js`); the
+leaderboard gate/deploy checks (`gate-check.js`, `deploy.sh`); a load
+generator (`load-test.js`); and per-mechanic regression checks
+(`extralife-check.js`, `whirlpool-check.js`, `idle-check.js`,
+`speedboost-check.js`, `seasonpass-check.js`, `invuln-flash-check.js`,
+`stampede-freeze-check.js`, `pig-after-wave-gap-check.js`,
+`powerup-score-bonus-check.js`, `whirlpool-loop-trim-check.js`,
+`rank-race-check.js`, `rank-flaky-network-check.js`,
+`rank-debug-log-check.js`, and others). Each verifies one real mechanic
+end-to-end over CDP rather than diagnosing a specific bug report — keep that
+distinction when adding a new one: a throwaway diagnostic script belongs in
+the scratchpad, not `tools/`, unless it's shaped to catch a regression later.
 
 Two habits worth keeping:
 - **Force screens from window globals** (`state`, `start()`, `reset()`,
