@@ -7497,15 +7497,17 @@ const RANK_DEBUG = (() => {
 })();
 function rankLog(...args){ if (RANK_DEBUG) console.log("[rank]", ...args); }
 
-/* LIVE — backed by waterpark-leaderboard's REST routes, not localStorage.
-   Digit-suffix collision handling (BAD_NUM etc.) now lives entirely
-   server-side; see waterpark-leaderboard/includes/class-name-pool.php. */
+/* LIVE — backed by leaderboard-service's REST routes (Redis on Railway),
+   not localStorage and not WordPress. Digit-suffix collision handling
+   (BAD_NUM etc.) lives server-side; see
+   leaderboard-service/src/namePool.js. This is a separate origin from
+   the WP site by design (leaderboard-service isn't edge-routed through
+   the same domain) — see leaderboard-service's CORS setup. */
 const Board = (() => {
-  // TEMPORARY — testing against the live Kinsta dev DB before this is
-  // embedded in WordPress. Revert to the relative "/wp-json/..." path
-  // (same-origin, no CORS dependency) once the game is served from the
-  // WP site itself.
-  const API = "https://env-typhoontexasnew-dev.kinsta.cloud/wp-json/waterpark-leaderboard/v1";
+  // REPLACE with the deployed Railway service URL once it exists (staging
+  // during local dev, production once tools/deploy.sh rewrites this for
+  // the copy that ships to WordPress — see that script's own comment).
+  const API = "https://REPLACE-WITH-RAILWAY-URL.up.railway.app";
   const ME  = "stampede.rider.v1";
   const RANK_RETRY_ATTEMPTS = 2;    // rankOf(): one retry beyond the first try
   const RANK_RETRY_DELAY_MS = 400;  // short enough to stay inside the "calculating" cycle
@@ -7536,31 +7538,53 @@ const Board = (() => {
       }, 8000);
       if (!res.ok) throw new Error("claim failed: " + res.status);
       const data = await res.json();
-      const rider = { name: data.player_name, token: data.token, score: data.score, at: Date.now() };
+      // syncedScore starts equal to score: the server just confirmed this
+      // exact value at claim time, so nothing is outstanding yet.
+      const rider = { name: data.player_name, token: data.token, score: data.score, syncedScore: data.score, at: Date.now() };
       writeJSON(ME, rider);
       return rider;
     },
 
-    /* Best-only, and fire-and-forget: a run's score is banked locally first so
-       the results card never waits on the network, and a dropped connection
-       just means the server catches up on the next successful submit. */
+    /* Best-only: a run's score is banked locally first so the results card
+       never waits on the network. Unlike a plain fire-and-forget, this also
+       retries any previously-unconfirmed best on every call, not just when
+       THIS run raised it — syncedScore tracks what the server has actually
+       confirmed, separate from the local best, so a submission lost to a
+       dropped connection gets retried on the next run even if that run
+       scores lower. (Previously a lower run would skip posting entirely,
+       stranding an already-lost submission until the player beat it again.) */
     submit(score){
       const r = readJSON(ME, null);
       if (!r){ rankLog("submit() skipped — no rider on file"); return null; }
+
       if (score > (r.score || 0)){
-        rankLog("submit() score", score, "beats standing best", r.score, "— posting and clearing cached rank");
-        // A higher score moves the rider up the board, so the rank cached
-        // against the old score is no longer valid — drop it and let the
-        // next rankOf() call earn a fresh one.
-        r.score = score; r.at = Date.now(); r.rank = null; writeJSON(ME, r);
+        rankLog("submit() score", score, "beats standing best", r.score);
+        r.score = score; r.at = Date.now();
+        writeJSON(ME, r);
+      } else {
+        rankLog("submit() score", score, "does not beat standing best", r.score);
+      }
+
+      const synced = r.syncedScore || 0;
+      if (r.score > synced){
+        rankLog("submit() posting unconfirmed best", r.score, "(last confirmed:", synced, ")");
         timeoutFetch(API + "/submit", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token: r.token, score }),
-        }, 8000).catch(() => {});
-      } else {
-        rankLog("submit() score", score, "does not beat standing best", r.score, "— ignored");
+          body: JSON.stringify({ token: r.token, score: r.score }),
+        }, 8000).then(res => {
+          if (!res.ok) return;
+          // Re-read rather than reusing `r`: a newer run may have raised
+          // the local best while this request was in flight, and only
+          // the exact score just confirmed should be marked synced.
+          const fresh = readJSON(ME, null);
+          if (fresh && fresh.score >= r.score){
+            fresh.syncedScore = Math.max(fresh.syncedScore || 0, r.score);
+            writeJSON(ME, fresh);
+          }
+        }).catch(() => {});
       }
+
       return r;
     },
 
@@ -7581,26 +7605,16 @@ const Board = (() => {
     /* Needs only the score, so a player can be shown where they WOULD land
        before deciding to submit. Null on failure — callers show a dash
        rather than a wrong number.
-       Cached against the rider's own record, keyed on the score it was
-       computed for: as long as that score hasn't been beaten, the rank
-       can't have improved, so repeat lookups (results card, then the board,
-       then the results card again next run) are served from storage instead
-       of re-hitting the API. submit() clears the cached rank the moment a
-       new high score lands, which is the only time the real rank can move.
-       The write-back re-reads storage rather than reusing the snapshot taken
-       above the await: two runs played back-to-back overlap their lookups,
-       and writing the pre-await snapshot back after a newer run's submit()
-       already moved score forward would stomp that newer score/rank with
-       this stale one. */
+       Always asks the server, no local cache: rank isn't a function of the
+       player's own score alone — other players moving around them changes
+       it without their own score changing — so it can't be invalidated the
+       way syncedScore can. A previous version cached rank keyed on score
+       and only cleared it when the player's own score improved, which went
+       stale exactly when someone else passed them; see
+       LEADERBOARD-REFACTOR.md's "Remove Persistent Rank Caching" for the
+       reproduced bug. */
     async rankOf(score){
       rankLog("rankOf() called for score", score);
-      const r = readJSON(ME, null);
-      if (r && r.score === score && r.rank != null){
-        rankLog("rankOf() cache hit — score", score, "rank", r.rank);
-        return r.rank;
-      }
-      rankLog("rankOf() cache miss for score", score, "— querying /rank",
-        r ? { cachedScore: r.score, cachedRank: r.rank } : { cachedScore: null, cachedRank: null });
       const q = Math.max(0, Math.floor(score));
       // One retry after a short delay: a single failed attempt (dropped
       // packet, cold TLS handshake on the session's first cross-origin
@@ -7615,8 +7629,6 @@ const Board = (() => {
           if (res.ok){
             const data = await res.json();
             rankLog("rankOf() /rank response for score", score, "->", data);
-            const fresh = readJSON(ME, null);
-            if (fresh && fresh.score === score){ fresh.rank = data.rank; writeJSON(ME, fresh); }
             return data.rank;
           }
           rankLog("rankOf() /rank responded not-ok", res.status, "attempt", attempt + 1, "for score", score);

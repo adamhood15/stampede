@@ -3,25 +3,39 @@
 # staging site over the `typhoontexasnew-staging` SSH alias (see AGENTS.md /
 # ~/.ssh/config on this machine).
 #
-# index.html's asset references and the Board API constant assume same-path
-# hosting (see DATABASE.md#front-end-integration) — this script never edits
-# the repo's index.html itself, only a generated copy under
+# The leaderboard API now lives on Railway (leaderboard-service/), not
+# WordPress — see /Users/Adam.Hood/.claude/plans/lazy-rolling-matsumoto.md
+# for the migration this rewrite is part of. index.html's asset references
+# still assume same-path WP hosting (see DATABASE.md#front-end-integration)
+# but the Board API constant is now cross-origin by design. This script
+# never edits the repo's index.html itself, only a generated copy under
 # waterpark-leaderboard/game/ (gitignored, rebuilt every run):
-#   - "assets/...          -> "/wp-content/plugins/waterpark-leaderboard/game-assets/...
-#   - absolute Kinsta dev API constant -> relative /wp-json/... path
+#   - "assets/...                        -> "/wp-content/plugins/waterpark-leaderboard/game-assets/...
+#   - REPLACE-WITH-RAILWAY-URL placeholder -> the real deployed Railway service URL
 # The repo's own index.html keeps working unmodified against
 # `python3 server.py` for local dev.
+#
+# STAMPEDE_LEADERBOARD_API must be set to the deployed leaderboard-service
+# URL (e.g. https://stampede-leaderboard-production.up.railway.app) —
+# Railway assigns/manages this, so it can't be hardcoded here the way the
+# old Kinsta dev URL was.
 #
 # No --delete on the rsync of the plugin folder itself — this only ever adds
 # forward; run a manual cleanup if a file needs to go away.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+if [ -z "${STAMPEDE_LEADERBOARD_API:-}" ]; then
+  echo "ERROR: STAMPEDE_LEADERBOARD_API is not set — export the deployed" >&2
+  echo "leaderboard-service URL (no trailing slash) before running this script." >&2
+  exit 1
+fi
+
 REMOTE_ALIAS="typhoontexasnew-staging"
 REMOTE_WP_PATH="/www/typhoontexasnew_475/public"
 REMOTE_PLUGIN_PATH="${REMOTE_WP_PATH}/wp-content/plugins/waterpark-leaderboard"
 ASSET_URL_BASE="/wp-content/plugins/waterpark-leaderboard/game-assets/"
-RELATIVE_API="/wp-json/waterpark-leaderboard/v1"
+LOCAL_API_PLACEHOLDER="https://REPLACE-WITH-RAILWAY-URL.up.railway.app"
 
 echo "== Staging game-assets/ from assets/ =="
 rm -rf waterpark-leaderboard/game-assets
@@ -39,7 +53,7 @@ echo "== Rewriting index.html -> waterpark-leaderboard/game/index.html =="
 mkdir -p waterpark-leaderboard/game
 sed \
   -e "s#\"assets/#\"${ASSET_URL_BASE}#g" \
-  -e "s#https://env-typhoontexasnew-dev\.kinsta\.cloud/wp-json/waterpark-leaderboard/v1#${RELATIVE_API}#g" \
+  -e "s#${LOCAL_API_PLACEHOLDER}#${STAMPEDE_LEADERBOARD_API}#g" \
   index.html > waterpark-leaderboard/game/index.html
 
 echo "== Sanity-checking the rewrite =="
@@ -47,8 +61,8 @@ if grep -q '"assets/' waterpark-leaderboard/game/index.html; then
   echo "ERROR: unrewritten \"assets/ reference survived the sed pass" >&2
   exit 1
 fi
-if grep -q 'env-typhoontexasnew-dev.kinsta.cloud' waterpark-leaderboard/game/index.html; then
-  echo "ERROR: absolute dev API URL survived the sed pass" >&2
+if grep -q 'REPLACE-WITH-RAILWAY-URL' waterpark-leaderboard/game/index.html; then
+  echo "ERROR: placeholder leaderboard API URL survived the sed pass" >&2
   exit 1
 fi
 
