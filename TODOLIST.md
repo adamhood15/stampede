@@ -30,6 +30,13 @@ live site — **do not push to live until this section clears.** Deploy via
 `tools/deploy.sh` (rewrites asset paths + the `API` constant, copies
 `assets/` to `waterpark-leaderboard/game-assets/`, normalizes permissions).
 
+**Route slug (2026-09-02):** the game route is
+`houston/stampede-wild-rush/play/`, not the bare `/play/` used everywhere
+below as shorthand — `class-game-router.php`'s rewrite rule and
+`class-gate-page.php`'s redirect target both match this now. Matches the
+real production path; verified end-to-end on staging via
+`env-typhoontexasnew-dev.kinsta.cloud/houston/stampede-wild-rush/play/`.
+
 **Funnel design (2026-08-27, supersedes the 2026-08-25 no-gate call):** the
 token gate is back on. `/play/` (`Waterpark_Leaderboard_Game_Router`, blank
 `template_include`, no theme/plugin chrome) now requires a valid signed

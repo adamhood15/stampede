@@ -24,8 +24,15 @@ class Waterpark_Leaderboard_Game_Router {
     // back to true once verification is done.
     const GATE_ENABLED = false;
 
+    // Matches the real production path (Adam's call, 2026-09-02):
+    // typhoontexas.com/houston/stampede-wild-rush/play/ — not the bare
+    // /play/ this used to register, and not the earlier
+    // houston/stampede-wild-rush-play/ single-slug guess either. Bump
+    // WATERPARK_LEADERBOARD_ROUTES_VERSION whenever this changes again —
+    // maybe_flush() only re-flushes rewrite rules on a version bump, not on
+    // every plugin load.
     public static function register_routes() {
-        add_rewrite_rule('^play/?$', 'index.php?' . self::QUERY_VAR . '=1', 'top');
+        add_rewrite_rule('^houston/stampede-wild-rush/play/?$', 'index.php?' . self::QUERY_VAR . '=1', 'top');
     }
 
     public static function query_vars($vars) {

@@ -85,4 +85,4 @@ rsync -az --exclude ".DS_Store" waterpark-leaderboard/ "${REMOTE_ALIAS}:${REMOTE
 echo "== Flushing rewrite rules =="
 ssh "${REMOTE_ALIAS}" "wp --path='${REMOTE_WP_PATH}' rewrite flush"
 
-echo "== Done. Game served at: https://env-typhoontexasnew-dev.kinsta.cloud/play/ =="
+echo "== Done. Game served at: https://env-typhoontexasnew-dev.kinsta.cloud/houston/stampede-wild-rush/play/ =="

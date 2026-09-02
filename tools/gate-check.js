@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 // Verifies the WP-hosted gate + blank-template route deployed by
-// tools/deploy-staging.sh (see ARCHITECTURE.md#tooling for the CDP
-// conventions this follows).
+// tools/deploy.sh (see ARCHITECTURE.md#tooling for the CDP conventions
+// this follows).
 //
 //   STAMPEDE_STAGING_URL=https://env-typhoontexasnew-dev.kinsta.cloud \
 //     node tools/gate-check.js [viewport]
 //
 // Checks:
-//   1. /play/ with no token redirects away (doesn't serve the game).
-//   2. A token from /gate-token lets /play/?t=... actually boot the game.
+//   1. GAME_PATH with no token redirects away (doesn't serve the game).
+//   2. A token from /gate-token lets GAME_PATH?t=... actually boot the game.
 //   3. No theme/plugin chrome (nav/header/footer, extra stylesheets) leaked
 //      into the blank-template response.
 //   4. Screenshots the booted game at a phone viewport.
@@ -18,6 +18,8 @@ const path = require("node:path");
 const { launchChrome, openPage, evaluate, VIEWPORTS } = require("./cdp");
 
 const BASE = process.env.STAMPEDE_STAGING_URL || "https://env-typhoontexasnew-dev.kinsta.cloud";
+// Must match Waterpark_Leaderboard_Game_Router's rewrite rule.
+const GAME_PATH = "/houston/stampede-wild-rush/play/";
 
 async function main() {
   const viewportName = process.argv[2] && VIEWPORTS[process.argv[2]] ? process.argv[2] : "phone412";
@@ -31,16 +33,16 @@ async function main() {
 
   const chrome = await launchChrome({});
   try {
-    console.log("== Loading /play/ with no token (expect redirect away) ==");
-    const noToken = await openPage({ port: chrome.port, url: `${BASE}/play/`, viewport });
+    console.log(`== Loading ${GAME_PATH} with no token (expect redirect away) ==`);
+    const noToken = await openPage({ port: chrome.port, url: `${BASE}${GAME_PATH}`, viewport });
     const noTokenUrl = await evaluate(noToken.session, "location.href");
-    if (noTokenUrl.includes("/play/")) {
-      throw new Error(`Gate did not redirect an unauthenticated /play/ request — landed on ${noTokenUrl}`);
+    if (noTokenUrl.includes(GAME_PATH)) {
+      throw new Error(`Gate did not redirect an unauthenticated ${GAME_PATH} request — landed on ${noTokenUrl}`);
     }
     console.log("  redirected to:", noTokenUrl, "(OK)");
 
-    console.log("== Loading /play/?t=<token> (expect the game to boot) ==");
-    const { session } = await openPage({ port: chrome.port, url: `${BASE}/play/?t=${token}`, viewport });
+    console.log(`== Loading ${GAME_PATH}?t=<token> (expect the game to boot) ==`);
+    const { session } = await openPage({ port: chrome.port, url: `${BASE}${GAME_PATH}?t=${token}`, viewport });
 
     const chromeCheck = await evaluate(session, `({
       hasStage: !!document.querySelector("#stage"),

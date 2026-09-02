@@ -25,7 +25,8 @@ class Waterpark_Leaderboard_Gate_Page {
         }
 
         $token_endpoint = esc_url_raw(rest_url('waterpark-leaderboard/v1/gate-token'));
-        $game_url       = esc_url_raw(home_url('/play/'));
+        // Must match Waterpark_Leaderboard_Game_Router's rewrite rule.
+        $game_url       = esc_url_raw(home_url('/houston/stampede-wild-rush/play/'));
         ?>
         <script>
         (function () {
