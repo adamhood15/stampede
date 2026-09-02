@@ -392,8 +392,9 @@
      near-identical ones drifting apart a property at a time. */
   .ctl b{font-family:var(--copy);text-transform:uppercase;transform:skewX(-7deg);
          font-size:17px;letter-spacing:.04em;color:var(--white)}
-  .ctl span{font-size:9px;line-height:1.6;letter-spacing:.1em;
+  .ctl span{font-size:14px;line-height:1.6;letter-spacing:.1em;display:none;
             color:rgba(252,246,240,.72)}
+  .howSec .ctl span{display:block}    
   /* Slide/Jump/Duck stay in one row on the how-to card too, same compact
      vertical .ctl the title screen uses — the paragraph-length explanation
      here just wraps to more lines instead of the caption's one or two. */
@@ -569,7 +570,7 @@
   .lbRow .lbScore{font-family:var(--mono);font-size:17px;color:var(--yellow);white-space:nowrap;
                   font-variant-numeric:tabular-nums}
   .lbRow.me{background:var(--yellow)}
-  .lbRow.me .lbPos,.lbRow.me .lbName {color:var(--ink)}
+  .lbRow.me .lbPos,.lbRow.me .lbName,.lbRow.me .lbScore {color:var(--ink)}
   /* At 320px the default sizing spent so much of the row on the rank and score
      columns that most names ellipsised — technically correct (the number is
      never the thing that gets cut) but useless to read. Give the name back its
@@ -590,8 +591,7 @@
     .lbRow .lbPos{grid-area:pos;align-self:center;font-size:19px;text-align:center}
     .lbRow .lbName{grid-area:name;font-size:14px}
     .lbRow .lbScore{grid-area:score;text-align:left;font-size:20px;
-                    color:var(--sky-low)}
-    .lbRow.me .lbScore{color:var(--ink)}
+                    }
   }
   @media (max-width:380px){
     .lbRow{padding-left:9px;padding-right:9px}
@@ -669,9 +669,9 @@
   .howSec h3{font-family:var(--display-card);text-transform:uppercase;transform:skewX(-7deg);
              font-size:23px;letter-spacing:.05em;color:var(--white);margin:0 0 12px;
              -webkit-text-stroke:4px var(--ink);paint-order:stroke fill}
-  .howSec p{margin:12px auto 0;max-width:40ch;font-size:11px;line-height:1.85;
-            letter-spacing:.08em;color:rgba(252,246,240,.8)}
-  .howSec .word{--lh:clamp(18px,4.6vw,30px)}
+  .howSec p{margin:12px auto 0;max-width:40ch;font-size:15px;line-height:1.85;
+            letter-spacing:.08em;color:#ffffff}
+  .howSec .word{--lh:clamp(30px,4.6vw,30px)}
   .howCoin{width:54px;height:54px;object-fit:contain;
            filter:drop-shadow(0 4px 0 rgba(10,10,10,.3))}
   .howLead{margin-top:0 !important}
@@ -683,7 +683,7 @@
        border:3px solid var(--ink);box-shadow:4px 4px 0 var(--ink)}
   .haz img,.haz svg{width:100%;max-width:88px;height:62px;object-fit:contain;
                     filter:drop-shadow(0 3px 0 rgba(10,10,10,.28))}
-  .haz b{font-family:var(--copy);text-transform:uppercase;transform:skewX(-7deg);
+  .haz b{font-family:var(--copy);transform:skewX(-7deg);
          font-size:17px;letter-spacing:.04em;color:var(--white)}
   /* One card style for every entry, tunnel included. It used to take a green
      background, a green accent line and the whole row to itself, which made it
@@ -692,7 +692,7 @@
      Sentence case, not uppercase — matches .hgItem span. The captions here are
      now full sentences ("Ride through for a speed boost!"), and shouting a
      whole sentence reads worse than shouting a two-word label did. */
-  .haz span{font-size:9px;line-height:1.6;letter-spacing:.1em;color:rgba(252,246,240,.72)}
+  .haz span{font-size:14px;line-height:1.6;letter-spacing:.1em;color:rgba(252,246,240,.72)}
 
   /* ---------- HUD guide ----------
      Same one-card-per-entry grid as #hazards, but the tiles are not all the
@@ -706,9 +706,9 @@
   .hgItem{display:flex;flex-direction:column;align-items:center;gap:6px;
           padding:14px 8px 12px;border-radius:8px;background:rgba(30,48,72,.55);
           border:3px solid var(--ink);box-shadow:4px 4px 0 var(--ink)}
-  .hgItem b{font-family:var(--copy);text-transform:uppercase;transform:skewX(-7deg);
+  .hgItem b{font-family:var(--copy);transform:skewX(-7deg);
             font-size:17px;letter-spacing:.04em;color:var(--white)}
-  .hgItem span{font-size:9px;letter-spacing:.1em;line-height:1.6;
+  .hgItem span{font-size:14px;letter-spacing:.1em;line-height:1.6;
                color:rgba(252,246,240,.72)}
   .hgWide{grid-column:1 / -1}
   /* Score, Buckaroos and Tubes share one row (like Mute/Back/Play do as
@@ -3297,7 +3297,7 @@ cv.addEventListener("touchcancel", endTouch, { passive:true });
    never show a different cow than the chute does, and a file that moves only
    has to move in one place. A missing file hides its own tile instead of
    leaving a broken-image box on the card. */
-const HOW_ART = { howCoin:"coinA", hudCoin:"coinA", hazCow:"cow", hazYeti:"yeti", hazWave:"wave2", hazPig:"pig2", hazFastPass:"fastPass", hazSouvenir:"souvenir", hazExtraLife:"extraLife", hazWhirlpool:"whirlpool", hazSeasonPass:"seasonPass" };
+const HOW_ART = { howCoin:"coinA", hudCoin:"coinA", hazCow:"cow", hazYeti:"yeti", hazWave:"wave2", hazPig:"pig4", hazFastPass:"fastPass", hazSouvenir:"souvenir", hazExtraLife:"extraLife", hazWhirlpool:"whirlpool", hazSeasonPass:"seasonPass" };
 for (const id in HOW_ART){
   const src = ART[HOW_ART[id]];
   if (src) $(id).src = src;
@@ -7594,11 +7594,22 @@ const Board = (() => {
         if (!res.ok) return [];
         const rows = await res.json();
         const me = readJSON(ME, null);
-        return rows.map(r => ({
-          name: r.player_name,
-          score: r.score,
-          me: !!(me && r.player_name === me.name),
-        }));
+        /* submit() updates the LOCAL score synchronously, before its POST
+           even fires (see submit()'s own comment) — so `me.score` here is
+           always at least as fresh as whatever the server has by the time
+           this resolves. Without this, opening the board right after a run
+           (the results card's "Leaderboard Ranking" tap has no minimum delay,
+           nor does it wait on submit()'s fire-and-forget POST) could show the
+           player their OWN previous score instead of the one they just got,
+           even though their run really did submit. */
+        return rows.map(r => {
+          const isMe = !!(me && r.player_name === me.name);
+          return {
+            name: r.player_name,
+            score: isMe ? Math.max(r.score, me.score || 0) : r.score,
+            me: isMe,
+          };
+        });
       } catch (e) { return []; }
     },
 
@@ -7810,6 +7821,37 @@ let pendingScore = 0;          // this run's score, for the "you'd rank" line
 async function renderBoard(){
   const me = Board.me();
   const rows = await Board.top(50);
+  const you = $("lbYou"); you.innerHTML = "";
+
+  /* The player's own score can be missing from `rows` for two different
+     reasons: it's real but sits outside this top-50 window, OR — Board.top()
+     matches purely by name, so a claim/submit that never actually landed
+     server-side (a dropped connection; nothing has retried it since) leaves
+     the player with a real local score and no matching row at all. Either
+     way, the fix is the same: ask the server for the real rank and slot a
+     synthetic row into the list at that exact position, so every row below
+     it visibly bumps down by one — same as if a real new score had landed
+     there. Only when that rank falls outside the window already fetched
+     (pos > rows.length + 1) does this fall back to a separate row pinned
+     below the board instead — splicing into a spot with no real fetched
+     neighbors would misrepresent who is actually around it there. */
+  if (me && me.score > 0 && !rows.some(r => r.me)){
+    const pos = await Board.rankOf(me.score);
+    rankLog("renderBoard() own row missing from fetched rows — rankOf(", me.score, ") ->", pos);
+    if (pos != null && pos <= rows.length + 1){
+      rows.splice(pos - 1, 0, { name: me.name, score: me.score, me: true });
+    } else if (pos != null){
+      const d = document.createElement("div");
+      d.className = "lbRow me";
+      d.innerHTML = '<span class="lbPos"></span><span class="lbName"></span>' +
+                    '<span class="lbScore"></span>';
+      d.children[0].textContent = pos;
+      d.children[1].textContent = me.name;
+      d.children[2].textContent = me.score.toLocaleString();
+      you.appendChild(d);
+    }
+  }
+
   const list = $("lbList");
   list.innerHTML = "";
   rows.forEach((r, i) => {
@@ -7826,26 +7868,8 @@ async function renderBoard(){
 
   const meRowIndex = rows.findIndex(r => r.me);
   if (meRowIndex >= 0){
-    rankLog("renderBoard() found current player inside the top", rows.length,
-      "at list position", meRowIndex + 1, "for score", me && me.score);
-  }
-
-  /* Outside the top 50, the player still gets their own row — pinned below the
-     board so "#578 of 3,412" is answered without scrolling to nowhere. */
-  const you = $("lbYou"); you.innerHTML = "";
-  if (me && me.score > 0 && !rows.some(r => r.me)){
-    const pos = await Board.rankOf(me.score);
-    rankLog("renderBoard() pinned 'you' row — rankOf(", me.score, ") ->", pos);
-    if (pos != null){
-      const d = document.createElement("div");
-      d.className = "lbRow me";
-      d.innerHTML = '<span class="lbPos"></span><span class="lbName"></span>' +
-                    '<span class="lbScore"></span>';
-      d.children[0].textContent = pos;
-      d.children[1].textContent = me.name;
-      d.children[2].textContent = me.score.toLocaleString();
-      you.appendChild(d);
-    }
+    rankLog("renderBoard() player row at list position", meRowIndex + 1,
+      "for score", me && me.score);
   }
 }
 

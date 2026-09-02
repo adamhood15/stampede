@@ -69,6 +69,17 @@ set as `waterpark_gate_page_id`).
   end-to-end but hasn't been run against the current staging deploy yet.
 
 Before pushing to live:
+- **Re-enable the gate.** `GATE_ENABLED` in `class-game-router.php` was
+  temporarily flipped to `false` (2026-09-02) so `/play/` could be hit
+  directly on staging while verifying the leaderboard-off-WordPress
+  migration (the gate page isn't configured yet, so with it on, `/play/`
+  redirected to `home_url('/')` instead of a real signup page). **Must be
+  flipped back to `true`** before any live push — otherwise `/play/` is a
+  plain, ungated URL anyone can bookmark and share indefinitely, the exact
+  problem the gate exists to prevent (see "Funnel design" above). Once
+  re-enabled, confirm ungated `/play/` actually redirects to the real
+  signup page (`waterpark_gate_page_id` set to the
+  `stampede-wild-rush-signup` page), not just to the homepage fallback.
 - **`tools/deploy-staging.sh` only targets the Kinsta dev path/site.** Needs
   a production target (or a defined manual equivalent) before it can be used
   for the live push.

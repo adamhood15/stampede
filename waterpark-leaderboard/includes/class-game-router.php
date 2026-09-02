@@ -18,7 +18,11 @@ class Waterpark_Leaderboard_Game_Router {
     // Re-enabled (2026-08-27) — Adam's call to bring the token gate back.
     // The gate, the REST route, and the gate-page snippet were untouched
     // since being switched off; flip to false to serve /play/ ungated again.
-    const GATE_ENABLED = true;
+    // Temporarily false (2026-09-02) so the leaderboard migration's
+    // rollout verification can hit /play/ directly on staging while the
+    // gate funnel is still unwired (waterpark_gate_page_id unset) — flip
+    // back to true once verification is done.
+    const GATE_ENABLED = false;
 
     public static function register_routes() {
         add_rewrite_rule('^play/?$', 'index.php?' . self::QUERY_VAR . '=1', 'top');

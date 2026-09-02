@@ -51,14 +51,27 @@ find waterpark-leaderboard/game-assets -type f -exec chmod 644 {} +
 
 echo "== Rewriting index.html -> waterpark-leaderboard/game/index.html =="
 mkdir -p waterpark-leaderboard/game
+# Was quote-anchored (s#"assets/#...#g), which missed multi-line srcset
+# continuation lines — e.g. #rideLogo's srcset wraps each candidate onto
+# its own indented line with no leading quote, so only the first (the
+# quoted src=/first srcset candidate) got rewritten and the rest 404'd on
+# whichever DPR/width picked them. Every "assets/" occurrence in
+# index.html is a real asset reference (confirmed — no false-positive
+# risk), so match the bare substring instead of requiring a quote before it.
 sed \
-  -e "s#\"assets/#\"${ASSET_URL_BASE}#g" \
+  -e "s#assets/#${ASSET_URL_BASE}#g" \
   -e "s#${LOCAL_API_PLACEHOLDER}#${STAMPEDE_LEADERBOARD_API}#g" \
   index.html > waterpark-leaderboard/game/index.html
 
 echo "== Sanity-checking the rewrite =="
-if grep -q '"assets/' waterpark-leaderboard/game/index.html; then
-  echo "ERROR: unrewritten \"assets/ reference survived the sed pass" >&2
+# ASSET_URL_BASE itself ends in "game-assets/", which contains the
+# substring "assets/" — so counting bare "assets/" against "game-assets/"
+# (rather than grep -q 'assets/', which would always false-positive on the
+# rewritten paths themselves) is what actually proves nothing survived.
+ASSETS_COUNT=$(grep -o 'assets/' waterpark-leaderboard/game/index.html | wc -l | tr -d ' ')
+GAME_ASSETS_COUNT=$(grep -o 'game-assets/' waterpark-leaderboard/game/index.html | wc -l | tr -d ' ')
+if [ "$ASSETS_COUNT" -ne "$GAME_ASSETS_COUNT" ]; then
+  echo "ERROR: a bare (unrewritten) assets/ reference survived the sed pass" >&2
   exit 1
 fi
 if grep -q 'REPLACE-WITH-RAILWAY-URL' waterpark-leaderboard/game/index.html; then
