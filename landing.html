@@ -5,139 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Stampede: Wild Rush | Typhoon Texas</title>
 <link rel="stylesheet" href="https://use.typekit.net/cmv0fio.css">
-<style>
-  :root{
-    --sky:      #068af6;
-    --blue-dp:  #0072d2;
-    --yellow:   #fcea00;
-    --orange:   #fc901e;
-    --white:    #fcf6f0;
-    --pale:     #e4f6f6;
-    --navy:     #1e3048;
-    --ink:      #0a0a0a;
-
-    --display: "sutro-deluxe-primary","Haettenschweiler","Arial Narrow","Impact",
-               "Franklin Gothic Bold","Helvetica Neue",Arial,sans-serif;
-    --display-card: "sutro-open-fill","Franklin Gothic Bold","Helvetica Neue",Arial,sans-serif;
-    --copy: "sutro","Helvetica Neue",Arial,sans-serif;
-    --mono: ui-monospace,"SF Mono",Menlo,Consolas,"Roboto Mono",monospace;
-  }
-
-  *{box-sizing:border-box}
-  html,body{margin:0;min-height:100%;background:var(--navy)}
-  body{font-family:var(--copy);color:var(--white)}
-
-  /* Same radial the game uses behind its title/results panels — recognisable
-     without needing the busy park-map illustration front and center. */
-  .bg{position:relative;min-height:100vh;overflow:hidden;
-      background:radial-gradient(130% 100% at 50% 15%,rgba(48,180,252,.82),rgba(30,48,72,.97));
-      display:flex;justify-content:center}
-
-  /* Park art as a faint, dark-washed backdrop only — decoration, not content.
-     Heavy overlay + blur keep the detailed illustration from competing with
-     the form, per "don't make the page busy." */
-  .bg::before{content:"";position:absolute;inset:0;
-      background:url("assets/sprites/backdrop/background-western.png") center/cover;
-      opacity:.16;filter:saturate(.7) blur(1px);
-      mask-image:linear-gradient(180deg,transparent,#000 35%,#000 70%,transparent);
-      -webkit-mask-image:linear-gradient(180deg,transparent,#000 35%,#000 70%,transparent)}
-
-  /* Sun sits fully on-canvas now (was cropped off the top-right corner) —
-     inset far enough that its own glow doesn't clip against .bg's
-     overflow:hidden at narrow widths. */
-  .decoSun{position:absolute;top:22px;left:18px;
-      width:clamp(84px,24vw,150px);height:auto;opacity:.92;
-      filter:drop-shadow(0 0 40px rgba(252,234,0,.35));pointer-events:none;z-index:0}
-
-  .cloud{position:absolute;pointer-events:none;z-index:0;opacity:.8;height:auto}
-  .cloud1{top:56px;right:-18px;width:clamp(110px,30vw,190px);
-      animation:driftX 22s ease-in-out infinite}
-  .cloud2{top:168px;left:-26px;width:clamp(70px,20vw,120px);opacity:.65;
-      animation:driftX 17s ease-in-out infinite reverse}
-  @keyframes driftX{
-    0%,100%{transform:translateX(0)}
-    50%{transform:translateX(16px)}
-  }
-
-  .wrap{position:relative;z-index:1;width:100%;max-width:460px;
-      padding:48px 20px 40px;display:flex;flex-direction:column;align-items:center;
-      text-align:center}
-
-  .logo{width:min(46vw,160px);height:auto;margin:0 0 10px;
-      filter:drop-shadow(0 4px 0 rgba(10,10,10,.3))}
-
-  .park{font-family:var(--display-card);text-transform:uppercase;transform:skewX(-7deg);
-      font-size:14px;letter-spacing:.14em;color:var(--white);margin:0 0 4px;
-      -webkit-text-stroke:2px var(--ink);paint-order:stroke fill}
-
-  .boardWrap{position:relative;padding:14px 26px 20px;margin:2px 0 6px}
-
-  .rideLogo{width:min(84vw,340px);height:auto;
-      filter:drop-shadow(4px 6px 0 rgba(10,10,10,.4))}
-
-  .tag{margin:6px 0 4px;font-size:17px;line-height:1.6;letter-spacing:.02em;
-      color:var(--pale);max-width:38ch}
-
-  .mascot{width:min(48vw,200px);height:auto;margin:10px 0 26px;
-      filter:drop-shadow(0 10px 0 rgba(10,10,10,.25));position:relative;z-index:2}
-
-  .card{position:relative;z-index:1;width:100%;
-      background:rgba(30,48,72,.85);border:3px solid var(--ink);border-radius:10px;
-      box-shadow:6px 6px 0 var(--ink);padding:26px 20px 24px;margin-top:18px}
-
-  .row{display:flex;gap:10px}
-  .row .field{flex:1 1 0;min-width:0}
-
-  .field{display:block;text-align:left;margin-bottom:14px}
-  .field span{display:block;font-size:10px;letter-spacing:.14em;text-transform:uppercase;
-      color:var(--yellow);margin-bottom:5px}
-  .field input{width:100%;font:inherit;font-size:15px;color:var(--ink);
-      background:var(--white);border:3px solid var(--ink);border-radius:5px;
-      padding:10px 11px;box-shadow:0 3px 0 var(--ink)}
-  .field input::placeholder{color:#8a8a8a}
-  .field input:focus{outline:3px solid var(--yellow);outline-offset:2px}
-
-  .optins{margin:18px 0 6px;display:flex;flex-direction:column;gap:10px;text-align:left}
-  .check{display:flex;align-items:flex-start;gap:10px;font-size:12px;line-height:1.5;
-      letter-spacing:.02em;color:var(--pale);cursor:pointer}
-  .check input{width:18px;height:18px;flex:none;margin-top:1px;accent-color:var(--orange)}
-
-  .err{margin:8px 0 0;font-size:11px;letter-spacing:.03em;color:var(--yellow);
-      text-align:left}
-
-  .btn{display:block;width:100%;cursor:pointer;font-family:var(--display-card);
-      text-transform:uppercase;transform:skewX(-7deg);font-size:clamp(13px,calc(6vw - 5px),22px);
-      white-space:nowrap;letter-spacing:.03em;
-      color:var(--white);-webkit-text-stroke:2px var(--ink);paint-order:stroke fill;
-      background:var(--yellow);border:3px solid var(--ink);border-radius:4px;
-      padding:13px 10px 15px;margin-top:20px;box-shadow:6px 6px 0 var(--ink);
-      text-decoration:none;text-align:center;
-      transition:transform .08s,box-shadow .08s}
-  .btn:active{transform:skewX(-7deg) translate(4px,4px);box-shadow:2px 2px 0 var(--ink)}
-  .btn:focus-visible{outline:3px solid var(--white);outline-offset:4px}
-
-  .fine{margin:16px 0 0;font-size:10px;line-height:1.6;letter-spacing:.02em;
-      color:rgba(252,246,240,.55)}
-
-  .card.done{text-align:center;padding:32px 22px 30px}
-  .card.done .eyebrow{font-size:10px;letter-spacing:.3em;text-transform:uppercase;
-      color:var(--yellow);margin:0 0 8px}
-  /* Tried a gradient-fill (background-clip:text) treatment here — it fought
-     with the stroke + shadow layering (the "fill" is a clip trick, not a
-     real opaque paint, so the shadow showed through the letter interior
-     instead of staying behind it) and came out unreadable. Three flat,
-     distinct colors instead: white fill, orange outline, ink shadow — no
-     transparency tricks, no blur, nothing to fight. */
-  .card.done h2{font-family:var(--display);text-transform:uppercase;transform:skewX(-7deg);font-weight:400;
-      font-size:clamp(34px,10.5vw,50px);line-height:1.15;margin:0 0 14px;color:var(--orange);
-      -webkit-text-stroke:2px var(--ink);paint-order:stroke fill}
-  .card.done p{font-size:13px;line-height:1.7;color:var(--pale);margin:0}
-  .card.done .channel{color:var(--yellow)}
-
-  @media (max-width:380px){
-    .row{flex-direction:column;gap:0}
-  }
-</style>
+<link rel="stylesheet" href="landing.css">
 </head>
 <body>
 <div class="bg">
@@ -198,7 +66,7 @@
       <p class="fine">Reference build only — this form doesn't submit anywhere. Msg &amp; data rates may apply for SMS; unsubscribe anytime.</p>
     </form>
 
-    <img class="mascot" src="assets/sprites/typhoon-sprites/tube-splash/typhoon-tube-splash.gif" alt="Typhoon the horse relaxing in an inner tube, splashing water">
+    <img class="mascot" src="assets/sprites/typhoon-sprites/wave/typhoon-waving.gif" alt="Typhoon the horse waving hello">
 
     <div class="card done" id="doneCard" hidden>
       <div class="eyebrow">You're In, Partner</div>
@@ -209,35 +77,6 @@
   </main>
 </div>
 
-<script>
-(function () {
-  var form = document.getElementById('signupForm');
-  var optErr = document.getElementById('optErr');
-  var doneCard = document.getElementById('doneCard');
-  var doneChannel = document.getElementById('doneChannel');
-
-  form.addEventListener('submit', function (e) {
-    e.preventDefault();
-
-    if (!form.reportValidity()) return;
-
-    var byEmail = form.optEmail.checked;
-    var bySms = form.optSms.checked;
-
-    if (!byEmail && !bySms) {
-      optErr.hidden = false;
-      return;
-    }
-    optErr.hidden = true;
-
-    doneChannel.textContent = byEmail && bySms ? 'by email and text'
-      : bySms ? 'by text'
-      : 'by email';
-
-    form.hidden = true;
-    doneCard.hidden = false;
-  });
-})();
-</script>
+<script src="landing.js"></script>
 </body>
 </html>

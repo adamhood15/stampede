@@ -80,12 +80,13 @@ Before pushing to live:
   confirm it lands on a working `/play/`.
 - **Leaderboard test data must not be copied to live** — see the dev-table
   item above; clear it, don't carry it over.
-- **One more asset-permissions sweep post-copy.** The deploy script now
-  normalizes permissions on every run — caught a real bug this exact way
-  (2026-08-25): `sound-effects/letter-collect/` was `700` and silently
-  404'd only under nginx's different user, invisible locally under
-  `python3 server.py`'s same-user access. Still worth a final full pass
-  after any copy that doesn't go through this script.
+- ~~**One more asset-permissions sweep post-copy.**~~ — resolved
+  (2026-09-01). Audited the live staging deploy over SSH: all 142 files /
+  33 dirs under `waterpark-leaderboard/` are `644`/`755`, including
+  `sound-effects/letter-collect/` (the folder that broke this way before,
+  2026-08-25) and the full ancestor chain from `/` down to `game-assets/`
+  (all `755`, world-readable). Clean — nothing snuck in outside the deploy
+  script's own normalization.
 - **Full screen-by-screen smoke test on the actual live domain** once
   copied (loading → naming → play → wipeout/win → leaderboard), not just a
   spot-check.
@@ -106,6 +107,30 @@ Before pushing to live:
   confirming crawlers can't pick one up mid-window.
 - **Confirm the rollback path** before pushing — know what "revert" looks
   like if something's wrong post-launch.
+- **Re-check server-side REST latency against production once live** —
+  staging (2026-09-01 investigation) showed ~2.2-3.5s TTFB on every route
+  tested, including bare `/wp-json/` and the homepage, not just the
+  leaderboard plugin's own routes. Root-caused to two contributors: (1)
+  Kinsta disables the staging environment's real system cron
+  (`crontab -l` confirms this, restored automatically on push-to-live) while
+  `DISABLE_WP_CRON` isn't set in `wp-config.php` and two cron hooks
+  (`action_scheduler_run_queue`, `rvy_mail_buffer_hook`) sit permanently
+  overdue — so WP core's per-request loopback `spawn_cron()` check fires on
+  nearly every hit. Confirmed via a temporary `DISABLE_WP_CRON` test
+  (reverted immediately after, checksum-verified clean): TTFB dropped from
+  ~2.5-3.5s to ~1.3-1.7s. This part should resolve on its own once live
+  cron is restored. (2) The remaining ~1.3-1.7s baseline is unexplained by
+  anything in `waterpark-leaderboard`'s own code — `get_leaderboard()`'s
+  query is a clean indexed range scan (`idx_game_score`), no blocking
+  network/filesystem calls exist in the plugin — and instead points at
+  hosting/plugin-stack factors that may or may not carry over to
+  production: no persistent object cache (no `object-cache.php` drop-in;
+  worth checking whether Kinsta's Redis add-on is enabled), and a heavy
+  active-plugin stack bootstrapping every request (Wordfence, Oxygen, ACF
+  Pro, WPO365, ws-form-pro + Mailchimp + Action Scheduler, Yoast SEO).
+  Re-measure this exact comparison (bare `/wp-json/`, `/leaderboard`,
+  homepage TTFB) against `typhoontexas.com` once live — staging's numbers
+  aren't reliable evidence for production's actual latency.
 - ~~**Re-confirm the zero-auth/no-rate-limit leaderboard REST routes are
   still an acceptable risk**~~ — partially addressed (2026-08-28). A cheat
   audit found `/submit` accepted any integer score with no validation and
