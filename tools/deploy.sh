@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Deploys the plugin + a WordPress-ready copy of the game to the Kinsta
-# staging site over the `typhoontexasnew-staging` SSH alias (see AGENTS.md /
-# ~/.ssh/config on this machine).
+# Deploys the plugin + a WordPress-ready copy of the game to Kinsta, over
+# the `typhoontexasnew-staging` or `typhoontexasnew-production` SSH alias
+# (see AGENTS.md / ~/.ssh/config on this machine). Target defaults to
+# staging — pass "production" as the first argument to deploy live.
 #
 # The leaderboard API now lives on Railway (leaderboard-service/), not
 # WordPress — see /Users/Adam.Hood/.claude/plans/lazy-rolling-matsumoto.md
@@ -31,11 +32,29 @@ if [ -z "${STAMPEDE_LEADERBOARD_API:-}" ]; then
   exit 1
 fi
 
-REMOTE_ALIAS="typhoontexasnew-staging"
-REMOTE_WP_PATH="/www/typhoontexasnew_475/public"
+TARGET="${1:-staging}"
+case "$TARGET" in
+  staging)
+    REMOTE_ALIAS="typhoontexasnew-staging"
+    REMOTE_WP_PATH="/www/typhoontexasnew_475/public"
+    GAME_URL="https://env-typhoontexasnew-dev.kinsta.cloud/stampede-wild-rush/play/"
+    ;;
+  production)
+    REMOTE_ALIAS="typhoontexasnew-production"
+    REMOTE_WP_PATH="/www/typhoontexasnew_475/public"
+    GAME_URL="https://typhoontexas.com/stampede-wild-rush/play/"
+    ;;
+  *)
+    echo "ERROR: unknown target '${TARGET}' — expected 'staging' or 'production'." >&2
+    exit 1
+    ;;
+esac
+
 REMOTE_PLUGIN_PATH="${REMOTE_WP_PATH}/wp-content/plugins/waterpark-leaderboard"
 ASSET_URL_BASE="/wp-content/plugins/waterpark-leaderboard/game-assets/"
 LOCAL_API_PLACEHOLDER="https://REPLACE-WITH-RAILWAY-URL.up.railway.app"
+
+echo "== Target: ${TARGET} (${REMOTE_ALIAS}) =="
 
 echo "== Staging game-assets/ from assets/ =="
 rm -rf waterpark-leaderboard/game-assets
@@ -79,10 +98,10 @@ if grep -q 'REPLACE-WITH-RAILWAY-URL' waterpark-leaderboard/game/index.html; the
   exit 1
 fi
 
-echo "== Syncing plugin to staging =="
+echo "== Syncing plugin to ${TARGET} =="
 rsync -az --exclude ".DS_Store" waterpark-leaderboard/ "${REMOTE_ALIAS}:${REMOTE_PLUGIN_PATH}/"
 
 echo "== Flushing rewrite rules =="
 ssh "${REMOTE_ALIAS}" "wp --path='${REMOTE_WP_PATH}' rewrite flush"
 
-echo "== Done. Game served at: https://env-typhoontexasnew-dev.kinsta.cloud/houston/stampede-wild-rush/play/ =="
+echo "== Done. Game served at: ${GAME_URL} =="

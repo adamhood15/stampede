@@ -17,19 +17,17 @@ class Waterpark_Leaderboard_Game_Router {
 
     // Re-enabled (2026-09-02) — leaderboard migration verification is done
     // and waterpark_gate_page_id now points at the real landing page
-    // (houston/stampede-wild-rush/, published), so the form flow can be
+    // (stampede-wild-rush/, published), so the form flow can be
     // tested end-to-end. Flip to false to serve /play/ ungated again.
     const GATE_ENABLED = true;
 
-    // Matches the real production path (Adam's call, 2026-09-02):
-    // typhoontexas.com/houston/stampede-wild-rush/play/ — not the bare
-    // /play/ this used to register, and not the earlier
-    // houston/stampede-wild-rush-play/ single-slug guess either. Bump
-    // WATERPARK_LEADERBOARD_ROUTES_VERSION whenever this changes again —
-    // maybe_flush() only re-flushes rewrite rules on a version bump, not on
-    // every plugin load.
+    // Matches the real production path (Adam's call, 2026-09-03):
+    // typhoontexas.com/stampede-wild-rush/play/ — dropped the houston/
+    // prefix used until now. Bump WATERPARK_LEADERBOARD_ROUTES_VERSION
+    // whenever this changes again — maybe_flush() only re-flushes rewrite
+    // rules on a version bump, not on every plugin load.
     public static function register_routes() {
-        add_rewrite_rule('^houston/stampede-wild-rush/play/?$', 'index.php?' . self::QUERY_VAR . '=1', 'top');
+        add_rewrite_rule('^stampede-wild-rush/play/?$', 'index.php?' . self::QUERY_VAR . '=1', 'top');
     }
 
     public static function query_vars($vars) {
@@ -50,6 +48,11 @@ class Waterpark_Leaderboard_Game_Router {
         if (!get_query_var(self::QUERY_VAR)) {
             return $template;
         }
+
+        // A bookmarked/shared link inside a valid 15-minute token window is
+        // still real content a crawler could pick up — keep it out of search
+        // results so it can't compete with the real landing page for SEO.
+        header('X-Robots-Tag: noindex, nofollow');
 
         if (self::GATE_ENABLED) {
             $token = isset($_GET['t']) ? $_GET['t'] : '';

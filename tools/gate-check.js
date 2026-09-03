@@ -19,7 +19,7 @@ const { launchChrome, openPage, evaluate, VIEWPORTS } = require("./cdp");
 
 const BASE = process.env.STAMPEDE_STAGING_URL || "https://env-typhoontexasnew-dev.kinsta.cloud";
 // Must match Waterpark_Leaderboard_Game_Router's rewrite rule.
-const GAME_PATH = "/houston/stampede-wild-rush/play/";
+const GAME_PATH = "/stampede-wild-rush/play/";
 
 async function main() {
   const viewportName = process.argv[2] && VIEWPORTS[process.argv[2]] ? process.argv[2] : "phone412";
