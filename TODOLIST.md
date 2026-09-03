@@ -50,37 +50,26 @@ worked for anyone indefinitely; it's been recreated from that same design
 fetch-token/redirect snippet, printed via `wp_footer` on whichever page is
 set as `waterpark_gate_page_id`).
 
-**Not yet done for this gate to work live:**
-- `waterpark_gate_page_id` must be set (which WP page mints/hosts the
-  token-fetch snippet) — nothing sets this option yet.
-- The redirect-on-submit half of the gate-page snippet is still unwired to a
-  real WS Form submit event (see `class-gate-page.php`'s own note) —
-  currently only exposes `window.WaterparkGate.redirectToGame()` for
-  manual/console use.
-- `tools/gate-check.js` (recreated 2026-08-27) verifies the deployed gate
-  end-to-end but hasn't been run against the current staging deploy yet.
+**Gate is live on staging (2026-09-02).** Kinsta overwrote staging with
+production mid-migration (to transfer the form page built directly in
+production), which wiped the plugin and required a full redeploy + host-key/
+SSH-key re-registration. Since then: `waterpark_gate_page_id` is set to
+`8663` (`houston/stampede-wild-rush/`, published), `GATE_ENABLED` is back to
+`true`, and the WS Form on that page has a "Run Javascript" submit action
+calling `window.WaterparkGate.redirectToGame()` — so the redirect-on-submit
+wiring is done, not just the fetch-token half. Verified end-to-end via
+`tools/gate-check.js`: no token redirects to the landing page, a valid token
+boots the game clean (no theme chrome).
 
 Before pushing to live:
-- **Re-enable the gate.** `GATE_ENABLED` in `class-game-router.php` was
-  temporarily flipped to `false` (2026-09-02) so `/play/` could be hit
-  directly on staging while verifying the leaderboard-off-WordPress
-  migration (the gate page isn't configured yet, so with it on, `/play/`
-  redirected to `home_url('/')` instead of a real signup page). **Must be
-  flipped back to `true`** before any live push — otherwise `/play/` is a
-  plain, ungated URL anyone can bookmark and share indefinitely, the exact
-  problem the gate exists to prevent (see "Funnel design" above). Once
-  re-enabled, confirm ungated `/play/` actually redirects to the real
-  signup page (`waterpark_gate_page_id` set to the
-  `stampede-wild-rush-signup` page), not just to the homepage fallback.
 - **`tools/deploy.sh` only targets the Kinsta dev path/site.** Needs
   a production target (or a defined manual equivalent) before it can be used
   for the live push.
-- **The signup page needs to be set as the gate page** (`waterpark_gate_page_id`)
-  and its WS Form submit event wired to call `window.WaterparkGate.redirectToGame()`
-  — nothing currently connects form submission to the redirect.
-- **End-to-end funnel test once that's wired:** submit the real form →
-  confirm Mailchimp gets the subscriber → confirm the button appears →
-  confirm it lands on a working `/play/`.
+- **End-to-end funnel test with the real form:** submit it → confirm
+  Mailchimp gets the subscriber → confirm the redirect fires → confirm it
+  lands on a working `/play/`. `gate-check.js` proves the token/redirect
+  mechanics but drives `redirectToGame()` directly, not a real form submit —
+  still worth a manual pass through the actual WS Form.
 - **Leaderboard test data must not be copied to live** — see the dev-table
   item above; clear it, don't carry it over.
 - **Full screen-by-screen smoke test on the actual live domain** once

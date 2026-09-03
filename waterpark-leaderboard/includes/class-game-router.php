@@ -15,14 +15,11 @@ class Waterpark_Leaderboard_Game_Router {
     // share one source of truth for "which page is the gate."
     const GATE_PAGE_OPTION = 'waterpark_gate_page_id';
 
-    // Re-enabled (2026-08-27) — Adam's call to bring the token gate back.
-    // The gate, the REST route, and the gate-page snippet were untouched
-    // since being switched off; flip to false to serve /play/ ungated again.
-    // Temporarily false (2026-09-02) so the leaderboard migration's
-    // rollout verification can hit /play/ directly on staging while the
-    // gate funnel is still unwired (waterpark_gate_page_id unset) — flip
-    // back to true once verification is done.
-    const GATE_ENABLED = false;
+    // Re-enabled (2026-09-02) — leaderboard migration verification is done
+    // and waterpark_gate_page_id now points at the real landing page
+    // (houston/stampede-wild-rush/, published), so the form flow can be
+    // tested end-to-end. Flip to false to serve /play/ ungated again.
+    const GATE_ENABLED = true;
 
     // Matches the real production path (Adam's call, 2026-09-02):
     // typhoontexas.com/houston/stampede-wild-rush/play/ — not the bare
