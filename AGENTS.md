@@ -26,6 +26,11 @@ links:
   before saying it works.
 - **Confirm before committing.** The user asks for commits; never commit
   unprompted. Branch first if on `main`.
+- **If the token gate is ever taken down for a reason other than
+  testing**, remove the `noindex` (`X-Robots-Tag`) on the game route in
+  `class-game-router.php` — it exists only to keep the gated URL out of
+  search results while a token is required; an intentionally open game
+  should be indexable.
 - **Report faithfully** — say what you actually verified, and what you
   skipped.
 - Run the narrowest relevant test first.

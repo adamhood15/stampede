@@ -15,11 +15,13 @@ class Waterpark_Leaderboard_Game_Router {
     // share one source of truth for "which page is the gate."
     const GATE_PAGE_OPTION = 'waterpark_gate_page_id';
 
-    // Re-enabled (2026-09-02) — leaderboard migration verification is done
-    // and waterpark_gate_page_id now points at the real landing page
-    // (stampede-wild-rush/, published), so the form flow can be
-    // tested end-to-end. Flip to false to serve /play/ ungated again.
-    const GATE_ENABLED = true;
+    // Temporarily off (2026-09-03) — production has no
+    // waterpark_gate_page_id set yet (form/landing page still being built),
+    // so gated requests would fall back to the homepage redirect. This is
+    // FOR TESTING ONLY — flip back to true once the live funnel is ready.
+    // noindex stays on in the meantime (see AGENTS.md — only remove it if
+    // the gate comes down for a reason other than testing).
+    const GATE_ENABLED = false;
 
     // Matches the real production path (Adam's call, 2026-09-03):
     // typhoontexas.com/stampede-wild-rush/play/ — dropped the houston/

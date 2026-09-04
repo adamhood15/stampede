@@ -1,0 +1,197 @@
+/* Form styling, bundled into one portable file.
+   Part 1 (below) is the #signupForm ruleset copied verbatim from
+   landing.css, plus the small slice of its :root tokens the form actually
+   uses — self-contained so this file can be copied to another site on its
+   own and still reproduce the card/field/button look.
+   Part 2 (further down) maps that same look onto Mailchimp's embed
+   markup (#mc_embed_shell). Kept in this one file, rather than split back
+   into landing.css, since the Mailchimp markup is embed output that gets
+   re-pasted whenever the form fields change on their end — isolating the
+   overrides here means a re-paste doesn't require re-merging hand styling
+   back into landing.css. */
+
+:root{
+    --yellow: #fcea00;
+    --orange: #fc901e;
+    --white:  #fcf6f0;
+    --pale:   #e4f6f6;
+    --ink:    #0a0a0a;
+
+    --display: "sutro-deluxe-primary","Haettenschweiler","Arial Narrow","Impact",
+               "Franklin Gothic Bold","Helvetica Neue",Arial,sans-serif;
+    --display-card: "sutro-open-fill","Franklin Gothic Bold","Helvetica Neue",Arial,sans-serif;
+    --copy: "sutro","Helvetica Neue",Arial,sans-serif;
+}
+
+.card,.card *{box-sizing:border-box}
+.card{position:relative;z-index:1;width:100%;font-family:var(--copy);color:var(--white);
+    background:rgba(30,48,72,.85);border:3px solid var(--ink);border-radius:10px;
+    box-shadow:6px 6px 0 var(--ink);padding:26px 20px 24px;margin-top:18px}
+
+.row{display:flex;gap:10px}
+.row .field{flex:1 1 0;min-width:0}
+
+.field{display:block;text-align:left;margin-bottom:14px}
+.field span{display:block;font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--yellow);margin-bottom:5px}
+.field input{width:100%;font:inherit;font-size:15px;color:var(--ink);
+    background:var(--white);border:3px solid var(--ink);border-radius:5px;
+    padding:10px 11px;box-shadow:0 3px 0 var(--ink)}
+.field input::placeholder{color:#8a8a8a}
+.field input:focus{outline:3px solid var(--yellow);outline-offset:2px}
+
+.optins{margin:18px 0 6px;display:flex;flex-direction:column;gap:10px;text-align:left}
+.check{display:flex;align-items:flex-start;gap:10px;font-size:12px;line-height:1.5;
+    letter-spacing:.02em;color:var(--pale);cursor:pointer}
+.check input{width:18px;height:18px;flex:none;margin-top:1px;accent-color:var(--orange)}
+
+.err{margin:8px 0 0;font-size:11px;letter-spacing:.03em;color:var(--yellow);
+    text-align:left}
+
+.btn{display:block;width:100%;cursor:pointer;font-family:var(--display-card);
+    text-transform:uppercase;transform:skewX(-7deg);font-size:clamp(13px,calc(6vw - 5px),22px);
+    white-space:nowrap;letter-spacing:.03em;
+    color:var(--white);-webkit-text-stroke:2px var(--ink);paint-order:stroke fill;
+    background:var(--yellow);border:3px solid var(--ink);border-radius:4px;
+    padding:13px 10px 15px;margin-top:20px;box-shadow:6px 6px 0 var(--ink);
+    text-decoration:none;text-align:center;
+    transition:transform .08s,box-shadow .08s}
+.btn:active{transform:skewX(-7deg) translate(4px,4px);box-shadow:2px 2px 0 var(--ink)}
+.btn:focus-visible{outline:3px solid var(--white);outline-offset:4px}
+
+.fine{margin:16px 0 0;font-size:10px;line-height:1.6;letter-spacing:.02em;
+    color:rgba(252,246,240,.55)}
+
+.card.done{text-align:center;padding:32px 22px 30px}
+.card.done .eyebrow{font-size:10px;letter-spacing:.3em;text-transform:uppercase;
+    color:var(--yellow);margin:0 0 8px}
+.card.done h2{font-family:var(--display);text-transform:uppercase;transform:skewX(-7deg);font-weight:400;
+    font-size:clamp(34px,10.5vw,50px);line-height:1.15;margin:0 0 14px;color:var(--orange);
+    -webkit-text-stroke:2px var(--ink);paint-order:stroke fill}
+.card.done p{font-size:13px;line-height:1.7;color:var(--pale);margin:0}
+.card.done .channel{color:var(--yellow)}
+
+@media (max-width:380px){
+  .row{flex-direction:column;gap:0}
+}
+
+/* --- Part 2: Mailchimp embed (#mc_embed_shell) mapped onto the same look --- */
+
+#mc_embed_shell{width:100%}
+
+#mc_embed_signup{
+    position:relative;z-index:1;width:100%;
+    background:rgba(30,48,72,.85);border:3px solid var(--ink);border-radius:10px;
+    box-shadow:6px 6px 0 var(--ink);padding:26px 20px 24px;margin-top:18px;
+    font-family:var(--copy);color:var(--white);text-align:left}
+
+#mc_embed_signup form{margin:0}
+
+#mc_embed_signup .indicates-required{
+    font-size:11px;letter-spacing:.03em;color:rgba(252,246,240,.55);margin:0 0 14px}
+#mc_embed_signup .asterisk{color:var(--yellow);font-style:normal}
+
+#mc_embed_signup .row{display:flex;gap:10px}
+#mc_embed_signup .row .mc-field-group{flex:1 1 0;min-width:0}
+
+#mc_embed_signup .mc-field-group{display:block;text-align:left;margin-bottom:14px}
+#mc_embed_signup .mc-field-group label,
+#mc_embed_signup .mc-field-group>strong{
+    display:block;font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--yellow);margin-bottom:5px;font-weight:400}
+
+#mc_embed_signup input[type=email],
+#mc_embed_signup input[type=text]{
+    width:100%;font:inherit;font-size:15px;color:var(--ink);
+    background:var(--white);border:3px solid var(--ink)!important;border-radius:5px;
+    padding:10px 11px;box-shadow:0 3px 0 var(--ink)}
+#mc_embed_signup input[type=email]::placeholder,
+#mc_embed_signup input[type=text]::placeholder{color:#8a8a8a}
+#mc_embed_signup input[type=email]:focus,
+#mc_embed_signup input[type=text]:focus{outline:3px solid var(--yellow);outline-offset:2px}
+
+/* Park radio group — same boxed look as the text fields (white fill, ink
+   border + offset shadow) rather than the browser's native control, with a
+   filled dot drawn on :checked since appearance:none drops native ticking. */
+#mc_embed_signup .input-group ul{list-style:none;margin:0;padding:0;display:flex;gap:18px}
+#mc_embed_signup .input-group li{display:flex;align-items:center;gap:8px}
+#mc_embed_signup .input-group input[type=radio]{
+    appearance:none;-webkit-appearance:none;width:22px;height:22px;flex:none;
+    margin:0;position:relative;cursor:pointer;
+    background:var(--white);border:3px solid var(--ink);border-radius:50%;
+    box-shadow:0 3px 0 var(--ink)}
+#mc_embed_signup .input-group input[type=radio]:checked::after{
+    content:"";position:absolute;inset:4px;border-radius:50%;background:var(--orange)}
+#mc_embed_signup .input-group input[type=radio]:focus-visible{
+    outline:3px solid var(--yellow);outline-offset:2px}
+#mc_embed_signup .input-group label{display:inline;margin:0;font-size:12px;
+    letter-spacing:.02em;text-transform:none;color:var(--pale);font-weight:400}
+
+/* SMS phone field — Mailchimp inlines its own border/layout styles on the
+   wrapper and the number input, so those need !important to override. */
+#mc_embed_signup #mce-SMSPHONE{width:100%}
+#mc_embed_signup .mc-field-group>div[style]{
+    background:var(--white);border:3px solid var(--ink)!important;border-radius:5px;
+    box-shadow:0 3px 0 var(--ink)}
+#mc_embed_signup .mc-field-group>div[style] input[type=text]{
+    border:none!important;box-shadow:none;padding:10px 11px 10px 4px}
+#mc_embed_signup .mc-field-group>div[style] input[type=text]::placeholder{color:#8a8a8a}
+#mc_embed_signup #flag-emoji-SMSPHONE{font-size:16px}
+
+#mc_embed_signup .mc-sms-phone-group{margin:10px 0 0;display:flex;
+    flex-wrap:wrap;align-items:flex-start;gap:10px}
+#mc_embed_signup .mc-sms-phone-group input[type=checkbox]{
+    appearance:none;-webkit-appearance:none;width:22px;height:22px;flex:none;
+    margin:0;position:relative;cursor:pointer;
+    background:var(--white);border:3px solid var(--ink);border-radius:5px;
+    box-shadow:0 3px 0 var(--ink)}
+#mc_embed_signup .mc-sms-phone-group input[type=checkbox]:checked::after{
+    content:"";position:absolute;left:50%;top:45%;width:5px;height:10px;
+    border:solid var(--orange);border-width:0 3px 3px 0;
+    transform:translate(-50%,-60%) rotate(45deg)}
+#mc_embed_signup .mc-sms-phone-group input[type=checkbox]:focus-visible{
+    outline:3px solid var(--yellow);outline-offset:2px}
+#mc_embed_signup .small-meta{font-size:10px;line-height:1.6;letter-spacing:.02em;
+    color:rgba(252,246,240,.55)}
+#mc_embed_signup .small-meta p{margin:0}
+#mc_embed_signup .small-meta a{color:var(--yellow)}
+
+#mc_embed_signup #mce-responses{margin:8px 0 0}
+#mc_embed_signup .response{font-size:11px;letter-spacing:.03em;text-align:left}
+#mc_embed_signup #mce-error-response{color:var(--orange)}
+#mc_embed_signup #mce-success-response{color:var(--yellow)}
+
+/* Per-field validation errors — injected by mailchimp-form.js next to
+   whichever field(s) failed, so a customer sees exactly which of the four
+   required inputs (email, SMS phone, park, consent) is missing, instead of
+   one generic message at the bottom of the form. Visibility toggles via
+   the .is-visible class rather than inline style — the mc-field-group>div
+   [style] rule above targets Mailchimp's own inline-styled phone wrapper,
+   and an inline style attribute on this div (from el.style.display) would
+   match that same selector and pick up the white input-box look. */
+#mc_embed_signup .mc-field-error{
+    display:none;margin-top:6px;font-size:11px;letter-spacing:.03em;
+    color:var(--orange);text-align:left}
+#mc_embed_signup .mc-field-error.is-visible{display:block}
+/* The consent checkbox's error lands as a third item in that flex row —
+   give it the full row width so it wraps onto its own line below instead
+   of squeezing into a narrow column next to the legal text. */
+#mc_embed_signup .mc-sms-phone-group>.mc-field-error.is-visible{flex:0 0 100%}
+
+#mc_embed_signup .clear{margin-top:6px}
+#mc_embed_signup .button{
+    display:block;width:100%;cursor:pointer;font-family:var(--display-card);
+    text-transform:uppercase;transform:skewX(-7deg);font-size:clamp(13px,calc(6vw - 5px),22px);
+    white-space:nowrap;letter-spacing:.03em;
+    color:var(--white);-webkit-text-stroke:2px var(--ink);paint-order:stroke fill;
+    background:var(--yellow);border:3px solid var(--ink);border-radius:4px;
+    padding:13px 10px 15px;margin-top:20px;box-shadow:6px 6px 0 var(--ink);
+    text-align:center;transition:transform .08s,box-shadow .08s}
+#mc_embed_signup .button:active{transform:skewX(-7deg) translate(4px,4px);
+    box-shadow:2px 2px 0 var(--ink)}
+#mc_embed_signup .button:focus-visible{outline:3px solid var(--white);outline-offset:4px}
+
+@media (max-width:380px){
+  #mc_embed_signup .row{flex-direction:column;gap:0}
+  #mc_embed_signup .input-group ul{flex-direction:column;gap:8px}
+}

@@ -239,7 +239,7 @@
          align-items:center;justify-content:flex-start;text-align:center;
          /* bottom padding clears the mute button, which floats over every panel
             and was clipping the corner of the last control card on short screens */
-         padding:24px 24px calc(env(safe-area-inset-bottom,0px) + 66px);
+         padding:24px 20px calc(env(safe-area-inset-bottom,0px) + 66px);
          overflow-y:auto;touch-action:pan-y;
          background:radial-gradient(130% 100% at 50% 15%,rgba(48,180,252,.99),rgba(30,48,72,.97))}
   .panel.on{display:flex}
@@ -315,14 +315,14 @@
         font-size:clamp(37px,5.5vw,118px);line-height:.84;color:transparent;margin:0;
         -webkit-text-stroke:2px var(--ink);paint-order:stroke fill;
         }
-  .rideLogo{width:min(84vw,340px);height:auto;margin:0;
+  .rideLogo{width:min(90vw,500px);height:auto;margin:0;
         filter:drop-shadow(4px 6px 0 rgba(10,10,10,.4))}
   .ride::before{content:attr(data-text);position:absolute;z-index:-1;
         inset:0;font-family:"sutro-deluxe-fill",var(--display);white-space:inherit;
         color:var(--orange)}
-  .park{font-family:var(--display-card);text-transform:uppercase;transform:skewX(-7deg);
-        font-size:clamp(14px,4.2vw,22px);letter-spacing:.06em;color:var(--white);
-        margin:0 0 6px;-webkit-text-stroke:2px var(--ink);paint-order:stroke fill}
+  .parkLogoLink{display:inline-block;margin:0 0 14px}
+  .parkLogo{display:block;width:250px;height:auto}
+  @media (max-width:561px){ .parkLogo{width:200px} }
   .tag{margin:14px 0 0;font-size:12px;letter-spacing:.14em;text-transform:uppercase;
        color:rgba(252,246,240,.85);max-width:32ch;line-height:1.7}
   #heroWrap{position:relative;display:flex;align-items:flex-end;justify-content:center;
@@ -342,6 +342,23 @@
        padding:12px 34px 14px;margin-top:20px;box-shadow:6px 6px 0 var(--ink);
        transition:transform .08s,box-shadow .08s}
   .btn:active{transform:skewX(-7deg) translate(4px,4px);box-shadow:2px 2px 0 var(--ink)}
+  /* Same pressed-down look on hover, gated to real pointers: a touch tap on
+     Android Chrome can leave :hover stuck after release with no mouse to
+     clear it, which would leave every button looking permanently half-pressed
+     on a phone. skewX(-7deg) has to stay in the transform here too, or the
+     hover state would snap the button upright for as long as it's hovered. */
+  @media (hover:hover) and (pointer:fine){
+    .btn:hover{transform:skewX(-7deg) translate(4px,4px);box-shadow:2px 2px 0 var(--ink)}
+    /* Ghost/tertiary sit on a shallower 4px shadow than the primary's 6px, so
+       pressing them the same 4px would overshoot their own depth — scaled
+       down instead, following the same translate+remaining-shadow=base-shadow
+       rule the primary uses (6px: 4+2 here; 4px: 2+2). Written as compound
+       selectors, not just inherited from .btn:hover: .btn.ghost,.btn.tertiary's
+       own box-shadow rule below ties this in specificity and sits later in
+       the sheet, so .btn:hover alone would lose that fight on box-shadow and
+       these two would never visibly look pressed. */
+    .btn.ghost:hover,.btn.tertiary:hover{transform:skewX(-7deg) translate(2px,2px);box-shadow:2px 2px 0 var(--ink)}
+  }
   /* Secondary (orange) and tertiary (blue) share one size/shape — only the
      colour differs — because the three-button rule always pairs them side by
      side under the primary: see .ghostRow below. */
@@ -362,6 +379,12 @@
 
   @media (max-width:560px){
     .btn.ghost, .btn.tertiary{font-size:12px;padding:8px 14px 9px;margin-top:10px;box-shadow:3px 3px 0 var(--ink)}
+  }
+  /* A narrow window with a real mouse hits both this and the 560px rule above
+     at once — rescaled again for the 3px shadow that applies there, same
+     translate+remaining-shadow=base-shadow rule (3px: 1+2). */
+  @media (max-width:560px) and (hover:hover) and (pointer:fine){
+    .btn.ghost:hover, .btn.tertiary:hover{transform:skewX(-7deg) translate(1px,1px);box-shadow:2px 2px 0 var(--ink)}
   }
 
   /* ---------- controls ----------
@@ -441,7 +464,7 @@
      .ghost) and for the secondary/tertiary pair the three-button rule calls
      for (pause: How to Play .ghost + Start Over .tertiary) — either way, a
      lone .btn above beats a stack of three competing buttons. */
-  .ghostRow{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;
+  .ghostRow{display:flex;gap:5px;flex-wrap:wrap;justify-content:center;
             align-items:center;max-width:100%}
   /* .btn and .btn.ghost/.tertiary carry different margin-tops (20 vs 12) for
      the stacked layout they were built for; side by side that reads as a
@@ -1171,8 +1194,14 @@
   </div>
 
   <div class="panel on" id="titlePanel">
-    <div class="eyebrow" id="eyebrow">Coming Soon to Typhoon Texas</div>
-    <p class="park" id="parkName">Typhoon Texas</p>
+    <a class="parkLogoLink" href="https://typhoontexas.com/" target="_blank" rel="noopener noreferrer">
+      <img class="parkLogo" alt="Typhoon Texas"
+        src="https://typhoontexas.com/wp-content/uploads/2026/09/White_Horizontal__TTLogo-updated-768x337.png"
+        srcset="https://typhoontexas.com/wp-content/uploads/2026/09/White_Horizontal__TTLogo-updated-300x132.png 300w,
+                https://typhoontexas.com/wp-content/uploads/2026/09/White_Horizontal__TTLogo-updated-768x337.png 768w,
+                https://typhoontexas.com/wp-content/uploads/2026/09/White_Horizontal__TTLogo-updated.png 957w"
+        sizes="(min-width:1024px) 300px, (min-width:561px) 250px, 220px">
+    </a>
     <img class="rideLogo" id="rideLogo" alt="Stampede: Wild Rush"
       src="assets/logo/stampede-logo-600.png"
       srcset="assets/logo/stampede-logo-100.png 100w,
@@ -1892,15 +1921,15 @@ for (const k in ART) load(k, ART[k]);
    (this line) — everywhere else either wants just the name+colon (the big
    title) or the subtitle alone (the smaller line under it). */
 const RIDE_FULL_NAME = CONFIG.rideName + (CONFIG.rideSubtitle ? ": " + CONFIG.rideSubtitle : "");
-$("parkName").textContent = CONFIG.parkName;
 $("revealName").textContent = RIDE_FULL_NAME;
-$("eyebrow").textContent  = CONFIG.eyebrow;
 /* CONFIG.tagline no longer has a home anywhere on the card: the sell line and
    the "collect every letter" prompt both moved into #howPanel, which can
    explain them properly instead of compressing them into one sentence, and
    #overPanel's own tagline ("The real drop opens this summer") was removed
    outright rather than reworded. The key is left in CONFIG in case a sell
-   line finds a home again later. */
+   line finds a home again later. Same story for CONFIG.eyebrow, unused since
+   the title card's eyebrow/park text was replaced by the Typhoon Texas logo
+   image (2026-09-03). */
 $("ctaBtn").textContent   = CONFIG.ctaLabel;
 $("reveal").querySelector(".k").textContent = CONFIG.openingLine;
 /* The one line of copy on the win card, under the sign. Blank hides it outright
@@ -7704,13 +7733,33 @@ function pickPair(){
   return [pick(NAME_A), pick(NAME_B)];
 }
 
+/* Some words ("Rootin'-tootin'", "Rip-roarin'") are too long for the clamp()
+   size at phone widths and were clipping to an ellipsis. Rather than shrink
+   every word to fit the worst case, shrink only the ones that need it: reset
+   to the CSS size, then step down until it fits. */
+function fitReelWord(word){
+  word.style.fontSize = "";
+  let size = parseFloat(getComputedStyle(word).fontSize);
+  const floor = 9;
+  while (word.scrollWidth > word.clientWidth && size > floor){
+    size--;
+    word.style.fontSize = size + "px";
+  }
+}
 function paintReels(){
   /* Writes to the inner span, not the button. The button owns the badge and the
      ray burst, and setting textContent on it would delete the span along with
      them on the first repaint. */
-  $("reelA").querySelector(".reelWord").textContent = reelA;
-  $("reelB").querySelector(".reelWord").textContent = reelB;
+  const wordA = $("reelA").querySelector(".reelWord");
+  const wordB = $("reelB").querySelector(".reelWord");
+  wordA.textContent = reelA;
+  wordB.textContent = reelB;
+  fitReelWord(wordA);
+  fitReelWord(wordB);
 }
+/* clamp()'s vw component moves the button width on rotate/resize, so a word
+   that fit before may not fit now (or a shrunk one no longer needs to be). */
+addEventListener("resize", () => { paintReels(); });
 function rollReel(el, pickFn, assign){
   el.classList.remove("rolling"); void el.offsetWidth;   // restart the animation
   el.classList.add("rolling");
