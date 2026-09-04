@@ -5,6 +5,12 @@
  * (e.g. via a plain <link>/<script> pair, or through GTM) and it injects
  * itself — no markup needs to exist on the host page already.
  *
+ * Assumes the site's Typekit kit (cmv0fio.css — sutro-deluxe-primary,
+ * sutro-open-fill, sutro) is already loaded site-wide; this snippet does
+ * not load it itself. Note the kit does not include sutro-deluxe-fill, so
+ * the .swr-popup__rideLine::before fill layer (see stampede-popup.css)
+ * falls back to sutro-deluxe-primary too.
+ *
  * Optional config — set before this script runs:
  *   window.STAMPEDE_POPUP_CONFIG = {
  *     ctaUrl: 'https://typhoontexas.com/stampede-wild-rush/',
@@ -35,20 +41,7 @@
     phoneImageWebpUrl: scriptDir + '../../assets/popup/Phone.webp'
   }, window.STAMPEDE_POPUP_CONFIG || {});
 
-  var FONT_KIT_HREF = 'https://use.typekit.net/cmv0fio.css';
   var STORAGE_KEY = 'swrPopupLastShown';
-
-  // The popup uses the same Typekit fonts as landing.html/index.html
-  // (sutro-deluxe-primary, sutro). A host page that hasn't already loaded
-  // that kit needs it added, but never duplicate it if the host page (or
-  // an earlier popup init) already has.
-  function ensureFontsLoaded() {
-    if (document.querySelector('link[href="' + FONT_KIT_HREF + '"]')) return;
-    var link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = FONT_KIT_HREF;
-    document.head.appendChild(link);
-  }
 
   function alreadyShownRecently() {
     var raw;
@@ -109,7 +102,6 @@
   function init() {
     if (alreadyShownRecently()) return;
 
-    ensureFontsLoaded();
     var popup = buildPopup();
     document.body.appendChild(popup);
 
